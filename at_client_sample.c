@@ -40,13 +40,16 @@ int at_client_test(int argc, char **argv)
         return -1;
     }
 
-    resp = rt_at_create_resp(RT_AT_CLIENT_RECV_BUFF_LEN, 0, rt_tick_from_millisecond(5000));
+    resp = rt_at_create_resp(256, 0, rt_tick_from_millisecond(5000));
     if (resp == RT_NULL)
     {
         LOG_E("No memory for response structure!");
         return -2;
     }
 
+    /* close echo */
+    rt_at_exec_cmd(resp, "ATE0");
+    
     result = rt_at_exec_cmd(resp, "AT+CIFSR");
     if (result != RT_EOK)
     {
@@ -78,7 +81,7 @@ int at_client_test(int argc, char **argv)
         const char * resp_expr = "%*[^\"]\"%[^\"]\"";
 
         LOG_D(" Parse arguments");
-        if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
+        if (at_resp_parse_line_args(resp, 1, resp_expr, resp_arg) == 1)
         {
             LOG_D("Station IP  : %s", resp_arg);
             memset(resp_arg, 0x00, RT_AT_CMD_MAX_LEN);
@@ -88,7 +91,7 @@ int at_client_test(int argc, char **argv)
             LOG_E("Parse error, current line buff : %s", at_resp_get_line(resp, 4));
         }
 
-        if (at_resp_parse_line_args(resp, 3, resp_expr, resp_arg) == 1)
+        if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
         {
             LOG_D("Station MAC : %s", resp_arg);
         }
