@@ -62,7 +62,7 @@ static int at_socket_event_send(uint32_t event)
 static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t option)
 {
     int result = 0;
-    uint32_t recved;
+    rt_uint32_t recved;
 
     result = rt_event_recv(at_socket_event, event, option | RT_EVENT_FLAG_CLEAR, timeout, &recved);
     if (result != RT_EOK)
