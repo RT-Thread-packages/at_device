@@ -11,6 +11,6 @@ if GetDepend(['AT_DEVICE_ESP8266']):
 if GetDepend(['AT_DEVICE_NOT_SELECTED']):
    src = Glob('*.c')
     
-group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE','RT_AT_USING_CLIENT'], CPPPATH = cwd)
+group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE','RT_AT_USING_CLIENT'], CPPPATH = [cwd])
 
 Return('group')
