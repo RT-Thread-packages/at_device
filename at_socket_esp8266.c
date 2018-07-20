@@ -95,12 +95,16 @@ static int esp8266_socket_close(int socket)
         return -RT_ENOMEM;
     }
 
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
     if (rt_at_exec_cmd(resp, "AT+CIPCLOSE=%d", socket) < 0)
     {
         LOG_E("socket(%d) close failed.", socket);
-        rt_at_delete_resp(resp);
-        return -RT_ERROR;
+        goto __exit;
     }
+
+ __exit:
+    rt_mutex_release(at_event_lock);
 
     if (resp)
     {
@@ -140,8 +144,9 @@ static int esp8266_socket_connect(int socket, char *ip, int32_t port, enum at_so
         return -RT_ENOMEM;
     }
 
-__retry:
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
+__retry:
     if (is_client)
     {
         switch (type)
@@ -170,7 +175,7 @@ __retry:
 
     if (result != RT_EOK && !retryed)
     {
-        LOG_D("udp socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
+        LOG_D("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
         if (esp8266_socket_close(socket) < 0)
         {
             goto __exit;
@@ -181,6 +186,7 @@ __retry:
     }
 
 __exit:
+    rt_mutex_release(at_event_lock);
 
     if (result != RT_EOK)
     {
