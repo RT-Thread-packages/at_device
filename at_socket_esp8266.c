@@ -87,6 +87,7 @@ static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t opt
 static int esp8266_socket_close(int socket)
 {
     rt_at_response_t resp = RT_NULL;
+    int result = RT_EOK;
 
     resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
@@ -100,6 +101,7 @@ static int esp8266_socket_close(int socket)
     if (rt_at_exec_cmd(resp, "AT+CIPCLOSE=%d", socket) < 0)
     {
         LOG_E("socket(%d) close failed.", socket);
+        result = -RT_ERROR;
         goto __exit;
     }
 
@@ -111,7 +113,7 @@ static int esp8266_socket_close(int socket)
         rt_at_delete_resp(resp);
     }
 
-    return RT_EOK;
+    return result;
 }
 
 /**
