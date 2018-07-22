@@ -26,12 +26,12 @@
 #include <string.h>
 
 #include <rtthread.h>
-#include <rt_at.h>
+#include <at.h>
 
 /* AT+CIFSR            Query local IP address and MAC */
 int at_client_test(int argc, char **argv)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     int result = 0;
 
     if (argc != 1)
@@ -40,7 +40,7 @@ int at_client_test(int argc, char **argv)
         return -1;
     }
 
-    resp = rt_at_create_resp(256, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(256, 0, rt_tick_from_millisecond(5000));
     if (resp == RT_NULL)
     {
         LOG_E("No memory for response structure!");
@@ -48,9 +48,9 @@ int at_client_test(int argc, char **argv)
     }
 
     /* close echo */
-    rt_at_exec_cmd(resp, "ATE0");
+    at_exec_cmd(resp, "ATE0");
     
-    result = rt_at_exec_cmd(resp, "AT+CIFSR");
+    result = at_exec_cmd(resp, "AT+CIFSR");
     if (result != RT_EOK)
     {
         LOG_E("AT client send commands failed or return response error!");
@@ -77,14 +77,14 @@ int at_client_test(int argc, char **argv)
     }
 
     {
-        char resp_arg[RT_AT_CMD_MAX_LEN] = { 0 };
+        char resp_arg[AT_CMD_MAX_LEN] = { 0 };
         const char * resp_expr = "%*[^\"]\"%[^\"]\"";
 
         LOG_D(" Parse arguments");
         if (at_resp_parse_line_args(resp, 1, resp_expr, resp_arg) == 1)
         {
             LOG_D("Station IP  : %s", resp_arg);
-            memset(resp_arg, 0x00, RT_AT_CMD_MAX_LEN);
+            memset(resp_arg, 0x00, AT_CMD_MAX_LEN);
         }
         else
         {
@@ -104,7 +104,7 @@ int at_client_test(int argc, char **argv)
 __exit:
     if(resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;

@@ -28,7 +28,7 @@
 #include <rtthread.h>
 #include <sys/socket.h>
 
-#include <rt_at.h>
+#include <at.h>
 #include <at_socket.h>
 
 #ifndef AT_DEVICE_NOT_SELECTED
@@ -90,7 +90,7 @@ static int m26_socket_close(int socket)
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
     cur_socket = socket;
 
-    if (rt_at_exec_cmd(RT_NULL, "AT+QICLOSE=%d", socket) < 0)
+    if (at_exec_cmd(RT_NULL, "AT+QICLOSE=%d", socket) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -143,7 +143,7 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-            if (rt_at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"TCP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"TCP\",\"%s\",%d", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -151,7 +151,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (rt_at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -206,7 +206,7 @@ __exit:
 
 static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nacked)
 {
-    rt_at_response_t resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    at_response_t resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     int result = 0;
 
     if (!resp)
@@ -216,7 +216,7 @@ static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nac
         goto __exit;
     }
 
-    if (rt_at_exec_cmd(resp, "AT+QISACK=%d", socket) < 0)
+    if (at_exec_cmd(resp, "AT+QISACK=%d", socket) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -231,7 +231,7 @@ static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nac
 __exit:
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -272,13 +272,12 @@ static int at_wait_send_finish(int socket, size_t settings_size)
 static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_socket_type type)
 {
     int result = 0, event_result = 0;
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     size_t cur_pkt_size = 0, sent_size = 0;
 
     RT_ASSERT(buff);
-    RT_ASSERT(bfsz);
 
-    resp = rt_at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -290,8 +289,8 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
     /* set current socket for send URC event */
     cur_socket = socket;
     /* set AT client end sign to deal with '>' sign.*/
-    extern int rt_at_set_end_sign(char ch);
-    rt_at_set_end_sign('>');
+    extern int at_set_end_sign(char ch);
+    at_set_end_sign('>');
 
     while (sent_size < bfsz)
     {
@@ -305,14 +304,14 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
         }
 
         /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
-        if (rt_at_exec_cmd(resp, "AT+QISEND=%d,%d", socket, cur_pkt_size) < 0)
+        if (at_exec_cmd(resp, "AT+QISEND=%d,%d", socket, cur_pkt_size) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
         /* send the real data to server or client */
-        result = (int) rt_at_client_send(buff + sent_size, cur_pkt_size);
+        result = (int) at_client_send(buff + sent_size, cur_pkt_size);
         if (result == 0)
         {
             result = -RT_ERROR;
@@ -353,13 +352,13 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
 
 __exit:
     /* reset the end sign for data conflict */
-    rt_at_set_end_sign(0);
+    at_set_end_sign(0);
 
     rt_mutex_release(at_event_lock);
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -380,12 +379,12 @@ static int m26_domain_resolve(const char *name, char ip[16])
 {
     int result = 0;
     char recv_ip[16] = { 0 };
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
-    resp = rt_at_create_resp(128, 4, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 4, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -395,7 +394,7 @@ static int m26_domain_resolve(const char *name, char ip[16])
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
 __restart:
-    if (rt_at_exec_cmd(resp, "AT+QIDNSGIP=\"%s\"", name) < 0)
+    if (at_exec_cmd(resp, "AT+QIDNSGIP=\"%s\"", name) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -419,7 +418,7 @@ __exit:
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -516,11 +515,11 @@ static void urc_recv_func(const char *data, rt_size_t size)
         {
             if (bfsz - temp_size > sizeof(temp))
             {
-                rt_at_client_recv(temp, sizeof(temp));
+                at_client_recv(temp, sizeof(temp));
             }
             else
             {
-                rt_at_client_recv(temp, bfsz - temp_size);
+                at_client_recv(temp, bfsz - temp_size);
             }
             temp_size += sizeof(temp);
         }
@@ -528,7 +527,7 @@ static void urc_recv_func(const char *data, rt_size_t size)
     }
 
     /* sync receive data */
-    if (rt_at_client_recv(recv_buf, bfsz) != bfsz)
+    if (at_client_recv(recv_buf, bfsz) != bfsz)
     {
         LOG_E("receive size(%d) data failed!", bfsz);
         rt_free(recv_buf);
@@ -548,7 +547,7 @@ static void urc_ping_func(const char *data, rt_size_t size)
     int result, recv_len, time, ttl;
     char dst_ip[16] = { 0 };
 
-    RT_ASSERT(data && size);
+    RT_ASSERT(data);
 
     sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
 
@@ -577,12 +576,12 @@ static void urc_ping_func(const char *data, rt_size_t size)
 
 static void urc_func(const char *data, rt_size_t size)
 {
-    RT_ASSERT(data && size);
+    RT_ASSERT(data);
 
     LOG_I("URC data : %.*s", size, data);
 }
 
-static const struct rt_at_urc urc_table[] = {
+static const struct at_urc urc_table[] = {
         {"RING",        "\r\n",                 urc_func},
         {"Call Ready",  "\r\n",                 urc_func},
         {"RDY",         "\r\n",                 urc_func},
@@ -598,13 +597,13 @@ static const struct rt_at_urc urc_table[] = {
 };
 
 /* AT client port initialization */
-int rt_at_client_port_init(void)
+int at_client_port_init(void)
 {
     /* create current AT socket event */
     at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
     if (!at_socket_event)
     {
-        LOG_E("RT AT client port initialize failed! at_sock_event create failed!");
+        LOG_E("AT client port initialize failed! at_sock_event create failed!");
         return -RT_ENOMEM;
     }
 
@@ -612,13 +611,13 @@ int rt_at_client_port_init(void)
     at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
     if (!at_event_lock)
     {
-        LOG_E("RT AT client port initialize failed! at_sock_lock create failed!");
+        LOG_E("AT client port initialize failed! at_sock_lock create failed!");
         rt_event_delete(at_socket_event);
         return -RT_ENOMEM;
     }
 
     /* register URC data execution function  */
-    rt_at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
     return RT_EOK;
 }
@@ -626,25 +625,25 @@ int rt_at_client_port_init(void)
 #define AT_SEND_CMD(resp, resp_line, cmd)                                                                       \
     do                                                                                                          \
     {                                                                                                           \
-        if (rt_at_exec_cmd(rt_at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(5000)), cmd) < 0)  \
+        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(5000)), cmd) < 0)  \
         {                                                                                                       \
-            LOG_E("RT AT send commands(%s) error!", cmd);                                                       \
+            LOG_E("AT send commands(%s) error!", cmd);                                                       \
             return -RT_ERROR;                                                                                   \
         }                                                                                                       \
     } while(0);                                                                                                 \
 
 int m26_net_init(void)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
 
-    resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
         return -RT_ENOMEM;
     }
 
-    if (rt_at_exec_cmd(rt_at_resp_set_info(resp, 64, 2, rt_tick_from_millisecond(5000)), "AT+QILOCIP") == RT_EOK)
+    if (at_exec_cmd(at_resp_set_info(resp, 64, 2, rt_tick_from_millisecond(5000)), "AT+QILOCIP") == RT_EOK)
     {
         LOG_I("AT network is already initialized!");
         return RT_EOK;
@@ -661,7 +660,7 @@ int m26_net_init(void)
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     LOG_I("AT network initialize success!");
@@ -671,7 +670,7 @@ int m26_net_init(void)
 
 int m26_ping(int argc, char **argv)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
 
     if (argc != 2)
     {
@@ -679,14 +678,14 @@ int m26_ping(int argc, char **argv)
         return -RT_ERROR;
     }
 
-    resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         rt_kprintf("No memory for response structure!\n");
         return -RT_ENOMEM;
     }
 
-    if (rt_at_exec_cmd(resp, "AT+QPING=\"%s\"", argv[1]) < 0)
+    if (at_exec_cmd(resp, "AT+QPING=\"%s\"", argv[1]) < 0)
     {
         rt_kprintf("AT send ping commands error!\n");
         return -RT_ERROR;
@@ -694,7 +693,7 @@ int m26_ping(int argc, char **argv)
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return RT_EOK;

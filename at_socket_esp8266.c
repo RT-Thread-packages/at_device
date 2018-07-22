@@ -22,13 +22,13 @@
  * 2018-06-20     chenyong     first version
  */
  
+#include <at.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <rtthread.h>
 #include <sys/socket.h>
 
-#include <rt_at.h>
 #include <at_socket.h>
 
 #ifndef AT_DEVICE_NOT_SELECTED
@@ -86,10 +86,10 @@ static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t opt
  */
 static int esp8266_socket_close(int socket)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     int result = RT_EOK;
 
-    resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -98,7 +98,7 @@ static int esp8266_socket_close(int socket)
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-    if (rt_at_exec_cmd(resp, "AT+CIPCLOSE=%d", socket) < 0)
+    if (at_exec_cmd(resp, "AT+CIPCLOSE=%d", socket) < 0)
     {
         LOG_E("socket(%d) close failed.", socket);
         result = -RT_ERROR;
@@ -110,7 +110,7 @@ static int esp8266_socket_close(int socket)
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -132,14 +132,14 @@ static int esp8266_socket_close(int socket)
  */
 static int esp8266_socket_connect(int socket, char *ip, int32_t port, enum at_socket_type type, rt_bool_t is_client)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     int result = RT_EOK;
     rt_bool_t retryed = RT_FALSE;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
 
-    resp = rt_at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -155,14 +155,14 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands to connect TCP server */
-            if (rt_at_exec_cmd(resp, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,60", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,60", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
             }
             break;
 
         case AT_SOCKET_UDP:
-            if (rt_at_exec_cmd(resp, "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
             }
@@ -196,7 +196,7 @@ __exit:
     }
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -219,13 +219,13 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
 {
     int result = RT_EOK;
     int event_result = 0;
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     size_t cur_pkt_size = 0, sent_size = 0;
 
     RT_ASSERT(buff);
     RT_ASSERT(bfsz > 0);
 
-    resp = rt_at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -238,7 +238,7 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
     cur_socket = socket;
     /* set AT client end sign to deal with '>' sign.*/
     extern int rt_at_set_end_sign(char ch);
-    rt_at_set_end_sign('>');
+    at_set_end_sign('>');
 
     while (sent_size < bfsz)
     {
@@ -252,14 +252,14 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
         }
 
         /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
-        if (rt_at_exec_cmd(resp, "AT+CIPSEND=%d,%d", socket, cur_pkt_size) < 0)
+        if (at_exec_cmd(resp, "AT+CIPSEND=%d,%d", socket, cur_pkt_size) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
         /* send the real data to server or client */
-        result = (int) rt_at_client_send(buff + sent_size, cur_pkt_size);
+        result = (int) at_client_send(buff + sent_size, cur_pkt_size);
         if (result == 0)
         {
             result = -RT_ERROR;
@@ -299,13 +299,13 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
 
 __exit:
     /* reset the end sign for data */
-    rt_at_set_end_sign(0);
+    at_set_end_sign(0);
 
     rt_mutex_release(at_event_lock);
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -325,12 +325,12 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
 {
     int result = RT_EOK;
     char recv_ip[16] = { 0 };
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
-    resp = rt_at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -340,7 +340,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
 __restart:
-    if (rt_at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
+    if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -364,7 +364,7 @@ __exit:
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return result;
@@ -447,11 +447,11 @@ static void urc_recv_func(const char *data, rt_size_t size)
         {
             if (bfsz - temp_size > sizeof(temp))
             {
-                rt_at_client_recv(temp, sizeof(temp));
+                at_client_recv(temp, sizeof(temp));
             }
             else
             {
-                rt_at_client_recv(temp, bfsz - temp_size);
+                at_client_recv(temp, bfsz - temp_size);
             }
             temp_size += sizeof(temp);
         }
@@ -459,7 +459,7 @@ static void urc_recv_func(const char *data, rt_size_t size)
     }
 
     /* sync receive data */
-    if (rt_at_client_recv(recv_buf, bfsz) != bfsz)
+    if (at_client_recv(recv_buf, bfsz) != bfsz)
     {
         LOG_E("receive size(%d) data failed!", bfsz);
         rt_free(recv_buf);
@@ -501,7 +501,7 @@ static void urc_func(const char *data, rt_size_t size)
     }
 }
 
-static struct rt_at_urc urc_table[] = {
+static struct at_urc urc_table[] = {
         {"SEND OK",          "\r\n",           urc_send_func},
         {"SEND FAIL",        "\r\n",           urc_send_func},
         {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
@@ -514,7 +514,7 @@ static struct rt_at_urc urc_table[] = {
 };
 
 /* AT client port initialization */
-int rt_at_client_port_init(void)
+int at_client_port_init(void)
 {
     /* create current AT socket event */
     at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
@@ -534,7 +534,7 @@ int rt_at_client_port_init(void)
     }
 
     /* register URC data execution function  */
-    rt_at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
     return RT_EOK;
 }
@@ -542,7 +542,7 @@ int rt_at_client_port_init(void)
 #define AT_SEND_CMD(resp, cmd)                                                                          \
     do                                                                                                  \
     {                                                                                                   \
-        if (rt_at_exec_cmd(rt_at_resp_set_info(resp, 256, 0, rt_tick_from_millisecond(5000)), cmd) < 0) \
+        if (at_exec_cmd(at_resp_set_info(resp, 256, 0, rt_tick_from_millisecond(5000)), cmd) < 0)       \
         {                                                                                               \
             LOG_E("RT AT send commands(%s) error!", cmd);                                               \
             return -1;                                                                                  \
@@ -551,10 +551,10 @@ int rt_at_client_port_init(void)
 
 static int esp8266_net_init(void)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     rt_size_t i;
 
-    resp = rt_at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -576,7 +576,7 @@ static int esp8266_net_init(void)
         LOG_D("%s", at_resp_get_line(resp, i + 1))
     }
     /* connect to WiFi AP */
-    if (rt_at_exec_cmd(rt_at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), "AT+CWJAP=\"%s\",\"%s\"",
+    if (at_exec_cmd(at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), "AT+CWJAP=\"%s\",\"%s\"",
             AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD) != RT_EOK)
     {
         LOG_E("AT network initialize failed, check ssid(%s) and password(%s).", AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD);
@@ -587,7 +587,7 @@ static int esp8266_net_init(void)
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     LOG_I("AT network initialize success!");
@@ -597,7 +597,7 @@ static int esp8266_net_init(void)
 
 int esp8266_ping(int argc, char **argv)
 {
-    rt_at_response_t resp = RT_NULL;
+    at_response_t resp = RT_NULL;
     static int icmp_seq;
     int req_time;
 
@@ -607,7 +607,7 @@ int esp8266_ping(int argc, char **argv)
         return -RT_ERROR;
     }
 
-    resp = rt_at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         rt_kprintf("No memory for response structure!\n");
@@ -616,10 +616,10 @@ int esp8266_ping(int argc, char **argv)
 
     for(icmp_seq = 1; icmp_seq <= 4; icmp_seq++)
     {
-        if (rt_at_exec_cmd(resp, "AT+PING=\"%s\"", argv[1]) < 0)
+        if (at_exec_cmd(resp, "AT+PING=\"%s\"", argv[1]) < 0)
         {
             rt_kprintf("ping: unknown remote server host\n");
-            rt_at_delete_resp(resp);
+            at_delete_resp(resp);
             return -RT_ERROR;
         }
 
@@ -632,7 +632,7 @@ int esp8266_ping(int argc, char **argv)
 
     if (resp)
     {
-        rt_at_delete_resp(resp);
+        at_delete_resp(resp);
     }
 
     return RT_EOK;
