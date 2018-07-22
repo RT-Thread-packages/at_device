@@ -625,16 +625,21 @@ int at_client_port_init(void)
 #define AT_SEND_CMD(resp, resp_line, cmd)                                                                       \
     do                                                                                                          \
     {                                                                                                           \
-        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(5000)), cmd) < 0)  \
+        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(5000)), cmd) < 0)        \
         {                                                                                                       \
-            LOG_E("AT send commands(%s) error!", cmd);                                                       \
             return -RT_ERROR;                                                                                   \
         }                                                                                                       \
     } while(0);                                                                                                 \
 
 int m26_net_init(void)
 {
+#define CSQ_RETRY                      10
+#define CREG_RETRY                     10
+#define CGREG_RETRY                    10
+
     at_response_t resp = RT_NULL;
+    int i, qimux, qimode;
+    char parsed_data[10];
 
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
@@ -642,17 +647,96 @@ int m26_net_init(void)
         LOG_E("No memory for response structure!");
         return -RT_ENOMEM;
     }
-
-    if (at_exec_cmd(at_resp_set_info(resp, 64, 2, rt_tick_from_millisecond(5000)), "AT+QILOCIP") == RT_EOK)
+    LOG_D("Start initializing the M26 module");
+    /* wait M26 startup finish */
+    rt_thread_delay(rt_tick_from_millisecond(8000));
+    /* disable echo */
+    AT_SEND_CMD(resp, 0, "ATE0");
+    /* get module version */
+    AT_SEND_CMD(resp, 0, "ATI");
+    /* show module version */
+    for (i = 0; i < resp->line_counts - 1; i++)
     {
-        LOG_I("AT network is already initialized!");
-        return RT_EOK;
+        LOG_D("%s", at_resp_get_line(resp, i + 1))
+    }
+    /* check SIM card */
+    AT_SEND_CMD(resp, 2, "AT+CPIN?");
+    if (!at_resp_get_line_by_kw(resp, "READY"))
+    {
+        LOG_E("SIM card detection failed");
+        return -RT_ERROR;
+    }
+    /* waiting for dirty data to be digested */
+    rt_thread_delay(rt_tick_from_millisecond(10));
+    /* check signal strength */
+    for (i = 0; i < CSQ_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, "AT+CSQ");
+        at_resp_parse_line_args(resp, 2, "+CSQ: %s", &parsed_data);
+        if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
+        {
+            LOG_D("Signal strength: %s", parsed_data);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CSQ_RETRY)
+    {
+        LOG_E("Signal strength check failed (%s)", parsed_data);
+        return -RT_ERROR;
+    }
+    /* check the GSM network is registered */
+    for (i = 0; i < CREG_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, "AT+CREG?");
+        at_resp_parse_line_args(resp, 2, "+CREG: %s", &parsed_data);
+        if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
+        {
+            LOG_D("GSM network is registered (%s)", parsed_data);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CREG_RETRY)
+    {
+        LOG_E("The GSM network is register failed (%s)", parsed_data);
+        return -RT_ERROR;
+    }
+    /* check the GPRS network is registered */
+    for (i = 0; i < CGREG_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, "AT+CGREG?");
+        at_resp_parse_line_args(resp, 2, "+CGREG: %s", &parsed_data);
+        if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
+        {
+            LOG_D("GPRS network is registered (%s)", parsed_data);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CGREG_RETRY)
+    {
+        LOG_E("The GPRS network is register failed (%s)", parsed_data);
+        return -RT_ERROR;
     }
 
-    AT_SEND_CMD(resp, 0, "ATE0");
     AT_SEND_CMD(resp, 0, "AT+QIFGCNT=0");
     AT_SEND_CMD(resp, 0, "AT+QICSGP=1, \"CMNET\"");
-    AT_SEND_CMD(resp, 0, "AT+QIMUX=1");
+    AT_SEND_CMD(resp, 0, "AT+QIMODE?");
+
+    at_resp_parse_line_args(resp, 2, "+QIMODE: %d", &qimode);
+    if (qimode == 1)
+    {
+        AT_SEND_CMD(resp, 0, "AT+QIMODE=0");
+    }
+    /* Set to multiple connections */
+    AT_SEND_CMD(resp, 0, "AT+QIMUX?");
+    at_resp_parse_line_args(resp, 2, "+QIMUX: %d", &qimux);
+    if (qimux == 0)
+    {
+        AT_SEND_CMD(resp, 0, "AT+QIMUX=1");
+    }
+
     AT_SEND_CMD(resp, 2, "AT+QIDEACT");
     AT_SEND_CMD(resp, 0, "AT+QIREGAPP");
     AT_SEND_CMD(resp, 0, "AT+QIACT");
