@@ -635,7 +635,7 @@ int m26_net_init(void)
 {
 #define CSQ_RETRY                      10
 #define CREG_RETRY                     10
-#define CGREG_RETRY                    10
+#define CGREG_RETRY                    20
 
     at_response_t resp = RT_NULL;
     int i, qimux, qimode;
