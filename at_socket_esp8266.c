@@ -323,7 +323,9 @@ __exit:
  */
 static int esp8266_domain_resolve(const char *name, char ip[16])
 {
-    int result = RT_EOK;
+#define RESOLVE_RETRY        5
+
+    int i, result = RT_EOK;
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
 
@@ -339,25 +341,36 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-__restart:
-    if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
+    for(i = 0; i < RESOLVE_RETRY; i++)
     {
-        result = -RT_ERROR;
-        goto __exit;
+        if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse the third line of response data, get the IP address */
+        if(at_resp_parse_line_args(resp, at_resp_get_line_num_by_kw(resp, "+CIPDOMAIN:"),
+                "+CIPDOMAIN:%s", recv_ip) < 0)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+
+        if (strlen(recv_ip) < 8)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+        else
+        {
+            strncpy(ip, recv_ip, 15);
+            ip[15] = '\0';
+            break;
+        }
     }
-
-    /* parse the third line of response data, get the IP address */
-    at_resp_parse_line_args(resp, 1, "+CIPDOMAIN:%s", recv_ip);
-
-    if (strlen(recv_ip) < 8)
-    {
-        rt_thread_delay(rt_tick_from_millisecond(100));
-        /* resolve failed, maybe receive an URC CRLF */
-        goto __restart;
-    }
-
-    strncpy(ip, recv_ip, 15);
-    ip[15] = '\0';
 
 __exit:
     rt_mutex_release(at_event_lock);
@@ -623,7 +636,12 @@ int esp8266_ping(int argc, char **argv)
             return -RT_ERROR;
         }
 
-        at_resp_parse_line_args(resp, 1, "+%d", &req_time);
+        if(at_resp_parse_line_args(resp, at_resp_get_line_num_by_kw(resp, "+"),
+                "+%d", &req_time) < 0)
+        {
+            continue;
+        }
+
         if (req_time)
         {
             rt_kprintf("32 bytes from %s icmp_seq=%d time=%d ms\n", argv[1], icmp_seq, req_time);

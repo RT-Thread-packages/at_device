@@ -384,7 +384,8 @@ static int m26_domain_resolve(const char *name, char ip[16])
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
-    resp = at_create_resp(128, 4, rt_tick_from_millisecond(5000));
+    /* The maximum response time is 14 seconds, affected by network status */
+    resp = at_create_resp(128, 4, rt_tick_from_millisecond(14 * 1000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
