@@ -237,7 +237,7 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
     /* set current socket for send URC event */
     cur_socket = socket;
     /* set AT client end sign to deal with '>' sign.*/
-    extern int rt_at_set_end_sign(char ch);
+    extern int at_set_end_sign(char ch);
     at_set_end_sign('>');
 
     while (sent_size < bfsz)
@@ -267,14 +267,14 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
         }
 
         /* waiting result event from AT URC */
-        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(1 * 1000), RT_EVENT_FLAG_OR) < 0)
+        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(5 * 1000), RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = at_socket_event_recv(ESP8266_EVENT_SEND_OK | ESP8266_EVENT_SEND_FAIL, rt_tick_from_millisecond(1 * 1000),
+        if ((event_result = at_socket_event_recv(ESP8266_EVENT_SEND_OK | ESP8266_EVENT_SEND_FAIL, rt_tick_from_millisecond(5 * 1000),
                 RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
