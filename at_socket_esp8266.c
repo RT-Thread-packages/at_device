@@ -350,8 +350,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if(at_resp_parse_line_args(resp, at_resp_get_line_num_by_kw(resp, "+CIPDOMAIN:"),
-                "+CIPDOMAIN:%s", recv_ip) < 0)
+        if(at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
         {
             rt_thread_delay(rt_tick_from_millisecond(100));
             /* resolve failed, maybe receive an URC CRLF */
@@ -636,8 +635,7 @@ int esp8266_ping(int argc, char **argv)
             return -RT_ERROR;
         }
 
-        if(at_resp_parse_line_args(resp, at_resp_get_line_num_by_kw(resp, "+"),
-                "+%d", &req_time) < 0)
+        if(at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
         {
             continue;
         }
