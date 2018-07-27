@@ -49,7 +49,7 @@ int at_client_test(int argc, char **argv)
 
     /* close echo */
     at_exec_cmd(resp, "ATE0");
-    
+
     result = at_exec_cmd(resp, "AT+CIFSR");
     if (result != RT_EOK)
     {
