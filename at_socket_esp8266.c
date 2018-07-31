@@ -237,7 +237,7 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
     /* set current socket for send URC event */
     cur_socket = socket;
     /* set AT client end sign to deal with '>' sign.*/
-    extern int rt_at_set_end_sign(char ch);
+    extern int at_set_end_sign(char ch);
     at_set_end_sign('>');
 
     while (sent_size < bfsz)
@@ -267,14 +267,14 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
         }
 
         /* waiting result event from AT URC */
-        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(1 * 1000), RT_EVENT_FLAG_OR) < 0)
+        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(5 * 1000), RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = at_socket_event_recv(ESP8266_EVENT_SEND_OK | ESP8266_EVENT_SEND_FAIL, rt_tick_from_millisecond(1 * 1000),
+        if ((event_result = at_socket_event_recv(ESP8266_EVENT_SEND_OK | ESP8266_EVENT_SEND_FAIL, rt_tick_from_millisecond(5 * 1000),
                 RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
@@ -323,7 +323,9 @@ __exit:
  */
 static int esp8266_domain_resolve(const char *name, char ip[16])
 {
-    int result = RT_EOK;
+#define RESOLVE_RETRY        5
+
+    int i, result = RT_EOK;
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
 
@@ -339,25 +341,35 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-__restart:
-    if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
+    for(i = 0; i < RESOLVE_RETRY; i++)
     {
-        result = -RT_ERROR;
-        goto __exit;
+        if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse the third line of response data, get the IP address */
+        if(at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+
+        if (strlen(recv_ip) < 8)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+        else
+        {
+            strncpy(ip, recv_ip, 15);
+            ip[15] = '\0';
+            break;
+        }
     }
-
-    /* parse the third line of response data, get the IP address */
-    at_resp_parse_line_args(resp, 1, "+CIPDOMAIN:%s", recv_ip);
-
-    if (strlen(recv_ip) < 8)
-    {
-        rt_thread_delay(rt_tick_from_millisecond(100));
-        /* resolve failed, maybe receive an URC CRLF */
-        goto __restart;
-    }
-
-    strncpy(ip, recv_ip, 15);
-    ip[15] = '\0';
 
 __exit:
     rt_mutex_release(at_event_lock);
@@ -623,7 +635,11 @@ int esp8266_ping(int argc, char **argv)
             return -RT_ERROR;
         }
 
-        at_resp_parse_line_args(resp, 1, "+%d", &req_time);
+        if(at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
+        {
+            continue;
+        }
+
         if (req_time)
         {
             rt_kprintf("32 bytes from %s icmp_seq=%d time=%d ms\n", argv[1], icmp_seq, req_time);

@@ -222,7 +222,7 @@ static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nac
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 2, "+QISACK: %d, %d, %d", size, acked, nacked) <= 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+QISACK:", "+QISACK: %d, %d, %d", size, acked, nacked) <= 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -239,6 +239,7 @@ __exit:
 
 static int at_wait_send_finish(int socket, size_t settings_size)
 {
+    /* get the timeout by the input data size */
     rt_tick_t timeout = rt_tick_from_millisecond(settings_size);
     rt_tick_t last_time = rt_tick_get();
     size_t size = 0, acked = 0, nacked = 0xFFFF;
@@ -377,14 +378,17 @@ __exit:
  */
 static int m26_domain_resolve(const char *name, char ip[16])
 {
-    int result = 0;
+#define RESOLVE_RETRY                  5
+
+    int i, result = RT_EOK;
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
-    resp = at_create_resp(128, 4, rt_tick_from_millisecond(5000));
+    /* The maximum response time is 14 seconds, affected by network status */
+    resp = at_create_resp(128, 4, rt_tick_from_millisecond(14 * 1000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -393,25 +397,35 @@ static int m26_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-__restart:
-    if (at_exec_cmd(resp, "AT+QIDNSGIP=\"%s\"", name) < 0)
+    for(i = 0; i < RESOLVE_RETRY; i++)
     {
-        result = -RT_ERROR;
-        goto __exit;
+        if (at_exec_cmd(resp, "AT+QIDNSGIP=\"%s\"", name) < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse the third line of response data, get the IP address */
+        if(at_resp_parse_line_args_by_kw(resp, ".", "%s", recv_ip) < 0)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+
+        if (strlen(recv_ip) < 8)
+        {
+            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* resolve failed, maybe receive an URC CRLF */
+            continue;
+        }
+        else
+        {
+            strncpy(ip, recv_ip, 15);
+            ip[15] = '\0';
+            break;
+        }
     }
-
-    /* parse the third line of response data, get the IP address */
-    at_resp_parse_line_args(resp, 4, "%s", recv_ip);
-
-    if (strlen(recv_ip) < 8)
-    {
-        rt_thread_delay(rt_tick_from_millisecond(100));
-        /* resolve failed, maybe receive an URC CRLF */
-        goto __restart;
-    }
-
-    strncpy(ip, recv_ip, 15);
-    ip[15] = '\0';
 
 __exit:
     rt_mutex_release(at_event_lock);
@@ -622,10 +636,10 @@ int at_client_port_init(void)
     return RT_EOK;
 }
 
-#define AT_SEND_CMD(resp, resp_line, cmd)                                                                       \
+#define AT_SEND_CMD(resp, resp_line, timeout, cmd)                                                              \
     do                                                                                                          \
     {                                                                                                           \
-        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(5000)), cmd) < 0)        \
+        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(timeout)), cmd) < 0)     \
         {                                                                                                       \
             return -RT_ERROR;                                                                                   \
         }                                                                                                       \
@@ -641,7 +655,7 @@ int m26_net_init(void)
     int i, qimux, qimode;
     char parsed_data[10];
 
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -651,16 +665,16 @@ int m26_net_init(void)
     /* wait M26 startup finish */
     rt_thread_delay(rt_tick_from_millisecond(8000));
     /* disable echo */
-    AT_SEND_CMD(resp, 0, "ATE0");
+    AT_SEND_CMD(resp, 0, 300, "ATE0");
     /* get module version */
-    AT_SEND_CMD(resp, 0, "ATI");
+    AT_SEND_CMD(resp, 0, 300, "ATI");
     /* show module version */
-    for (i = 0; i < resp->line_counts - 1; i++)
+    for (i = 0; i < (int) resp->line_counts - 1; i++)
     {
         LOG_D("%s", at_resp_get_line(resp, i + 1))
     }
     /* check SIM card */
-    AT_SEND_CMD(resp, 2, "AT+CPIN?");
+    AT_SEND_CMD(resp, 2, 5 * 1000, "AT+CPIN?");
     if (!at_resp_get_line_by_kw(resp, "READY"))
     {
         LOG_E("SIM card detection failed");
@@ -671,8 +685,8 @@ int m26_net_init(void)
     /* check signal strength */
     for (i = 0; i < CSQ_RETRY; i++)
     {
-        AT_SEND_CMD(resp, 0, "AT+CSQ");
-        at_resp_parse_line_args(resp, 2, "+CSQ: %s", &parsed_data);
+        AT_SEND_CMD(resp, 0, 300, "AT+CSQ");
+        at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
         if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
         {
             LOG_D("Signal strength: %s", parsed_data);
@@ -688,8 +702,8 @@ int m26_net_init(void)
     /* check the GSM network is registered */
     for (i = 0; i < CREG_RETRY; i++)
     {
-        AT_SEND_CMD(resp, 0, "AT+CREG?");
-        at_resp_parse_line_args(resp, 2, "+CREG: %s", &parsed_data);
+        AT_SEND_CMD(resp, 0, 300, "AT+CREG?");
+        at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
         if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
         {
             LOG_D("GSM network is registered (%s)", parsed_data);
@@ -705,8 +719,8 @@ int m26_net_init(void)
     /* check the GPRS network is registered */
     for (i = 0; i < CGREG_RETRY; i++)
     {
-        AT_SEND_CMD(resp, 0, "AT+CGREG?");
-        at_resp_parse_line_args(resp, 2, "+CGREG: %s", &parsed_data);
+        AT_SEND_CMD(resp, 0, 300, "AT+CGREG?");
+        at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %s", &parsed_data);
         if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
         {
             LOG_D("GPRS network is registered (%s)", parsed_data);
@@ -720,27 +734,32 @@ int m26_net_init(void)
         return -RT_ERROR;
     }
 
-    AT_SEND_CMD(resp, 0, "AT+QIFGCNT=0");
-    AT_SEND_CMD(resp, 0, "AT+QICSGP=1, \"CMNET\"");
-    AT_SEND_CMD(resp, 0, "AT+QIMODE?");
+    AT_SEND_CMD(resp, 0, 300, "AT+QIFGCNT=0");
+    AT_SEND_CMD(resp, 0, 300, "AT+QICSGP=1, \"CMNET\"");
+    AT_SEND_CMD(resp, 0, 300, "AT+QIMODE?");
 
-    at_resp_parse_line_args(resp, 2, "+QIMODE: %d", &qimode);
+    at_resp_parse_line_args_by_kw(resp, "+QIMODE:", "+QIMODE: %d", &qimode);
     if (qimode == 1)
     {
-        AT_SEND_CMD(resp, 0, "AT+QIMODE=0");
+        AT_SEND_CMD(resp, 0, 300, "AT+QIMODE=0");
     }
     /* Set to multiple connections */
-    AT_SEND_CMD(resp, 0, "AT+QIMUX?");
-    at_resp_parse_line_args(resp, 2, "+QIMUX: %d", &qimux);
+    AT_SEND_CMD(resp, 0, 300, "AT+QIMUX?");
+    at_resp_parse_line_args_by_kw(resp, "+QIMUX:", "+QIMUX: %d", &qimux);
     if (qimux == 0)
     {
-        AT_SEND_CMD(resp, 0, "AT+QIMUX=1");
+        AT_SEND_CMD(resp, 0, 300, "AT+QIMUX=1");
     }
 
-    AT_SEND_CMD(resp, 2, "AT+QIDEACT");
-    AT_SEND_CMD(resp, 0, "AT+QIREGAPP");
-    AT_SEND_CMD(resp, 0, "AT+QIACT");
-    AT_SEND_CMD(resp, 2, "AT+QILOCIP");
+    /* the device default response timeout is 40 seconds, but it set to 15 seconds is convenient to use. */
+    AT_SEND_CMD(resp, 2, 20 * 1000, "AT+QIDEACT");
+
+    AT_SEND_CMD(resp, 0, 300, "AT+QIREGAPP");
+
+    /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
+    AT_SEND_CMD(resp, 0, 20 * 1000, "AT+QIACT");
+
+    AT_SEND_CMD(resp, 2, 300, "AT+QILOCIP");
 
     if (resp)
     {
