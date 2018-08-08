@@ -639,14 +639,16 @@ int at_client_port_init(void)
 #define AT_SEND_CMD(resp, resp_line, timeout, cmd)                                                              \
     do                                                                                                          \
     {                                                                                                           \
-        if (at_exec_cmd(at_resp_set_info(resp, 64, resp_line, rt_tick_from_millisecond(timeout)), cmd) < 0)     \
+        if (at_exec_cmd(at_resp_set_info(resp, 128, resp_line, rt_tick_from_millisecond(timeout)), cmd) < 0)    \
         {                                                                                                       \
             return -RT_ERROR;                                                                                   \
         }                                                                                                       \
     } while(0);                                                                                                 \
 
+/* init for M26 or MC20 */
 int m26_net_init(void)
 {
+#define CPIN_RETRY                     10
 #define CSQ_RETRY                      10
 #define CREG_RETRY                     10
 #define CGREG_RETRY                    20
@@ -654,16 +656,18 @@ int m26_net_init(void)
     at_response_t resp = RT_NULL;
     int i, qimux, qimode;
     char parsed_data[10];
+    const char *line_buffer = RT_NULL;
 
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
         return -RT_ENOMEM;
     }
-    LOG_D("Start initializing the M26 module");
+    LOG_D("Start initializing the M26/MC20 module");
     /* wait M26 startup finish */
-    rt_thread_delay(rt_tick_from_millisecond(8000));
+    at_client_wait_connect(5000);
+
     /* disable echo */
     AT_SEND_CMD(resp, 0, 300, "ATE0");
     /* get module version */
@@ -674,10 +678,20 @@ int m26_net_init(void)
         LOG_D("%s", at_resp_get_line(resp, i + 1))
     }
     /* check SIM card */
-    AT_SEND_CMD(resp, 2, 5 * 1000, "AT+CPIN?");
-    if (!at_resp_get_line_by_kw(resp, "READY"))
+    for (i = 0; i < CPIN_RETRY; i++)
     {
-        LOG_E("SIM card detection failed");
+        at_exec_cmd(at_resp_set_info(resp, 128, 2, rt_tick_from_millisecond(5000)), "AT+CPIN?");
+
+        if (at_resp_get_line_by_kw(resp, "READY"))
+        {
+            LOG_D("SIM card detection success");
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CPIN_RETRY)
+    {
+        LOG_E("SIM card detection failed!");
         return -RT_ERROR;
     }
     /* waiting for dirty data to be digested */
@@ -743,6 +757,10 @@ int m26_net_init(void)
     {
         AT_SEND_CMD(resp, 0, 300, "AT+QIMODE=0");
     }
+
+    /* the device default response timeout is 40 seconds, but it set to 15 seconds is convenient to use. */
+    AT_SEND_CMD(resp, 2, 20 * 1000, "AT+QIDEACT");
+
     /* Set to multiple connections */
     AT_SEND_CMD(resp, 0, 300, "AT+QIMUX?");
     at_resp_parse_line_args_by_kw(resp, "+QIMUX:", "+QIMUX: %d", &qimux);
@@ -750,9 +768,6 @@ int m26_net_init(void)
     {
         AT_SEND_CMD(resp, 0, 300, "AT+QIMUX=1");
     }
-
-    /* the device default response timeout is 40 seconds, but it set to 15 seconds is convenient to use. */
-    AT_SEND_CMD(resp, 2, 20 * 1000, "AT+QIDEACT");
 
     AT_SEND_CMD(resp, 0, 300, "AT+QIREGAPP");
 
@@ -802,10 +817,52 @@ int m26_ping(int argc, char **argv)
     return RT_EOK;
 }
 
+int m26_ifconfig(void)
+{
+    at_response_t resp = RT_NULL;
+    char resp_arg[AT_CMD_MAX_LEN] = { 0 };
+    const char * resp_expr = "%s";
+    rt_err_t result = RT_EOK;
+
+    resp = at_create_resp(64, 2, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        rt_kprintf("No memory for response structure!\n");
+        return -RT_ENOMEM;
+    }
+
+    if (at_exec_cmd(resp, "AT+QILOCIP") < 0)
+    {
+        rt_kprintf("AT send ip commands error!\n");
+        result = RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
+    {
+        LOG_D("ip adress : %s", resp_arg);
+    }
+    else
+    {
+        LOG_E("Parse error, current line buff : %s", at_resp_get_line(resp, 2));
+        result = RT_ERROR;
+        goto __exit;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(m26_net_init, at_net_init, initialize AT network);
 MSH_CMD_EXPORT_ALIAS(m26_ping, at_ping, AT ping network host);
+MSH_CMD_EXPORT_ALIAS(m26_ifconfig, at_ifconfig, list the information of network interfaces);
 #endif
 
 static const struct at_device_ops m26_socket_ops = {
