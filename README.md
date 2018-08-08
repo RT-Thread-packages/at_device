@@ -9,7 +9,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | 名称 | 说明 |
 | ---- | ---- |
 | at_socket_esp8266.c  |  ESP8266 模块针对 AT 组件的移植文件，实现 AT socket |
-| at_socket_m26.c | M26 模块针对 AT 组件的移植文件，实现 AT socket |
+| at_socket_m26.c | M26/MC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_client_sample.c | ESP8266 模块 AT Client 功能示例文件 |
 
 ### 1.2 许可证 ###
@@ -43,7 +43,7 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
                   AT socket device modules (Not selected, please select)  --->    
                   Version (latest)  --->
 
-- `AT socket device modules`: AT 设备选择，目前支持 ESP8266、M26 等设备；
+- `AT socket device modules`: AT 设备选择，目前支持 ESP8266、M26/MC20 等设备；
 - `Version`: 下载软件包版本；
 
 ## 3. 注意事项  ##
