@@ -35,6 +35,8 @@
 
 #define ESP8266_MODULE_SEND_MAX_SIZE   2048
 #define ESP8266_WAIT_CONNECT_TIME      5000
+#define ESP8266_THREAD_STACK_SIZE      1024
+#define ESP8266_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX/2)
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -563,7 +565,7 @@ int at_client_port_init(void)
         }                                                                                               \
     } while(0);                                                                                         \
 
-static int esp8266_net_init(void)
+static void esp8266_init_thread_entry(void *parameter)
 {
     at_response_t resp = RT_NULL;
     rt_err_t result = RT_EOK;
@@ -622,8 +624,25 @@ __exit:
     {
         LOG_E("AT network initialize failed (%d)!", result);
     }
+}
 
-    return RT_EOK;
+int esp8266_net_init(void)
+{
+#ifdef PKG_AT_INIT_BY_THREAD
+    rt_thread_t tid;
+
+    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL,ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+    else
+    {
+        LOG_E("Create AT initialization thread fail!");
+    }
+#else
+    esp8266_init_thread_entry(RT_NULL);
+#endif
 }
 
 int esp8266_ping(int argc, char **argv)
