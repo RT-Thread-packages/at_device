@@ -34,6 +34,7 @@
 #ifndef AT_DEVICE_NOT_SELECTED
 
 #define ESP8266_MODULE_SEND_MAX_SIZE   2048
+#define ESP8266_WAIT_CONNECT_TIME      5000
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -557,20 +558,29 @@ int at_client_port_init(void)
         if (at_exec_cmd(at_resp_set_info(resp, 256, 0, rt_tick_from_millisecond(5000)), cmd) < 0)       \
         {                                                                                               \
             LOG_E("RT AT send commands(%s) error!", cmd);                                               \
-            return -1;                                                                                  \
+            result = -RT_ERROR;                                                                         \
+            goto __exit;                                                                                \
         }                                                                                               \
     } while(0);                                                                                         \
 
 static int esp8266_net_init(void)
 {
     at_response_t resp = RT_NULL;
+    rt_err_t result = RT_EOK;
     rt_size_t i;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
-        return -RT_ENOMEM;
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_client_wait_connect(ESP8266_WAIT_CONNECT_TIME))
+    {
+        result = -RT_ETIMEOUT;
+        goto __exit;
     }
     /* reset module */
     AT_SEND_CMD(resp, "AT+RST");
@@ -592,17 +602,26 @@ static int esp8266_net_init(void)
             AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD) != RT_EOK)
     {
         LOG_E("AT network initialize failed, check ssid(%s) and password(%s).", AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD);
-        return -RT_ERROR;
+        result = -RT_ERROR;
+        goto __exit;
     }
 
     AT_SEND_CMD(resp, "AT+CIPMUX=1");
 
+__exit:
     if (resp)
     {
         at_delete_resp(resp);
     }
 
-    LOG_I("AT network initialize success!");
+    if (!result)
+    {
+        LOG_I("AT network initialize success!");
+    }
+    else
+    {
+        LOG_E("AT network initialize failed (%d)!", result);
+    }
 
     return RT_EOK;
 }

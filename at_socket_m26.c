@@ -34,6 +34,7 @@
 #ifndef AT_DEVICE_NOT_SELECTED
 
 #define M26_MODULE_SEND_MAX_SIZE       1460
+#define M26_WAIT_CONNECT_TIME          5000
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -641,7 +642,8 @@ int at_client_port_init(void)
     {                                                                                                           \
         if (at_exec_cmd(at_resp_set_info(resp, 128, resp_line, rt_tick_from_millisecond(timeout)), cmd) < 0)    \
         {                                                                                                       \
-            return -RT_ERROR;                                                                                   \
+            result = -RT_ERROR;                                                                                 \
+            goto __exit;                                                                                        \
         }                                                                                                       \
     } while(0);                                                                                                 \
 
@@ -656,17 +658,19 @@ int m26_net_init(void)
     at_response_t resp = RT_NULL;
     int i, qimux, qimode;
     char parsed_data[10];
+    rt_err_t result = RT_EOK;
     const char *line_buffer = RT_NULL;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
-        return -RT_ENOMEM;
+        result = -RT_ENOMEM;
+        goto __exit;
     }
     LOG_D("Start initializing the M26/MC20 module");
     /* wait M26 startup finish */
-    at_client_wait_connect(5000);
+    at_client_wait_connect(M26_WAIT_CONNECT_TIME);
 
     /* disable echo */
     AT_SEND_CMD(resp, 0, 300, "ATE0");
@@ -692,7 +696,8 @@ int m26_net_init(void)
     if (i == CPIN_RETRY)
     {
         LOG_E("SIM card detection failed!");
-        return -RT_ERROR;
+        result = -RT_ERROR;
+        goto __exit;
     }
     /* waiting for dirty data to be digested */
     rt_thread_delay(rt_tick_from_millisecond(10));
@@ -711,7 +716,8 @@ int m26_net_init(void)
     if (i == CSQ_RETRY)
     {
         LOG_E("Signal strength check failed (%s)", parsed_data);
-        return -RT_ERROR;
+        result = -RT_ERROR;
+        goto __exit;
     }
     /* check the GSM network is registered */
     for (i = 0; i < CREG_RETRY; i++)
@@ -728,7 +734,8 @@ int m26_net_init(void)
     if (i == CREG_RETRY)
     {
         LOG_E("The GSM network is register failed (%s)", parsed_data);
-        return -RT_ERROR;
+        result = -RT_ERROR;
+        goto __exit;
     }
     /* check the GPRS network is registered */
     for (i = 0; i < CGREG_RETRY; i++)
@@ -745,7 +752,8 @@ int m26_net_init(void)
     if (i == CGREG_RETRY)
     {
         LOG_E("The GPRS network is register failed (%s)", parsed_data);
-        return -RT_ERROR;
+        result = -RT_ERROR;
+        goto __exit;
     }
 
     AT_SEND_CMD(resp, 0, 300, "AT+QIFGCNT=0");
@@ -776,14 +784,22 @@ int m26_net_init(void)
 
     AT_SEND_CMD(resp, 2, 300, "AT+QILOCIP");
 
+__exit:
     if (resp)
     {
         at_delete_resp(resp);
     }
 
-    LOG_I("AT network initialize success!");
+    if (!result)
+    {
+        LOG_I("AT network initialize success!");
+    }
+    else
+    {
+        LOG_E("AT network initialize failed (%d)!", result);
+    }
 
-    return RT_EOK;
+    return result;
 }
 
 int m26_ping(int argc, char **argv)
