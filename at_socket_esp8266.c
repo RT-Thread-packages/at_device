@@ -33,7 +33,9 @@
 
 #ifndef AT_DEVICE_NOT_SELECTED
 
-#define ESP8266_MODULE_SEND_MAX_SIZE   2048
+#define ESP8266_MODULE_SEND_MAX_SIZE    2048
+#define RT_ESP8266_THREAD_STACK_SIZE    1024
+#define RT_ESP8266_THREAD_PRIORITY      15
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -557,20 +559,28 @@ int at_client_port_init(void)
         if (at_exec_cmd(at_resp_set_info(resp, 256, 0, rt_tick_from_millisecond(5000)), cmd) < 0)       \
         {                                                                                               \
             LOG_E("RT AT send commands(%s) error!", cmd);                                               \
-            return -1;                                                                                  \
+            result = RT_ERROR;                                                                          \
+            goto __exit;                                                                                \
         }                                                                                               \
     } while(0);                                                                                         \
 
-static int esp8266_net_init(void)
+void esp8266_init_thread_entry(void *parameter)
 {
     at_response_t resp = RT_NULL;
+    rt_err_t result = RT_EOK;
     rt_size_t i;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
-        return -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_client_wait_connect(5000))
+    {
+        result = -RT_ETIMEOUT;
+        goto __exit;
     }
     /* reset module */
     AT_SEND_CMD(resp, "AT+RST");
@@ -589,22 +599,39 @@ static int esp8266_net_init(void)
     }
     /* connect to WiFi AP */
     if (at_exec_cmd(at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), "AT+CWJAP=\"%s\",\"%s\"",
-            AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD) != RT_EOK)
+    AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD) != RT_EOK)
     {
-        LOG_E("AT network initialize failed, check ssid(%s) and password(%s).", AT_DEVICE_WIFI_SSID, AT_DEVICE_WIFI_PASSWORD);
-        return -RT_ERROR;
+        LOG_E("AT network initialize failed, check ssid(%s) and password(%s).", AT_DEVICE_WIFI_SSID,
+                AT_DEVICE_WIFI_PASSWORD);
+        result = -RT_ERROR;
+        goto __exit;
     }
 
     AT_SEND_CMD(resp, "AT+CIPMUX=1");
 
+__exit:
     if (resp)
     {
         at_delete_resp(resp);
     }
 
-    LOG_I("AT network initialize success!");
+    if (!result)
+    {
+        LOG_I("AT network initialize success!");
+    }
+    else
+    {
+        LOG_I("AT network initialize failed! errno is %d",result);
+    }
+}
 
-    return RT_EOK;
+int esp8266_net_init(void)
+{
+    rt_thread_t tid;
+
+    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL,RT_ESP8266_THREAD_STACK_SIZE, RT_ESP8266_THREAD_PRIORITY, 20);
+
+    rt_thread_startup(tid);
 }
 
 int esp8266_ping(int argc, char **argv)
