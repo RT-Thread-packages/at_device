@@ -35,6 +35,8 @@
 
 #define M26_MODULE_SEND_MAX_SIZE       1460
 #define M26_WAIT_CONNECT_TIME          5000
+#define M26_THREAD_STACK_SIZE          1024
+#define M26_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -648,7 +650,7 @@ int at_client_port_init(void)
     } while(0);                                                                                                 \
 
 /* init for M26 or MC20 */
-int m26_net_init(void)
+static void m26_init_thread_entry(void *parameter)
 {
 #define CPIN_RETRY                     10
 #define CSQ_RETRY                      10
@@ -670,8 +672,11 @@ int m26_net_init(void)
     }
     LOG_D("Start initializing the M26/MC20 module");
     /* wait M26 startup finish */
-    at_client_wait_connect(M26_WAIT_CONNECT_TIME);
-
+    if (at_client_wait_connect(M26_WAIT_CONNECT_TIME))
+    {
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
     /* disable echo */
     AT_SEND_CMD(resp, 0, 300, "ATE0");
     /* get module version */
@@ -799,7 +804,25 @@ __exit:
         LOG_E("AT network initialize failed (%d)!", result);
     }
 
-    return result;
+}
+
+int m26_net_init(void)
+{
+#ifdef PKG_AT_INIT_BY_THREAD
+    rt_thread_t tid;
+
+    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, RT_NULL, M26_THREAD_STACK_SIZE, M26_THREAD_PRIORITY, 20);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+    else
+    {
+        LOG_E("Create AT initialization thread fail!");
+    }
+#else
+    m26_init_thread_entry(RT_NULL);
+#endif
 }
 
 int m26_ping(int argc, char **argv)
