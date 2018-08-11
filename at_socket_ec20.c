@@ -1,0 +1,1363 @@
+/*
+ * File      : at_socket_ec20.c
+ * This file is part of RT-Thread RTOS
+ * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Change Logs:
+ * Date           Author       Notes
+ * 2018-06-12     chenyong     first version
+ * 2018-08-12     Marcus       port to ec20
+ */
+
+#include <stdio.h>
+#include <string.h>
+
+#include <rtthread.h>
+#include <sys/socket.h>
+
+#include <at.h>
+#include <at_socket.h>
+
+#ifndef AT_DEVICE_NOT_SELECTED
+
+#define EC20_MODULE_SEND_MAX_SIZE       1460
+
+/* set real event by current socket and current state */
+#define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
+
+/* AT socket event type */
+#define EC20_EVENT_CONN_OK              (1L << 0)
+#define EC20_EVENT_SEND_OK              (1L << 1)
+#define EC20_EVENT_RECV_OK              (1L << 2)
+#define EC20_EVNET_CLOSE_OK             (1L << 3)
+#define EC20_EVENT_CONN_FAIL            (1L << 4)
+#define EC20_EVENT_SEND_FAIL            (1L << 5)
+#define EC20_EVENT_DOMAIN_OK            (1L << 6)
+
+
+
+/* AT+QICSGP command default*/
+char *QICSGP_CHINA_MOBILE = "AT+QICSGP=1,1,\"CMNET\",\"\",\"\",0";
+char *QICSGP_CHINA_UNICOM = "AT+QICSGP=1,1,\"UNINET\",\"\",\"\",0";
+char *QICSGP_CHINA_TELECOM = "AT+QICSGP=1,1,\"CTNET\",\"\",\"\",0";
+
+static int cur_socket;
+static char recv_ip[16] = { 0 };
+static rt_event_t at_socket_event;
+static rt_mutex_t at_event_lock;
+static at_evt_cb_t at_evt_cb_set[] = {
+        [AT_SOCKET_EVT_RECV] = NULL,
+        [AT_SOCKET_EVT_CLOSED] = NULL,
+};
+
+static void at_CME_ErrCode_parse(int result)
+{
+    switch(result)
+    {
+    case 0   : rt_kprintf("%d : Phone failure\n",                result); break;
+    case 1   : rt_kprintf("%d : No connection to phone\n",       result); break;
+    case 2   : rt_kprintf("%d : Phone-adaptor link reserved\n",  result); break;
+    case 3   : rt_kprintf("%d : Operation not allowed\n",        result); break;
+    case 4   : rt_kprintf("%d : Operation not supported\n",      result); break;
+    case 5   : rt_kprintf("%d : PH-SIM PIN required\n",          result); break;
+    case 6   : rt_kprintf("%d : PH-FSIM PIN required\n",         result); break;
+    case 7   : rt_kprintf("%d : PH-FSIM PUK required\n",         result); break;
+    case 10  : rt_kprintf("%d : SIM not inserted\n",             result); break;
+    case 11  : rt_kprintf("%d : SIM PIN required\n",             result); break;
+    case 12  : rt_kprintf("%d : SIM PUK required\n",             result); break;
+    case 13  : rt_kprintf("%d : SIM failure\n",                  result); break;
+    case 14  : rt_kprintf("%d : SIM busy\n",                     result); break;
+    case 15  : rt_kprintf("%d : SIM wrong\n",                    result); break;
+    case 16  : rt_kprintf("%d : Incorrect password\n",           result); break;
+    case 17  : rt_kprintf("%d : SIM PIN2 required\n",            result); break;
+    case 18  : rt_kprintf("%d : SIM PUK2 required\n",            result); break;
+    case 20  : rt_kprintf("%d : Memory full\n",                  result); break;
+    case 21  : rt_kprintf("%d : Invalid index\n",                result); break;
+    case 22  : rt_kprintf("%d : Not found\n",                    result); break;
+    case 23  : rt_kprintf("%d : Memory failure\n",               result); break;
+    case 24  : rt_kprintf("%d : Text string too long\n",         result); break;
+    case 25  : rt_kprintf("%d : Invalid characters in text string\n", result); break;
+    case 26  : rt_kprintf("%d : Dial string too long\n",         result); break;
+    case 27  : rt_kprintf("%d : Invalid characters in dial string\n", result); break;
+    case 30  : rt_kprintf("%d : No network service\n",           result); break;
+    case 31  : rt_kprintf("%d : Network timeout\n",              result); break;
+    case 32  : rt_kprintf("%d : Network not allowed - emergency calls only\n", result); break;
+    case 40  : rt_kprintf("%d : Network personalization PIN required\n", result); break;
+    case 41  : rt_kprintf("%d : Network personalization PUK required\n", result); break;
+    case 42  : rt_kprintf("%d : Network subset personalization PIN required\n", result); break;
+    case 43  : rt_kprintf("%d : Network subset personalization PUK required\n", result); break;
+    case 44  : rt_kprintf("%d : Service provider personalization PIN required\n", result); break;
+    case 45  : rt_kprintf("%d : Service provider personalization PUK required\n", result); break;
+    case 46  : rt_kprintf("%d : Corporate personalization PIN required\n", result); break;
+    case 47  : rt_kprintf("%d : Corporate personalization PUK required\n", result); break;
+    case 901 : rt_kprintf("%d : Audio unknown error\n",          result); break;
+    case 902 : rt_kprintf("%d : Audio invalid parameters\n",     result); break;
+    case 903 : rt_kprintf("%d : Audio operation not supported\n", result); break;
+    case 904 : rt_kprintf("%d : Audio device busy\n",            result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_CMS_ErrCode_parse(int result)
+{
+    switch(result)
+    {
+    case 300 : rt_kprintf("%d : ME failure\n",                   result); break;
+    case 301 : rt_kprintf("%d : SMS ME reserved\n",              result); break;
+    case 302 : rt_kprintf("%d : Operation not allowed\n",        result); break;
+    case 303 : rt_kprintf("%d : Operation not supported\n",      result); break;
+    case 304 : rt_kprintf("%d : Invalid PDU mode\n",             result); break;
+    case 305 : rt_kprintf("%d : Invalid text mode\n",            result); break;
+    case 310 : rt_kprintf("%d : SIM not inserted\n",             result); break;
+    case 311 : rt_kprintf("%d : SIM pin necessary\n",            result); break;
+    case 312 : rt_kprintf("%d : PH SIM pin necessary\n",         result); break;
+    case 313 : rt_kprintf("%d : SIM failure\n",                  result); break;
+    case 314 : rt_kprintf("%d : SIM busy\n",                     result); break;
+    case 315 : rt_kprintf("%d : SIM wrong\n",                    result); break;
+    case 316 : rt_kprintf("%d : SIM PUK required\n",             result); break;
+    case 317 : rt_kprintf("%d : SIM PIN2 required\n",            result); break;
+    case 318 : rt_kprintf("%d : SIM PUK2 required\n",            result); break;
+    case 320 : rt_kprintf("%d : Memory failure\n",               result); break;
+    case 321 : rt_kprintf("%d : Invalid memory index\n",         result); break;
+    case 322 : rt_kprintf("%d : Memory full\n",                  result); break;
+    case 330 : rt_kprintf("%d : SMSC address unknown\n",         result); break;
+    case 331 : rt_kprintf("%d : No network\n",                   result); break;
+    case 332 : rt_kprintf("%d : Network timeout\n",              result); break;
+    case 500 : rt_kprintf("%d : Unknown\n",                      result); break;
+    case 512 : rt_kprintf("%d : SIM not ready\n",                result); break;
+    case 513 : rt_kprintf("%d : Message length exceeds\n",       result); break;
+    case 514 : rt_kprintf("%d : Invalid request parameters\n",   result); break;
+    case 515 : rt_kprintf("%d : ME storage failure\n",           result); break;
+    case 517 : rt_kprintf("%d : Invalid service mode\n",         result); break;
+    case 528 : rt_kprintf("%d : More message to send state error\n", result); break;
+    case 529 : rt_kprintf("%d : MO SMS is not allow\n",          result); break;
+    case 530 : rt_kprintf("%d : GPRS is suspended\n",            result); break;
+    case 531 : rt_kprintf("%d : ME storage full\n",              result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_MMS_ErrCode_parse(int result)//MMS
+{
+    switch(result)
+    {
+    case 751 : rt_kprintf("%d : Unknown error\n",                result); break;
+    case 752 : rt_kprintf("%d : URL length error\n",             result); break;
+    case 753 : rt_kprintf("%d : URL error\n",                    result); break;
+    case 754 : rt_kprintf("%d : Invalid proxy type\n",           result); break;
+    case 755 : rt_kprintf("%d : Proxy address error\n",          result); break;
+    case 756 : rt_kprintf("%d : Invalid parameter\n",            result); break;
+    case 757 : rt_kprintf("%d : Recipient address full\n",       result); break;
+    case 758 : rt_kprintf("%d : CC recipient address full\n",    result); break;
+    case 759 : rt_kprintf("%d : BCC recipient address full\n",   result); break;
+    case 760 : rt_kprintf("%d : Attachments full\n",             result); break;
+    case 761 : rt_kprintf("%d : File error\n",                   result); break;
+    case 762 : rt_kprintf("%d : No recipient\n",                 result); break;
+    case 763 : rt_kprintf("%d : File not found\n",               result); break;
+    case 764 : rt_kprintf("%d : MMS busy\n",                     result); break;
+    case 765 : rt_kprintf("%d : Server response failed\n",       result); break;
+    case 766 : rt_kprintf("%d : Error response of HTTP(S) post\n", result); break;
+    case 767 : rt_kprintf("%d : Invalid report of HTTP(S) post\n", result); break;
+    case 768 : rt_kprintf("%d : PDP activation failed\n",        result); break;
+    case 769 : rt_kprintf("%d : PDP deactivated\n",              result); break;
+    case 770 : rt_kprintf("%d : Socket creation failed\n",       result); break;
+    case 771 : rt_kprintf("%d : Socket connection failed\n",     result); break;
+    case 772 : rt_kprintf("%d : Socket read failed\n",           result); break;
+    case 773 : rt_kprintf("%d : Socket write failed\n",          result); break;
+    case 774 : rt_kprintf("%d : Socket closed\n",                result); break;
+    case 775 : rt_kprintf("%d : Timeout\n",                      result); break;
+    case 776 : rt_kprintf("%d : Encode data error\n",            result); break;
+    case 777 : rt_kprintf("%d : HTTP(S) decode data error\n",    result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+    
+static void at_TCP_IP_ErrCode_parse(int result)//TCP/IP_QIGETERROR
+{
+    switch(result)
+    {
+    case 0   : rt_kprintf("%d : Operation successful\n",         result); break;
+    case 550 : rt_kprintf("%d : Unknown error\n",                result); break;
+    case 551 : rt_kprintf("%d : Operation blocked\n",            result); break;
+    case 552 : rt_kprintf("%d : Invalid parameters\n",           result); break;
+    case 553 : rt_kprintf("%d : Memory not enough\n",            result); break;
+    case 554 : rt_kprintf("%d : Create socket failed\n",         result); break;
+    case 555 : rt_kprintf("%d : Operation not supported\n",      result); break;
+    case 556 : rt_kprintf("%d : Socket bind failed\n",           result); break;
+    case 557 : rt_kprintf("%d : Socket listen failed\n",         result); break;
+    case 558 : rt_kprintf("%d : Socket write failed\n",          result); break;
+    case 559 : rt_kprintf("%d : Socket read failed\n",           result); break;
+    case 560 : rt_kprintf("%d : Socket accept failed\n",         result); break;
+    case 561 : rt_kprintf("%d : Open PDP context failed\n",      result); break;
+    case 562 : rt_kprintf("%d : Close PDP context failed\n",     result); break;
+    case 563 : rt_kprintf("%d : Socket identity has been used\n", result); break;
+    case 564 : rt_kprintf("%d : DNS busy\n",                     result); break;
+    case 565 : rt_kprintf("%d : DNS parse failed\n",             result); break;
+    case 566 : rt_kprintf("%d : Socket connect failed\n",        result); break;
+    case 567 : rt_kprintf("%d : Socket has been closed\n",       result); break;
+    case 568 : rt_kprintf("%d : Operation busy\n",               result); break;
+    case 569 : rt_kprintf("%d : Operation timeout\n",            result); break;
+    case 570 : rt_kprintf("%d : PDP context broken down\n",      result); break;
+    case 571 : rt_kprintf("%d : Cancel send\n",                  result); break;
+    case 572 : rt_kprintf("%d : Operation not allowed\n",        result); break;
+    case 573 : rt_kprintf("%d : APN not configured\n",           result); break;
+    case 574 : rt_kprintf("%d : Port busy\n",                    result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_HTTP_ErrCode_parse(int result)//HTTP
+{
+    switch(result)
+    {
+    case 0   : rt_kprintf("%d : Operation successful\n",         result); break;
+    case 701 : rt_kprintf("%d : HTTP(S) unknown error\n",        result); break;
+    case 702 : rt_kprintf("%d : HTTP(S) timeout\n",              result); break;
+    case 703 : rt_kprintf("%d : HTTP(S) busy\n",                 result); break;
+    case 704 : rt_kprintf("%d : HTTP(S) UART busy\n",            result); break;
+    case 705 : rt_kprintf("%d : HTTP(S) no GET/POST requests\n", result); break;
+    case 706 : rt_kprintf("%d : HTTP(S) network busy\n",         result); break;
+    case 707 : rt_kprintf("%d : HTTP(S) network open failed\n",  result); break;
+    case 708 : rt_kprintf("%d : HTTP(S) network no configuration\n", result); break;
+    case 709 : rt_kprintf("%d : HTTP(S) network deactivated\n",  result); break;
+    case 710 : rt_kprintf("%d : HTTP(S) network error\n",        result); break;
+    case 711 : rt_kprintf("%d : HTTP(S) URL error\n",            result); break;
+    case 712 : rt_kprintf("%d : HTTP(S) empty URL\n",            result); break;
+    case 713 : rt_kprintf("%d : HTTP(S) IP address error\n",     result); break;
+    case 714 : rt_kprintf("%d : HTTP(S) DNS error\n",            result); break;
+    case 715 : rt_kprintf("%d : HTTP(S) socket create error\n",  result); break;
+    case 716 : rt_kprintf("%d : HTTP(S) socket connect error\n", result); break;
+    case 717 : rt_kprintf("%d : HTTP(S) socket read error\n",    result); break;
+    case 718 : rt_kprintf("%d : HTTP(S) socket write error\n",   result); break;
+    case 719 : rt_kprintf("%d : HTTP(S) socket closed\n",        result); break;
+    case 720 : rt_kprintf("%d : HTTP(S) data encode error\n",    result); break;
+    case 721 : rt_kprintf("%d : HTTP(S) data decode error\n",    result); break;
+    case 722 : rt_kprintf("%d : HTTP(S) read timeout\n",         result); break;
+    case 723 : rt_kprintf("%d : HTTP(S) response failed\n",      result); break;
+    case 724 : rt_kprintf("%d : Incoming call busy\n",           result); break;
+    case 725 : rt_kprintf("%d : Voice call busy\n",              result); break;
+    case 726 : rt_kprintf("%d : Input timeout\n",                result); break;
+    case 727 : rt_kprintf("%d : Wait data timeout\n",            result); break;
+    case 728 : rt_kprintf("%d : Wait HTTP(S) response timeout\n", result); break;
+    case 729 : rt_kprintf("%d : Memory allocation failed\n",     result); break;
+    case 730 : rt_kprintf("%d : Invalid parameter\n",            result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_HTTP_ResponseCode_parse(int result)//HTTP
+{
+    switch(result)
+    {
+    case 200 : rt_kprintf("%d : OK\n",                           result); break;
+    case 400 : rt_kprintf("%d : Bad request\n",                  result); break;
+    case 403 : rt_kprintf("%d : Forbidden\n",                    result); break;
+    case 404 : rt_kprintf("%d : Not found\n",                    result); break;
+    case 409 : rt_kprintf("%d : Conflict\n",                     result); break;
+    case 411 : rt_kprintf("%d : Length required\n",              result); break;
+    case 500 : rt_kprintf("%d : Internal server error\n",        result); break;
+    case 502 : rt_kprintf("%d : Bad gate way\n",                 result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_FTP_ErrCode_parse(int result)//FTP
+{
+    switch(result)
+    {
+    case 0   : rt_kprintf("%d : Operation successful\n",         result); break;
+    case 601 : rt_kprintf("%d : Unknown error\n",                result); break;
+    case 602 : rt_kprintf("%d : FTP(S) server blocked\n",        result); break;
+    case 603 : rt_kprintf("%d : FTP(S) server busy\n",           result); break;
+    case 604 : rt_kprintf("%d : DNS parse failed\n",             result); break;
+    case 605 : rt_kprintf("%d : Network error\n",                result); break;
+    case 606 : rt_kprintf("%d : Control connection closed.\n",   result); break;
+    case 607 : rt_kprintf("%d : Data connection closed\n",       result); break;
+    case 608 : rt_kprintf("%d : Socket closed by peer\n",        result); break;
+    case 609 : rt_kprintf("%d : Timeout error\n",                result); break;
+    case 610 : rt_kprintf("%d : Invalid parameter\n",            result); break;
+    case 611 : rt_kprintf("%d : Failed to open file\n",          result); break;
+    case 612 : rt_kprintf("%d : File position invalid\n",        result); break;
+    case 613 : rt_kprintf("%d : File error\n",                   result); break;
+    case 614 : rt_kprintf("%d : Service not available, closing control connection\n", result); break;
+    case 615 : rt_kprintf("%d : Open data connection failed\n",  result); break;
+    case 616 : rt_kprintf("%d : Connection closed; transfer aborted\n", result); break;
+    case 617 : rt_kprintf("%d : Requested file action not taken\n", result); break;
+    case 618 : rt_kprintf("%d : Requested action aborted: local error in processing\n", result); break;
+    case 619 : rt_kprintf("%d : Requested action not taken: insufficient system storage\n", result); break;
+    case 620 : rt_kprintf("%d : Syntax error, command unrecognized\n", result); break;
+    case 621 : rt_kprintf("%d : Syntax error in parameters or arguments\n", result); break;
+    case 622 : rt_kprintf("%d : Command not implemented\n",      result); break;
+    case 623 : rt_kprintf("%d : Bad sequence of commands\n",     result); break;
+    case 624 : rt_kprintf("%d : Command parameter not implemented\n", result); break;
+    case 625 : rt_kprintf("%d : Not logged in\n",                result); break;
+    case 626 : rt_kprintf("%d : Need account for storing files\n", result); break;
+    case 627 : rt_kprintf("%d : Requested action not taken\n",   result); break;
+    case 628 : rt_kprintf("%d : Requested action aborted: page type unknown\n", result); break;
+    case 629 : rt_kprintf("%d : Requested file action aborted\n", result); break;
+    case 630 : rt_kprintf("%d : Requested file name invalid\n",  result); break;
+    case 631 : rt_kprintf("%d : SSL authentication failed\n",    result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_FTP_Protocol_ErrCode_parse(int result)//FTP_Protocol
+{
+    switch(result)
+    {
+    case 421 : rt_kprintf("%d : Service not available, closing control connection\n", result); break;
+    case 425 : rt_kprintf("%d : Open data connection failed\n",  result); break;
+    case 426 : rt_kprintf("%d : Connection closed; transfer aborted\n", result); break;
+    case 450 : rt_kprintf("%d : Requested file action not taken\n", result); break;
+    case 451 : rt_kprintf("%d : Requested action aborted: local error in processing\n", result); break;
+    case 452 : rt_kprintf("%d : Requested action not taken: insufficient system storage\n", result); break;
+    case 500 : rt_kprintf("%d : Syntax error, command unrecognized\n", result); break;
+    case 501 : rt_kprintf("%d : Syntax error in parameters or arguments\n", result); break;
+    case 502 : rt_kprintf("%d : Command not implemented\n",      result); break;
+    case 503 : rt_kprintf("%d : Bad sequence of commands\n",     result); break;
+    case 504 : rt_kprintf("%d : Command parameter not implemented\n", result); break;
+    case 530 : rt_kprintf("%d : Not logged in\n",                result); break;
+    case 532 : rt_kprintf("%d : Need account for storing files\n", result); break;
+    case 550 : rt_kprintf("%d : Requested action not taken: file unavailable\n", result); break;
+    case 551 : rt_kprintf("%d : Requested action aborted: page type unknown\n", result); break;
+    case 552 : rt_kprintf("%d : Requested file action aborted: exceeded storage allocation\n", result); break;
+    case 553 : rt_kprintf("%d : Requested action not taken: file name not allowed\n", result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_SMTP_ErrCode_parse(int result)//Email
+{
+    switch(result)
+    {
+    case 651 : rt_kprintf("%d : Unknown error\n",                result); break;
+    case 652 : rt_kprintf("%d : The SMTP server is busy, such as uploading the body or sending an email.\n", result); break;
+    case 653 : rt_kprintf("%d : Failed to get IP address according to the domain name.\n", result); break;
+    case 654 : rt_kprintf("%d : Network error, such as failed to activate GPRS/CSD context, failed to establish the TCP connection with the SMTP server or failed to send an email to the SMTP server, etc.\n", result); break;
+    case 655 : rt_kprintf("%d : Unsupported authentication type\n", result); break;
+    case 656 : rt_kprintf("%d : The connection for the SMTP server is closed by peer.\n", result); break;
+    case 657 : rt_kprintf("%d : GPRS/CSD context is deactivated.\n", result); break;
+    case 658 : rt_kprintf("%d : Timeout\n",                      result); break;
+    case 659 : rt_kprintf("%d : No recipient for the SMTP server\n", result); break;
+    case 660 : rt_kprintf("%d : Failed to send an email\n",      result); break;
+    case 661 : rt_kprintf("%d : Failed to open a file\n",        result); break;
+    case 662 : rt_kprintf("%d : No enough memory for the attachment\n", result); break;
+    case 663 : rt_kprintf("%d : Failed to save the attachment\n", result); break;
+    case 664 : rt_kprintf("%d : The input parameter is wrong\n", result); break;
+    case 665 : rt_kprintf("%d : SSL authentication failed\n",    result); break;
+    case 666 : rt_kprintf("%d : Service not available, closing transmission channel\n", result); break;
+    case 667 : rt_kprintf("%d : Requested mail action not taken: mailbox unavailable\n", result); break;
+    case 668 : rt_kprintf("%d : Requested action aborted: local error in processing\n", result); break;
+    case 669 : rt_kprintf("%d : Requested action not taken: insufficient system storage\n", result); break;
+    case 670 : rt_kprintf("%d : Syntax error, command unrecognized\n", result); break;
+    case 671 : rt_kprintf("%d : Syntax error in parameters or arguments\n", result); break;
+    case 672 : rt_kprintf("%d : Command not implemented\n",      result); break;
+    case 673 : rt_kprintf("%d : Bad sequence of commands\n",     result); break;
+    case 674 : rt_kprintf("%d : Command parameter not implemented\n", result); break;
+    case 675 : rt_kprintf("%d : <domain> does not accept mail (see RFC1846)\n", result); break;
+    case 676 : rt_kprintf("%d : Access denied\n",                result); break;
+    case 677 : rt_kprintf("%d : Authentication failed\n",        result); break;
+    case 678 : rt_kprintf("%d : Requested action not taken: mailbox unavailable\n", result); break;
+    case 679 : rt_kprintf("%d : User not local; please try <forward-path>\n", result); break;
+    case 680 : rt_kprintf("%d : Requested mail action aborted: exceeded storage allocation\n", result); break;
+    case 681 : rt_kprintf("%d : Requested action not taken: mailbox name not allowed\n", result); break;
+    case 682 : rt_kprintf("%d : Transaction failed\n",           result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static void at_SMTP_Protocol_ErrCode_parse(int result)//Email_Protocol
+{
+    switch(result)
+    {
+    case 421 : rt_kprintf("%d : Service not available, closing transmission channel\n", result); break;
+    case 450 : rt_kprintf("%d : Requested mail action not taken: mailbox unavailable\n", result); break;
+    case 451 : rt_kprintf("%d : Requested action aborted: local error in processing\n", result); break;
+    case 452 : rt_kprintf("%d : Requested action not taken: insufficient system storage\n", result); break;
+    case 500 : rt_kprintf("%d : Syntax error, command unrecognized\n", result); break;
+    case 501 : rt_kprintf("%d : Syntax error in parameters or arguments\n", result); break;
+    case 502 : rt_kprintf("%d : Command not implemented\n",      result); break;
+    case 503 : rt_kprintf("%d : Bad sequence of commands\n",     result); break;
+    case 504 : rt_kprintf("%d : Command parameter not implemented\n", result); break;
+    case 521 : rt_kprintf("%d : <domain> does not accept mail (see RFC1846)\n", result); break;
+    case 530 : rt_kprintf("%d : Access denied\n",                result); break;
+    case 535 : rt_kprintf("%d : Authentication failed\n",        result); break;
+    case 550 : rt_kprintf("%d : Requested action not taken: mailbox unavailable\n", result); break;
+    case 551 : rt_kprintf("%d : User not local; please try <forward-path>\n", result); break;
+    case 552 : rt_kprintf("%d : Requested mail action aborted: exceeded storage allocation\n", result); break;
+    case 553 : rt_kprintf("%d : Requested action not taken: mailbox name not allowed\n", result); break;
+    case 554 : rt_kprintf("%d : Transaction failed\n",           result); break;
+    default  : rt_kprintf("%d : Unknown err code\n",             result); break;
+    }
+}
+
+static int at_socket_event_send(uint32_t event)
+{
+    return (int) rt_event_send(at_socket_event, event);
+}
+
+static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t option)
+{
+    int result = 0;
+    rt_uint32_t recved;
+
+    result = rt_event_recv(at_socket_event, event, option | RT_EVENT_FLAG_CLEAR, timeout, &recved);
+    if (result != RT_EOK)
+    {
+        return -RT_ETIMEOUT;
+    }
+
+    return recved;
+}
+
+/**
+ * close socket by AT commands.
+ *
+ * @param current socket
+ *
+ * @return  0: close socket success
+ *         -1: send AT commands error
+ *         -2: wait socket event timeout
+ *         -5: no memory
+ */
+static int ec20_socket_close(int socket)
+{
+    int result = 0;
+    at_response_t resp = RT_NULL;
+    
+    resp = at_create_resp(128, 2, rt_tick_from_millisecond(10*1000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    result = at_exec_cmd(resp, "AT+QICLOSE=%d,8", socket);
+    
+    
+    if (result == RT_EOK)
+    {
+        if (at_resp_get_line_by_kw(resp, "OK") != RT_NULL)
+        {
+            goto __exit;
+        }
+        else if (at_resp_get_line_by_kw(resp, "ERROR") != RT_NULL)
+        {
+            LOG_E("socket (%d) close failed, \"ERROR\" returned.", socket);
+            goto __exit;
+        }
+        else
+        {
+            LOG_E("socket (%d) close failed, not \"OK\" OR \"ERROR\" returned.", socket);
+            goto __exit;
+        }
+    }
+
+    if (result == -RT_ETIMEOUT)
+    {
+        LOG_E("socket (%d) close failed, wait close OK timeout.", socket);
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    return result;
+}
+
+/**
+ * create TCP/UDP client or server connect by AT commands.
+ *
+ * @param socket current socket
+ * @param ip server or client IP address
+ * @param port server or client port
+ * @param type connect socket type(tcp, udp)
+ * @param is_client connection is client
+ *
+ * @return   0: connect success
+ *          -1: connect failed, send commands error or type error
+ *          -2: wait socket event timeout
+ *          -5: no memory
+ */
+static int ec20_socket_connect(int socket, char *ip, int32_t port, enum at_socket_type type, rt_bool_t is_client)
+{
+    int result = 0, event_result = 0;
+    rt_bool_t retryed = RT_FALSE;
+
+    RT_ASSERT(ip);
+    RT_ASSERT(port >= 0);
+
+    /* lock AT socket connect */
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+__retry:
+
+    if (is_client)
+    {
+        switch (type)
+        {
+        case AT_SOCKET_TCP:
+            /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
+            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", socket, ip, port) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+            break;
+
+        case AT_SOCKET_UDP:
+            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+            break;
+
+        default:
+            LOG_E("Not supported connect type : %d.", type);
+            return -RT_ERROR;
+        }
+    }
+
+    /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
+    if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+    {
+        LOG_E("socket (%d) connect failed, wait connect result timeout.", socket);
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
+    /* waiting OK or failed result */
+    if ((event_result = at_socket_event_recv(EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL, rt_tick_from_millisecond(1 * 1000),
+            RT_EVENT_FLAG_OR)) < 0)
+    {
+        LOG_E("socket (%d) connect failed, wait connect OK|FAIL timeout.", socket);
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
+    /* check result */
+    if (event_result & EC20_EVENT_CONN_FAIL)
+    {
+        if (!retryed)
+        {
+            LOG_E("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
+            if (ec20_socket_close(socket) < 0)
+            {
+                goto __exit;
+            }
+            retryed = RT_TRUE;
+            goto __retry;
+        }
+        LOG_E("socket (%d) connect failed, failed to establish a connection.", socket);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+__exit:
+    /* unlock AT socket connect */
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nacked)
+{
+    at_response_t resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    int result = 0;
+
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+QISEND=%d,0", socket) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args_by_kw(resp, "+QISEND:", "+QISEND: %d,%d,%d", size, acked, nacked) <= 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static int at_wait_send_finish(int socket, size_t settings_size)
+{
+    /* get the timeout by the input data size */
+    rt_tick_t timeout = rt_tick_from_millisecond(settings_size);
+    rt_tick_t last_time = rt_tick_get();
+    size_t size = 0, acked = 0, nacked = 0xFFFF;
+
+    while (rt_tick_get() - last_time <= timeout)
+    {
+        at_get_send_size(socket, &size, &acked, &nacked);
+        if (nacked == 0)
+        {
+            return RT_EOK;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(50));
+    }
+
+    return -RT_ETIMEOUT;
+}
+
+/**
+ * send data to server or client by AT commands.
+ *
+ * @param socket current socket
+ * @param buff send buffer
+ * @param bfsz send buffer size
+ * @param type connect socket type(tcp, udp)
+ *
+ * @return >=0: the size of send success
+ *          -1: send AT commands error or send data error
+ *          -2: waited socket event timeout
+ *          -5: no memory
+ */
+static int ec20_socket_send(int socket, const char *buff, size_t bfsz, enum at_socket_type type)
+{
+    int result = 0, event_result = 0;
+    at_response_t resp = RT_NULL;
+    size_t cur_pkt_size = 0, sent_size = 0;
+
+    RT_ASSERT(buff);
+
+    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* set current socket for send URC event */
+    cur_socket = socket;
+    /* set AT client end sign to deal with '>' sign.*/
+    extern int at_set_end_sign(char ch);
+    at_set_end_sign('>');
+
+    while (sent_size < bfsz)
+    {
+        if (bfsz - sent_size < EC20_MODULE_SEND_MAX_SIZE)
+        {
+            cur_pkt_size = bfsz - sent_size;
+        }
+        else
+        {
+            cur_pkt_size = EC20_MODULE_SEND_MAX_SIZE;
+        }
+
+        /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
+        if (at_exec_cmd(resp, "AT+QISEND=%d,%d", socket, cur_pkt_size) < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* send the real data to server or client */
+        result = (int) at_client_send(buff + sent_size, cur_pkt_size);
+        if (result == 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* waiting result event from AT URC */
+        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(300*3), RT_EVENT_FLAG_OR) < 0)
+        {
+            LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
+            result = -RT_ETIMEOUT;
+            goto __exit;
+        }
+        /* waiting OK or failed result */
+        if ((event_result = at_socket_event_recv(EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL, rt_tick_from_millisecond(1 * 1000),
+                RT_EVENT_FLAG_OR)) < 0)
+        {
+            LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
+            result = -RT_ETIMEOUT;
+            goto __exit;
+        }
+        /* check result */
+        if (event_result & EC20_EVENT_SEND_FAIL)
+        {
+            LOG_E("socket (%d) send failed, return failed.", socket);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (type == AT_SOCKET_TCP)
+        {
+            at_wait_send_finish(socket, cur_pkt_size);
+        }
+
+        sent_size += cur_pkt_size;
+    }
+
+
+__exit:
+    /* reset the end sign for data conflict */
+    at_set_end_sign(0);
+
+    rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+/**
+ * domain resolve by AT commands.
+ *
+ * @param name domain name
+ * @param ip parsed IP address, it's length must be 16
+ *
+ * @return  0: domain resolve success
+ *         -1: send AT commands error or response error
+ *         -2: wait socket event timeout
+ *         -5: no memory
+ */
+static int ec20_domain_resolve(const char *name, char ip[16])
+{
+#define RESOLVE_RETRY                  5
+
+    int i, result;
+//    char recv_ip[16] = { 0 };
+    at_response_t resp = RT_NULL;
+
+
+    RT_ASSERT(name);
+    RT_ASSERT(ip);
+
+    /* The maximum response time is 60 seconds, affected by network status */
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(60 * 1000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    /* Clear EC20_EVENT_DOMAIN_OK */
+    at_socket_event_recv(EC20_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
+    for(i = 0; i < RESOLVE_RETRY; i++)
+    {
+        if (at_exec_cmd(resp, "AT+QIDNSGIP=1,\"%s\"", name) < 0)
+        {
+            LOG_E("Domain \"%s\" resolve return ERROR (%d).", name, i);
+            result = -RT_ERROR;
+            continue;
+        }
+        else
+        {
+            result = RT_EOK;
+            break;
+        }
+    }
+    if (result == RT_EOK)
+    {
+        for(i = 0; i < RESOLVE_RETRY; i++)
+        {
+            /* waiting result event from AT URC, the device default connection timeout is 60 seconds.*/
+            if (at_socket_event_recv(EC20_EVENT_DOMAIN_OK, rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+            {
+                LOG_E("Domain resolve failed, wait dns result timeout.", socket);
+                result = -RT_ETIMEOUT;
+                continue;
+            }
+            else
+            {
+                if (strlen(recv_ip) < 8)
+                {
+                    rt_thread_delay(rt_tick_from_millisecond(100));
+                    /* resolve failed, maybe receive an URC CRLF */
+                    result = -RT_ERROR;
+                    continue;
+                }
+                else
+                {
+                    strncpy(ip, recv_ip, 15);
+                    ip[15] = '\0';
+                    result = RT_EOK;
+                    break;
+                }
+            }
+        }
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+
+}
+
+/**
+ * set AT socket event notice callback
+ *
+ * @param event notice event
+ * @param cb notice callback
+ */
+static void ec20_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
+{
+    if (event < sizeof(at_evt_cb_set) / sizeof(at_evt_cb_set[1]))
+    {
+        at_evt_cb_set[event] = cb;
+    }
+}
+
+static void urc_ping_func(const char *data, rt_size_t size)
+{
+    static int icmp_seq = 0;
+    int result, recv_len, time, ttl;
+    char dst_ip[16] = { 0 };
+
+    RT_ASSERT(data);
+
+    sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
+
+    switch(result)
+    {
+    case 0:
+        rt_kprintf("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms\n", recv_len, dst_ip, icmp_seq++, ttl, time);
+        break;
+    default:
+        rt_kprintf("ping: ");
+        at_TCP_IP_ErrCode_parse(result);
+        break;
+    }
+
+}
+
+static void urc_connect_func(const char *data, rt_size_t size)
+{
+    int socket = 0;
+    int result = 0;
+
+    RT_ASSERT(data && size);
+
+    sscanf(data, "%*[^0-9]%d,%d", &socket , &result);
+
+    if (result == 0)
+    {
+        at_socket_event_send(SET_EVENT(socket, EC20_EVENT_CONN_OK));
+    }
+    else
+    {
+        at_TCP_IP_ErrCode_parse(result);
+        at_socket_event_send(SET_EVENT(socket, EC20_EVENT_CONN_FAIL));
+    }
+}
+
+static void urc_send_func(const char *data, rt_size_t size)
+{
+    RT_ASSERT(data && size);
+
+    if (strstr(data, "SEND OK"))
+    {
+        at_socket_event_send(SET_EVENT(cur_socket, EC20_EVENT_SEND_OK));
+    }
+    else if (strstr(data, "SEND FAIL"))
+    {
+        at_socket_event_send(SET_EVENT(cur_socket, EC20_EVENT_SEND_FAIL));
+    }
+}
+
+static void urc_close_func(const char *data, rt_size_t size)
+{
+    int socket = 0;
+
+    RT_ASSERT(data && size);
+
+    sscanf(data, "+QIURC: \"closed\",%d", &socket);
+
+    /* notice the socket is disconnect by remote */
+    if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
+    {
+        at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, NULL, 0);
+    }
+}
+
+static void urc_recv_func(const char *data, rt_size_t size)
+{
+    int socket = 0;
+    rt_size_t bfsz = 0, temp_size = 0;
+    char *recv_buf = RT_NULL, temp[8];
+
+    RT_ASSERT(data && size);
+    
+    /* get the current socket and receive buffer size by receive data */
+    sscanf(data, "+QIURC: \"recv\",%d,%d", &socket, (int *) &bfsz);
+
+    if (socket < 0 || bfsz == 0)
+        return;
+
+    recv_buf = rt_calloc(1, bfsz);
+    if (!recv_buf)
+    {
+        LOG_E("no memory for URC receive buffer (%d)!", bfsz);
+        /* read and clean the coming data */
+        while (temp_size < bfsz)
+        {
+            if (bfsz - temp_size > sizeof(temp))
+            {
+                at_client_recv(temp, sizeof(temp));
+            }
+            else
+            {
+                at_client_recv(temp, bfsz - temp_size);
+            }
+            temp_size += sizeof(temp);
+        }
+        return;
+    }
+
+    /* sync receive data */
+    if (at_client_recv(recv_buf, bfsz) != bfsz)
+    {
+        LOG_E("receive size(%d) data failed!", bfsz);
+        rt_free(recv_buf);
+        return;
+    }
+
+    /* notice the receive buffer and buffer size */
+    if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
+    {
+        at_evt_cb_set[AT_SOCKET_EVT_RECV](socket, AT_SOCKET_EVT_RECV, recv_buf, bfsz);
+    }
+}
+
+static void urc_pdpdeact_func(const char *data, rt_size_t size)
+{
+    int connectID = 0;
+
+    RT_ASSERT(data && size);
+
+    sscanf(data, "+QIURC: \"pdpdeact\",%d", &connectID);
+
+    LOG_E("Context (%d) is deactivated.", connectID);
+}
+
+static void urc_dnsqip_func(const char *data, rt_size_t size)
+{
+    int i = 0, j = 0;
+
+    RT_ASSERT(data && size);
+
+    for(i=0;i<size;i++)
+    {
+        if(*(data+i) == '.')
+            j++;
+    }
+    if(j == 3)
+    {
+        sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
+        recv_ip[15] = '\0';
+        at_socket_event_send(EC20_EVENT_DOMAIN_OK);
+    }
+}
+
+static void urc_func(const char *data, rt_size_t size)
+{
+    RT_ASSERT(data);
+
+    LOG_I("URC data : %.*s", size, data);
+}
+
+static void urc_qiurc_func(const char *data, rt_size_t size)
+{
+    RT_ASSERT(data && size);
+
+    rt_kprintf("qiurc : %s", data);
+    switch(*(data+9))
+    {
+    case 'c' : urc_close_func(data, size); break;//+QIURC: "closed"
+    case 'r' : urc_recv_func(data, size); break;//+QIURC: "recv"
+    case 'p' : urc_pdpdeact_func(data, size); break;//+QIURC: "pdpdeact"
+    case 'd' : urc_dnsqip_func(data, size); break;//+QIURC: "dnsgip"
+    default  : urc_func(data, size);      break;//
+    }
+}
+
+static const struct at_urc urc_table[] = {
+        {"SEND OK",     "\r\n",                 urc_send_func},
+        {"SEND FAIL",   "\r\n",                 urc_send_func},
+        {"+QPING:",     "\r\n",                 urc_ping_func},
+        {"+QIOPEN:",    "\r\n",                 urc_connect_func},
+        {"+QIURC:",     "\r\n",                 urc_qiurc_func},
+};
+
+/* AT client port initialization */
+int at_client_port_init(void)
+{
+    /* create current AT socket event */
+    at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
+    if (!at_socket_event)
+    {
+        LOG_E("AT client port initialize failed! at_sock_event create failed!");
+        return -RT_ENOMEM;
+    }
+
+    /* create current AT socket lock */
+    at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
+    if (!at_event_lock)
+    {
+        LOG_E("AT client port initialize failed! at_sock_lock create failed!");
+        rt_event_delete(at_socket_event);
+        return -RT_ENOMEM;
+    }
+
+    /* register URC data execution function  */
+    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    return RT_EOK;
+}
+
+#define AT_SEND_CMD(resp, resp_line, timeout, cmd)                                                              \
+    do                                                                                                          \
+    {                                                                                                           \
+        if (at_exec_cmd(at_resp_set_info(resp, 128, resp_line, rt_tick_from_millisecond(timeout)), cmd) < 0)     \
+        {                                                                                                       \
+            return -RT_ERROR;                                                                                   \
+        }                                                                                                       \
+    } while(0);                                                                                                 \
+
+int ec20_net_init(void)
+{
+#define AT_RETRY                       10
+#define CIMI_RETRY                     10
+#define CSQ_RETRY                      20
+#define CREG_RETRY                     10
+#define CGREG_RETRY                    20
+
+    at_response_t resp = RT_NULL;
+    int i, qi_arg[3];
+    char parsed_data[20];
+
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+    LOG_D("Start initializing the EC20 module");
+    /* wait EC20 startup finish */
+    rt_thread_delay(rt_tick_from_millisecond(1000));
+    /* Start AT SYNC: Send AT every 500ms, if receive OK, SYNC success, if no OK return after sending AT 10 times, SYNC fail */
+    i = 0;
+    while(at_exec_cmd(at_resp_set_info(resp, 128, 0, rt_tick_from_millisecond(500)), "AT") < 0)
+    {
+        i++;
+        LOG_D("AT SYNC %d", i);
+        if(i > AT_RETRY)
+        {
+            LOG_E("AT SYNC failed");
+            return -RT_ERROR;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    /* set response format to ATV1 */
+    AT_SEND_CMD(resp, 0, 300, "ATV1");
+    /* disable echo */
+    AT_SEND_CMD(resp, 0, 300, "ATE0");
+    /* Use AT+CMEE=2 to enable result code and use verbose values */
+    AT_SEND_CMD(resp, 0, 300, "AT+CMEE=2");
+    /* Get the baudrate */
+    AT_SEND_CMD(resp, 0, 300, "AT+IPR?");
+    at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
+    LOG_D("Baudrate %d", i);
+    /* get module version */
+    AT_SEND_CMD(resp, 0, 300, "ATI");
+    /* show module version */
+    for (i = 0; i < (int) resp->line_counts - 1; i++)
+    {
+        LOG_D("%s", at_resp_get_line(resp, i + 1))
+    }
+    /* Use AT+GSN to query the IMEI of module */
+    AT_SEND_CMD(resp, 0, 300, "AT+GSN");
+    
+    /* check SIM card */
+    AT_SEND_CMD(resp, 2, 5 * 1000, "AT+CPIN?");
+    if (!at_resp_get_line_by_kw(resp, "READY"))
+    {
+        LOG_E("SIM card detection failed");
+        return -RT_ERROR;
+    }
+    /* waiting for dirty data to be digested */
+    rt_thread_delay(rt_tick_from_millisecond(10));
+    
+    
+    /* Use AT+CIMI to query the IMSI of SIM card */
+//    AT_SEND_CMD(resp, 2, 300, "AT+CIMI");
+    i = 0;
+    while(at_exec_cmd(at_resp_set_info(resp, 128, 0, rt_tick_from_millisecond(300)), "AT+CIMI") < 0)
+    {
+        i++;
+        LOG_D("AT+CIMI %d", i);
+        if(i > CIMI_RETRY)
+        {
+            LOG_E("Read CIMI failed");
+            return -RT_ERROR;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+
+    /* Use AT+QCCID to query ICCID number of SIM card */
+    AT_SEND_CMD(resp, 0, 300, "AT+QCCID");
+    /* check signal strength */
+    for (i = 0; i < CSQ_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, 300, "AT+CSQ");
+        at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &qi_arg[0], &qi_arg[1]);
+        if (qi_arg[0] != 99)
+        {
+            LOG_D("Signal strength: %d  Channel bit error rate: %d", qi_arg[0], qi_arg[1]);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CSQ_RETRY)
+    {
+        LOG_E("Signal strength check failed (%s)", parsed_data);
+        return -RT_ERROR;
+    }
+    /* check the GSM network is registered */
+    for (i = 0; i < CREG_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, 300, "AT+CREG?");
+        at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
+        if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
+        {
+            LOG_D("GSM network is registered (%s)", parsed_data);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CREG_RETRY)
+    {
+        LOG_E("The GSM network is register failed (%s)", parsed_data);
+        return -RT_ERROR;
+    }
+    /* check the GPRS network is registered */
+    for (i = 0; i < CGREG_RETRY; i++)
+    {
+        AT_SEND_CMD(resp, 0, 300, "AT+CGREG?");
+        at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %s", &parsed_data);
+        if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
+        {
+            LOG_D("GPRS network is registered (%s)", parsed_data);
+            break;
+        }
+        rt_thread_delay(rt_tick_from_millisecond(1000));
+    }
+    if (i == CGREG_RETRY)
+    {
+        LOG_E("The GPRS network is register failed (%s)", parsed_data);
+        return -RT_ERROR;
+    }
+    /*Use AT+CEREG? to query current EPS Network Registration Status*/
+    AT_SEND_CMD(resp, 0, 300, "AT+CEREG?");
+    /* Query Socket Service Status */
+    AT_SEND_CMD(resp, 0, 300, "AT+QISTATE?");
+    /* Use AT+COPS? to query current Network Operator */
+    AT_SEND_CMD(resp, 0, 300, "AT+COPS?");
+    at_resp_parse_line_args_by_kw(resp, "+COPS:", "+COPS: %*[^\"]\"%[^\"]", &parsed_data);
+    if(strcmp(parsed_data,"CHINA MOBILE") == 0)
+    {
+//        LOG_I("CMCC");
+        LOG_I("%s", parsed_data);
+        AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_MOBILE);
+    }
+    else if(strcmp(parsed_data,"CHN-UNICOM") == 0)
+    {
+//        LOG_I("UNICOM");
+        LOG_I("%s", parsed_data);
+        AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_UNICOM);
+    }
+    else if(strcmp(parsed_data,"CHN-CT") == 0)
+    {
+        AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_TELECOM);
+//        LOG_I("CT");
+        LOG_I("%s", parsed_data);
+    }
+    /* Enable automatic time zone update via NITZ and update LOCAL time to RTC */
+    AT_SEND_CMD(resp, 0, 300, "AT+CTZU=3");
+    /* Get RTC time */
+    AT_SEND_CMD(resp, 0, 300, "AT+CCLK?");
+
+    /* Deactivate context profile */
+    AT_SEND_CMD(resp, 0, 40 * 1000, "AT+QIDEACT=1");
+    /* Activate context profile */
+    AT_SEND_CMD(resp, 0, 150 * 1000, "AT+QIACT=1");
+    /* Query the status of the context profile */
+    AT_SEND_CMD(resp, 0, 150 * 1000, "AT+QIACT?");
+    at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", &parsed_data);
+    LOG_I("%s", parsed_data);
+    
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    LOG_I("AT network initialize success!");
+
+    return RT_EOK;
+}
+
+int ec20_time(int argc, char **argv)
+{
+//    QNTP
+
+    return RT_EOK;
+}
+
+int ec20_ping(int argc, char **argv)
+{
+    at_response_t resp = RT_NULL;
+
+    if (argc != 2)
+    {
+        rt_kprintf("Please input: at_ping <host address>\n");
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    if (!resp)
+    {
+        rt_kprintf("No memory for response structure!\n");
+        return -RT_ENOMEM;
+    }
+
+    if (at_exec_cmd(resp, "AT+QPING=1,\"%s\"", argv[1]) < 0)
+    {
+        rt_kprintf("AT send ping commands error!\n");
+        return -RT_ERROR;
+    }
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return RT_EOK;
+}
+
+int ec20_connect(int argc, char **argv)
+{
+    int32_t port;
+
+    if (argc != 3)
+    {
+        rt_kprintf("Please input: at_connect <host address>\n");
+        return -RT_ERROR;
+    }
+    sscanf(argv[2],"%d",&port);
+    ec20_socket_connect(0, argv[1], port, AT_SOCKET_TCP, 1);
+
+    return RT_EOK;
+}
+
+int ec20_close(int argc, char **argv)
+{
+    if (ec20_socket_close(0) < 0)
+    {
+        rt_kprintf("ec20_socket_close fail\n");
+    }
+    else
+    {
+        rt_kprintf("ec20_socket_closeed\n");
+    }
+    return RT_EOK;
+}
+
+int ec20_send(int argc, char **argv)
+{
+    const char *buff = "1234567890\n";
+    if (ec20_socket_send(0, buff, 11, AT_SOCKET_TCP) < 0)
+    {
+        rt_kprintf("ec20_socket_send fail\n");
+    }
+
+    return RT_EOK;
+}
+
+int ec20_domain(int argc, char **argv)
+{
+    char ip[16];
+    if (ec20_domain_resolve("baidu.com", ip) < 0)
+    {
+        rt_kprintf("ec20_socket_send fail\n");
+    }
+    else
+    {
+        rt_kprintf("baidu.com : %s\n", ip);
+    }
+
+    return RT_EOK;
+}
+
+
+#ifdef FINSH_USING_MSH
+#include <finsh.h>
+MSH_CMD_EXPORT_ALIAS(ec20_net_init, at_net_init, initialize AT network);
+MSH_CMD_EXPORT_ALIAS(ec20_ping, at_ping, AT ping network host);
+MSH_CMD_EXPORT_ALIAS(ec20_connect, at_connect, AT connect network host);
+MSH_CMD_EXPORT_ALIAS(ec20_close, at_close, AT close a socket);
+MSH_CMD_EXPORT_ALIAS(ec20_send, at_send, AT send a pack);
+MSH_CMD_EXPORT_ALIAS(ec20_domain, at_domain, AT domain resolve);
+#endif
+
+static const struct at_device_ops ec20_socket_ops = {
+    .connect =              ec20_socket_connect,
+    .close =                ec20_socket_close,
+    .send =                 ec20_socket_send,
+    .domain_resolve =       ec20_domain_resolve,
+    .set_event_cb =         ec20_socket_set_event_cb,
+};
+
+static int at_socket_device_init(void)
+{
+    ec20_net_init();
+
+    at_scoket_device_register(&ec20_socket_ops);
+
+    return 0;
+}
+INIT_APP_EXPORT(at_socket_device_init);
+
+#endif /* AT_DEVICE_NOT_SELECTED */

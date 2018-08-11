@@ -5,6 +5,9 @@ cwd = GetCurrentDir()
 if GetDepend(['AT_DEVICE_M26']):
     src = Glob('at_socket_m26.c')
 
+if GetDepend(['AT_DEVICE_EC20']):
+    src = Glob('at_socket_ec20.c')
+
 if GetDepend(['AT_DEVICE_ESP8266']):
     src = Glob('at_socket_esp8266.c')
 
