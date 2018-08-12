@@ -71,47 +71,47 @@ static void at_cme_errcode_parse(int result)
 {
     switch(result)
     {
-    case 0   : LOG_E("%d : Phone failure\n",                result); break;
-    case 1   : LOG_E("%d : No connection to phone\n",       result); break;
-    case 2   : LOG_E("%d : Phone-adaptor link reserved\n",  result); break;
-    case 3   : LOG_E("%d : Operation not allowed\n",        result); break;
-    case 4   : LOG_E("%d : Operation not supported\n",      result); break;
-    case 5   : LOG_E("%d : PH-SIM PIN required\n",          result); break;
-    case 6   : LOG_E("%d : PH-FSIM PIN required\n",         result); break;
-    case 7   : LOG_E("%d : PH-FSIM PUK required\n",         result); break;
-    case 10  : LOG_E("%d : SIM not inserted\n",             result); break;
-    case 11  : LOG_E("%d : SIM PIN required\n",             result); break;
-    case 12  : LOG_E("%d : SIM PUK required\n",             result); break;
-    case 13  : LOG_E("%d : SIM failure\n",                  result); break;
-    case 14  : LOG_E("%d : SIM busy\n",                     result); break;
-    case 15  : LOG_E("%d : SIM wrong\n",                    result); break;
-    case 16  : LOG_E("%d : Incorrect password\n",           result); break;
-    case 17  : LOG_E("%d : SIM PIN2 required\n",            result); break;
-    case 18  : LOG_E("%d : SIM PUK2 required\n",            result); break;
-    case 20  : LOG_E("%d : Memory full\n",                  result); break;
-    case 21  : LOG_E("%d : Invalid index\n",                result); break;
-    case 22  : LOG_E("%d : Not found\n",                    result); break;
-    case 23  : LOG_E("%d : Memory failure\n",               result); break;
-    case 24  : LOG_E("%d : Text string too long\n",         result); break;
-    case 25  : LOG_E("%d : Invalid characters in text string\n", result); break;
-    case 26  : LOG_E("%d : Dial string too long\n",         result); break;
-    case 27  : LOG_E("%d : Invalid characters in dial string\n", result); break;
-    case 30  : LOG_E("%d : No network service\n",           result); break;
-    case 31  : LOG_E("%d : Network timeout\n",              result); break;
-    case 32  : LOG_E("%d : Network not allowed - emergency calls only\n", result); break;
-    case 40  : LOG_E("%d : Network personalization PIN required\n", result); break;
-    case 41  : LOG_E("%d : Network personalization PUK required\n", result); break;
-    case 42  : LOG_E("%d : Network subset personalization PIN required\n", result); break;
-    case 43  : LOG_E("%d : Network subset personalization PUK required\n", result); break;
-    case 44  : LOG_E("%d : Service provider personalization PIN required\n", result); break;
-    case 45  : LOG_E("%d : Service provider personalization PUK required\n", result); break;
-    case 46  : LOG_E("%d : Corporate personalization PIN required\n", result); break;
-    case 47  : LOG_E("%d : Corporate personalization PUK required\n", result); break;
-    case 901 : LOG_E("%d : Audio unknown error\n",          result); break;
-    case 902 : LOG_E("%d : Audio invalid parameters\n",     result); break;
-    case 903 : LOG_E("%d : Audio operation not supported\n", result); break;
-    case 904 : LOG_E("%d : Audio device busy\n",            result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 0   : LOG_E("%d : Phone failure",                result); break;
+    case 1   : LOG_E("%d : No connection to phone",       result); break;
+    case 2   : LOG_E("%d : Phone-adaptor link reserved",  result); break;
+    case 3   : LOG_E("%d : Operation not allowed",        result); break;
+    case 4   : LOG_E("%d : Operation not supported",      result); break;
+    case 5   : LOG_E("%d : PH-SIM PIN required",          result); break;
+    case 6   : LOG_E("%d : PH-FSIM PIN required",         result); break;
+    case 7   : LOG_E("%d : PH-FSIM PUK required",         result); break;
+    case 10  : LOG_E("%d : SIM not inserted",             result); break;
+    case 11  : LOG_E("%d : SIM PIN required",             result); break;
+    case 12  : LOG_E("%d : SIM PUK required",             result); break;
+    case 13  : LOG_E("%d : SIM failure",                  result); break;
+    case 14  : LOG_E("%d : SIM busy",                     result); break;
+    case 15  : LOG_E("%d : SIM wrong",                    result); break;
+    case 16  : LOG_E("%d : Incorrect password",           result); break;
+    case 17  : LOG_E("%d : SIM PIN2 required",            result); break;
+    case 18  : LOG_E("%d : SIM PUK2 required",            result); break;
+    case 20  : LOG_E("%d : Memory full",                  result); break;
+    case 21  : LOG_E("%d : Invalid index",                result); break;
+    case 22  : LOG_E("%d : Not found",                    result); break;
+    case 23  : LOG_E("%d : Memory failure",               result); break;
+    case 24  : LOG_E("%d : Text string too long",         result); break;
+    case 25  : LOG_E("%d : Invalid characters in text string", result); break;
+    case 26  : LOG_E("%d : Dial string too long",         result); break;
+    case 27  : LOG_E("%d : Invalid characters in dial string", result); break;
+    case 30  : LOG_E("%d : No network service",           result); break;
+    case 31  : LOG_E("%d : Network timeout",              result); break;
+    case 32  : LOG_E("%d : Network not allowed - emergency calls only", result); break;
+    case 40  : LOG_E("%d : Network personalization PIN required", result); break;
+    case 41  : LOG_E("%d : Network personalization PUK required", result); break;
+    case 42  : LOG_E("%d : Network subset personalization PIN required", result); break;
+    case 43  : LOG_E("%d : Network subset personalization PUK required", result); break;
+    case 44  : LOG_E("%d : Service provider personalization PIN required", result); break;
+    case 45  : LOG_E("%d : Service provider personalization PUK required", result); break;
+    case 46  : LOG_E("%d : Corporate personalization PIN required", result); break;
+    case 47  : LOG_E("%d : Corporate personalization PUK required", result); break;
+    case 901 : LOG_E("%d : Audio unknown error",          result); break;
+    case 902 : LOG_E("%d : Audio invalid parameters",     result); break;
+    case 903 : LOG_E("%d : Audio operation not supported", result); break;
+    case 904 : LOG_E("%d : Audio device busy",            result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -119,38 +119,38 @@ static void at_cms_errcode_parse(int result)
 {
     switch(result)
     {
-    case 300 : LOG_E("%d : ME failure\n",                   result); break;
-    case 301 : LOG_E("%d : SMS ME reserved\n",              result); break;
-    case 302 : LOG_E("%d : Operation not allowed\n",        result); break;
-    case 303 : LOG_E("%d : Operation not supported\n",      result); break;
-    case 304 : LOG_E("%d : Invalid PDU mode\n",             result); break;
-    case 305 : LOG_E("%d : Invalid text mode\n",            result); break;
-    case 310 : LOG_E("%d : SIM not inserted\n",             result); break;
-    case 311 : LOG_E("%d : SIM pin necessary\n",            result); break;
-    case 312 : LOG_E("%d : PH SIM pin necessary\n",         result); break;
-    case 313 : LOG_E("%d : SIM failure\n",                  result); break;
-    case 314 : LOG_E("%d : SIM busy\n",                     result); break;
-    case 315 : LOG_E("%d : SIM wrong\n",                    result); break;
-    case 316 : LOG_E("%d : SIM PUK required\n",             result); break;
-    case 317 : LOG_E("%d : SIM PIN2 required\n",            result); break;
-    case 318 : LOG_E("%d : SIM PUK2 required\n",            result); break;
-    case 320 : LOG_E("%d : Memory failure\n",               result); break;
-    case 321 : LOG_E("%d : Invalid memory index\n",         result); break;
-    case 322 : LOG_E("%d : Memory full\n",                  result); break;
-    case 330 : LOG_E("%d : SMSC address unknown\n",         result); break;
-    case 331 : LOG_E("%d : No network\n",                   result); break;
-    case 332 : LOG_E("%d : Network timeout\n",              result); break;
-    case 500 : LOG_E("%d : Unknown\n",                      result); break;
-    case 512 : LOG_E("%d : SIM not ready\n",                result); break;
-    case 513 : LOG_E("%d : Message length exceeds\n",       result); break;
-    case 514 : LOG_E("%d : Invalid request parameters\n",   result); break;
-    case 515 : LOG_E("%d : ME storage failure\n",           result); break;
-    case 517 : LOG_E("%d : Invalid service mode\n",         result); break;
-    case 528 : LOG_E("%d : More message to send state error\n", result); break;
-    case 529 : LOG_E("%d : MO SMS is not allow\n",          result); break;
-    case 530 : LOG_E("%d : GPRS is suspended\n",            result); break;
-    case 531 : LOG_E("%d : ME storage full\n",              result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 300 : LOG_E("%d : ME failure",                   result); break;
+    case 301 : LOG_E("%d : SMS ME reserved",              result); break;
+    case 302 : LOG_E("%d : Operation not allowed",        result); break;
+    case 303 : LOG_E("%d : Operation not supported",      result); break;
+    case 304 : LOG_E("%d : Invalid PDU mode",             result); break;
+    case 305 : LOG_E("%d : Invalid text mode",            result); break;
+    case 310 : LOG_E("%d : SIM not inserted",             result); break;
+    case 311 : LOG_E("%d : SIM pin necessary",            result); break;
+    case 312 : LOG_E("%d : PH SIM pin necessary",         result); break;
+    case 313 : LOG_E("%d : SIM failure",                  result); break;
+    case 314 : LOG_E("%d : SIM busy",                     result); break;
+    case 315 : LOG_E("%d : SIM wrong",                    result); break;
+    case 316 : LOG_E("%d : SIM PUK required",             result); break;
+    case 317 : LOG_E("%d : SIM PIN2 required",            result); break;
+    case 318 : LOG_E("%d : SIM PUK2 required",            result); break;
+    case 320 : LOG_E("%d : Memory failure",               result); break;
+    case 321 : LOG_E("%d : Invalid memory index",         result); break;
+    case 322 : LOG_E("%d : Memory full",                  result); break;
+    case 330 : LOG_E("%d : SMSC address unknown",         result); break;
+    case 331 : LOG_E("%d : No network",                   result); break;
+    case 332 : LOG_E("%d : Network timeout",              result); break;
+    case 500 : LOG_E("%d : Unknown",                      result); break;
+    case 512 : LOG_E("%d : SIM not ready",                result); break;
+    case 513 : LOG_E("%d : Message length exceeds",       result); break;
+    case 514 : LOG_E("%d : Invalid request parameters",   result); break;
+    case 515 : LOG_E("%d : ME storage failure",           result); break;
+    case 517 : LOG_E("%d : Invalid service mode",         result); break;
+    case 528 : LOG_E("%d : More message to send state error", result); break;
+    case 529 : LOG_E("%d : MO SMS is not allow",          result); break;
+    case 530 : LOG_E("%d : GPRS is suspended",            result); break;
+    case 531 : LOG_E("%d : ME storage full",              result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -158,34 +158,34 @@ static void at_mms_errcode_parse(int result)//MMS
 {
     switch(result)
     {
-    case 751 : LOG_E("%d : Unknown error\n",                result); break;
-    case 752 : LOG_E("%d : URL length error\n",             result); break;
-    case 753 : LOG_E("%d : URL error\n",                    result); break;
-    case 754 : LOG_E("%d : Invalid proxy type\n",           result); break;
-    case 755 : LOG_E("%d : Proxy address error\n",          result); break;
-    case 756 : LOG_E("%d : Invalid parameter\n",            result); break;
-    case 757 : LOG_E("%d : Recipient address full\n",       result); break;
-    case 758 : LOG_E("%d : CC recipient address full\n",    result); break;
-    case 759 : LOG_E("%d : BCC recipient address full\n",   result); break;
-    case 760 : LOG_E("%d : Attachments full\n",             result); break;
-    case 761 : LOG_E("%d : File error\n",                   result); break;
-    case 762 : LOG_E("%d : No recipient\n",                 result); break;
-    case 763 : LOG_E("%d : File not found\n",               result); break;
-    case 764 : LOG_E("%d : MMS busy\n",                     result); break;
-    case 765 : LOG_E("%d : Server response failed\n",       result); break;
-    case 766 : LOG_E("%d : Error response of HTTP(S) post\n", result); break;
-    case 767 : LOG_E("%d : Invalid report of HTTP(S) post\n", result); break;
-    case 768 : LOG_E("%d : PDP activation failed\n",        result); break;
-    case 769 : LOG_E("%d : PDP deactivated\n",              result); break;
-    case 770 : LOG_E("%d : Socket creation failed\n",       result); break;
-    case 771 : LOG_E("%d : Socket connection failed\n",     result); break;
-    case 772 : LOG_E("%d : Socket read failed\n",           result); break;
-    case 773 : LOG_E("%d : Socket write failed\n",          result); break;
-    case 774 : LOG_E("%d : Socket closed\n",                result); break;
-    case 775 : LOG_E("%d : Timeout\n",                      result); break;
-    case 776 : LOG_E("%d : Encode data error\n",            result); break;
-    case 777 : LOG_E("%d : HTTP(S) decode data error\n",    result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 751 : LOG_E("%d : Unknown error",                result); break;
+    case 752 : LOG_E("%d : URL length error",             result); break;
+    case 753 : LOG_E("%d : URL error",                    result); break;
+    case 754 : LOG_E("%d : Invalid proxy type",           result); break;
+    case 755 : LOG_E("%d : Proxy address error",          result); break;
+    case 756 : LOG_E("%d : Invalid parameter",            result); break;
+    case 757 : LOG_E("%d : Recipient address full",       result); break;
+    case 758 : LOG_E("%d : CC recipient address full",    result); break;
+    case 759 : LOG_E("%d : BCC recipient address full",   result); break;
+    case 760 : LOG_E("%d : Attachments full",             result); break;
+    case 761 : LOG_E("%d : File error",                   result); break;
+    case 762 : LOG_E("%d : No recipient",                 result); break;
+    case 763 : LOG_E("%d : File not found",               result); break;
+    case 764 : LOG_E("%d : MMS busy",                     result); break;
+    case 765 : LOG_E("%d : Server response failed",       result); break;
+    case 766 : LOG_E("%d : Error response of HTTP(S) post", result); break;
+    case 767 : LOG_E("%d : Invalid report of HTTP(S) post", result); break;
+    case 768 : LOG_E("%d : PDP activation failed",        result); break;
+    case 769 : LOG_E("%d : PDP deactivated",              result); break;
+    case 770 : LOG_E("%d : Socket creation failed",       result); break;
+    case 771 : LOG_E("%d : Socket connection failed",     result); break;
+    case 772 : LOG_E("%d : Socket read failed",           result); break;
+    case 773 : LOG_E("%d : Socket write failed",          result); break;
+    case 774 : LOG_E("%d : Socket closed",                result); break;
+    case 775 : LOG_E("%d : Timeout",                      result); break;
+    case 776 : LOG_E("%d : Encode data error",            result); break;
+    case 777 : LOG_E("%d : HTTP(S) decode data error",    result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
     
@@ -193,33 +193,33 @@ static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
 {
     switch(result)
     {
-    case 0   : LOG_E("%d : Operation successful\n",         result); break;
-    case 550 : LOG_E("%d : Unknown error\n",                result); break;
-    case 551 : LOG_E("%d : Operation blocked\n",            result); break;
-    case 552 : LOG_E("%d : Invalid parameters\n",           result); break;
-    case 553 : LOG_E("%d : Memory not enough\n",            result); break;
-    case 554 : LOG_E("%d : Create socket failed\n",         result); break;
-    case 555 : LOG_E("%d : Operation not supported\n",      result); break;
-    case 556 : LOG_E("%d : Socket bind failed\n",           result); break;
-    case 557 : LOG_E("%d : Socket listen failed\n",         result); break;
-    case 558 : LOG_E("%d : Socket write failed\n",          result); break;
-    case 559 : LOG_E("%d : Socket read failed\n",           result); break;
-    case 560 : LOG_E("%d : Socket accept failed\n",         result); break;
-    case 561 : LOG_E("%d : Open PDP context failed\n",      result); break;
-    case 562 : LOG_E("%d : Close PDP context failed\n",     result); break;
-    case 563 : LOG_E("%d : Socket identity has been used\n", result); break;
-    case 564 : LOG_E("%d : DNS busy\n",                     result); break;
-    case 565 : LOG_E("%d : DNS parse failed\n",             result); break;
-    case 566 : LOG_E("%d : Socket connect failed\n",        result); break;
-    case 567 : LOG_E("%d : Socket has been closed\n",       result); break;
-    case 568 : LOG_E("%d : Operation busy\n",               result); break;
-    case 569 : LOG_E("%d : Operation timeout\n",            result); break;
-    case 570 : LOG_E("%d : PDP context broken down\n",      result); break;
-    case 571 : LOG_E("%d : Cancel send\n",                  result); break;
-    case 572 : LOG_E("%d : Operation not allowed\n",        result); break;
-    case 573 : LOG_E("%d : APN not configured\n",           result); break;
-    case 574 : LOG_E("%d : Port busy\n",                    result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 0   : LOG_D("%d : Operation successful",         result); break;
+    case 550 : LOG_E("%d : Unknown error",                result); break;
+    case 551 : LOG_E("%d : Operation blocked",            result); break;
+    case 552 : LOG_E("%d : Invalid parameters",           result); break;
+    case 553 : LOG_E("%d : Memory not enough",            result); break;
+    case 554 : LOG_E("%d : Create socket failed",         result); break;
+    case 555 : LOG_E("%d : Operation not supported",      result); break;
+    case 556 : LOG_E("%d : Socket bind failed",           result); break;
+    case 557 : LOG_E("%d : Socket listen failed",         result); break;
+    case 558 : LOG_E("%d : Socket write failed",          result); break;
+    case 559 : LOG_E("%d : Socket read failed",           result); break;
+    case 560 : LOG_E("%d : Socket accept failed",         result); break;
+    case 561 : LOG_E("%d : Open PDP context failed",      result); break;
+    case 562 : LOG_E("%d : Close PDP context failed",     result); break;
+    case 563 : LOG_E("%d : Socket identity has been used", result); break;
+    case 564 : LOG_E("%d : DNS busy",                     result); break;
+    case 565 : LOG_E("%d : DNS parse failed",             result); break;
+    case 566 : LOG_E("%d : Socket connect failed",        result); break;
+    case 567 : LOG_E("%d : Socket has been closed",       result); break;
+    case 568 : LOG_E("%d : Operation busy",               result); break;
+    case 569 : LOG_E("%d : Operation timeout",            result); break;
+    case 570 : LOG_E("%d : PDP context broken down",      result); break;
+    case 571 : LOG_E("%d : Cancel send",                  result); break;
+    case 572 : LOG_E("%d : Operation not allowed",        result); break;
+    case 573 : LOG_E("%d : APN not configured",           result); break;
+    case 574 : LOG_E("%d : Port busy",                    result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -227,38 +227,38 @@ static void at_http_errcode_parse(int result)//HTTP
 {
     switch(result)
     {
-    case 0   : LOG_E("%d : Operation successful\n",         result); break;
-    case 701 : LOG_E("%d : HTTP(S) unknown error\n",        result); break;
-    case 702 : LOG_E("%d : HTTP(S) timeout\n",              result); break;
-    case 703 : LOG_E("%d : HTTP(S) busy\n",                 result); break;
-    case 704 : LOG_E("%d : HTTP(S) UART busy\n",            result); break;
-    case 705 : LOG_E("%d : HTTP(S) no GET/POST requests\n", result); break;
-    case 706 : LOG_E("%d : HTTP(S) network busy\n",         result); break;
-    case 707 : LOG_E("%d : HTTP(S) network open failed\n",  result); break;
-    case 708 : LOG_E("%d : HTTP(S) network no configuration\n", result); break;
-    case 709 : LOG_E("%d : HTTP(S) network deactivated\n",  result); break;
-    case 710 : LOG_E("%d : HTTP(S) network error\n",        result); break;
-    case 711 : LOG_E("%d : HTTP(S) URL error\n",            result); break;
-    case 712 : LOG_E("%d : HTTP(S) empty URL\n",            result); break;
-    case 713 : LOG_E("%d : HTTP(S) IP address error\n",     result); break;
-    case 714 : LOG_E("%d : HTTP(S) DNS error\n",            result); break;
-    case 715 : LOG_E("%d : HTTP(S) socket create error\n",  result); break;
-    case 716 : LOG_E("%d : HTTP(S) socket connect error\n", result); break;
-    case 717 : LOG_E("%d : HTTP(S) socket read error\n",    result); break;
-    case 718 : LOG_E("%d : HTTP(S) socket write error\n",   result); break;
-    case 719 : LOG_E("%d : HTTP(S) socket closed\n",        result); break;
-    case 720 : LOG_E("%d : HTTP(S) data encode error\n",    result); break;
-    case 721 : LOG_E("%d : HTTP(S) data decode error\n",    result); break;
-    case 722 : LOG_E("%d : HTTP(S) read timeout\n",         result); break;
-    case 723 : LOG_E("%d : HTTP(S) response failed\n",      result); break;
-    case 724 : LOG_E("%d : Incoming call busy\n",           result); break;
-    case 725 : LOG_E("%d : Voice call busy\n",              result); break;
-    case 726 : LOG_E("%d : Input timeout\n",                result); break;
-    case 727 : LOG_E("%d : Wait data timeout\n",            result); break;
-    case 728 : LOG_E("%d : Wait HTTP(S) response timeout\n", result); break;
-    case 729 : LOG_E("%d : Memory allocation failed\n",     result); break;
-    case 730 : LOG_E("%d : Invalid parameter\n",            result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 0   : LOG_D("%d : Operation successful",         result); break;
+    case 701 : LOG_E("%d : HTTP(S) unknown error",        result); break;
+    case 702 : LOG_E("%d : HTTP(S) timeout",              result); break;
+    case 703 : LOG_E("%d : HTTP(S) busy",                 result); break;
+    case 704 : LOG_E("%d : HTTP(S) UART busy",            result); break;
+    case 705 : LOG_E("%d : HTTP(S) no GET/POST requests", result); break;
+    case 706 : LOG_E("%d : HTTP(S) network busy",         result); break;
+    case 707 : LOG_E("%d : HTTP(S) network open failed",  result); break;
+    case 708 : LOG_E("%d : HTTP(S) network no configuration", result); break;
+    case 709 : LOG_E("%d : HTTP(S) network deactivated",  result); break;
+    case 710 : LOG_E("%d : HTTP(S) network error",        result); break;
+    case 711 : LOG_E("%d : HTTP(S) URL error",            result); break;
+    case 712 : LOG_E("%d : HTTP(S) empty URL",            result); break;
+    case 713 : LOG_E("%d : HTTP(S) IP address error",     result); break;
+    case 714 : LOG_E("%d : HTTP(S) DNS error",            result); break;
+    case 715 : LOG_E("%d : HTTP(S) socket create error",  result); break;
+    case 716 : LOG_E("%d : HTTP(S) socket connect error", result); break;
+    case 717 : LOG_E("%d : HTTP(S) socket read error",    result); break;
+    case 718 : LOG_E("%d : HTTP(S) socket write error",   result); break;
+    case 719 : LOG_E("%d : HTTP(S) socket closed",        result); break;
+    case 720 : LOG_E("%d : HTTP(S) data encode error",    result); break;
+    case 721 : LOG_E("%d : HTTP(S) data decode error",    result); break;
+    case 722 : LOG_E("%d : HTTP(S) read timeout",         result); break;
+    case 723 : LOG_E("%d : HTTP(S) response failed",      result); break;
+    case 724 : LOG_E("%d : Incoming call busy",           result); break;
+    case 725 : LOG_E("%d : Voice call busy",              result); break;
+    case 726 : LOG_E("%d : Input timeout",                result); break;
+    case 727 : LOG_E("%d : Wait data timeout",            result); break;
+    case 728 : LOG_E("%d : Wait HTTP(S) response timeout", result); break;
+    case 729 : LOG_E("%d : Memory allocation failed",     result); break;
+    case 730 : LOG_E("%d : Invalid parameter",            result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -266,15 +266,15 @@ static void at_http_rsponsecode_parse(int result)//HTTP
 {
     switch(result)
     {
-    case 200 : LOG_E("%d : OK\n",                           result); break;
-    case 400 : LOG_E("%d : Bad request\n",                  result); break;
-    case 403 : LOG_E("%d : Forbidden\n",                    result); break;
-    case 404 : LOG_E("%d : Not found\n",                    result); break;
-    case 409 : LOG_E("%d : Conflict\n",                     result); break;
-    case 411 : LOG_E("%d : Length required\n",              result); break;
-    case 500 : LOG_E("%d : Internal server error\n",        result); break;
-    case 502 : LOG_E("%d : Bad gate way\n",                 result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 200 : LOG_D("%d : OK",                           result); break;
+    case 400 : LOG_E("%d : Bad request",                  result); break;
+    case 403 : LOG_E("%d : Forbidden",                    result); break;
+    case 404 : LOG_E("%d : Not found",                    result); break;
+    case 409 : LOG_E("%d : Conflict",                     result); break;
+    case 411 : LOG_E("%d : Length required",              result); break;
+    case 500 : LOG_E("%d : Internal server error",        result); break;
+    case 502 : LOG_E("%d : Bad gate way",                 result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -282,39 +282,39 @@ static void at_ftp_errcode_parse(int result)//FTP
 {
     switch(result)
     {
-    case 0   : LOG_E("%d : Operation successful\n",         result); break;
-    case 601 : LOG_E("%d : Unknown error\n",                result); break;
-    case 602 : LOG_E("%d : FTP(S) server blocked\n",        result); break;
-    case 603 : LOG_E("%d : FTP(S) server busy\n",           result); break;
-    case 604 : LOG_E("%d : DNS parse failed\n",             result); break;
-    case 605 : LOG_E("%d : Network error\n",                result); break;
-    case 606 : LOG_E("%d : Control connection closed.\n",   result); break;
-    case 607 : LOG_E("%d : Data connection closed\n",       result); break;
-    case 608 : LOG_E("%d : Socket closed by peer\n",        result); break;
-    case 609 : LOG_E("%d : Timeout error\n",                result); break;
-    case 610 : LOG_E("%d : Invalid parameter\n",            result); break;
-    case 611 : LOG_E("%d : Failed to open file\n",          result); break;
-    case 612 : LOG_E("%d : File position invalid\n",        result); break;
-    case 613 : LOG_E("%d : File error\n",                   result); break;
-    case 614 : LOG_E("%d : Service not available, closing control connection\n", result); break;
-    case 615 : LOG_E("%d : Open data connection failed\n",  result); break;
-    case 616 : LOG_E("%d : Connection closed; transfer aborted\n", result); break;
-    case 617 : LOG_E("%d : Requested file action not taken\n", result); break;
-    case 618 : LOG_E("%d : Requested action aborted: local error in processing\n", result); break;
-    case 619 : LOG_E("%d : Requested action not taken: insufficient system storage\n", result); break;
-    case 620 : LOG_E("%d : Syntax error, command unrecognized\n", result); break;
-    case 621 : LOG_E("%d : Syntax error in parameters or arguments\n", result); break;
-    case 622 : LOG_E("%d : Command not implemented\n",      result); break;
-    case 623 : LOG_E("%d : Bad sequence of commands\n",     result); break;
-    case 624 : LOG_E("%d : Command parameter not implemented\n", result); break;
-    case 625 : LOG_E("%d : Not logged in\n",                result); break;
-    case 626 : LOG_E("%d : Need account for storing files\n", result); break;
-    case 627 : LOG_E("%d : Requested action not taken\n",   result); break;
-    case 628 : LOG_E("%d : Requested action aborted: page type unknown\n", result); break;
-    case 629 : LOG_E("%d : Requested file action aborted\n", result); break;
-    case 630 : LOG_E("%d : Requested file name invalid\n",  result); break;
-    case 631 : LOG_E("%d : SSL authentication failed\n",    result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 0   : LOG_D("%d : Operation successful",         result); break;
+    case 601 : LOG_E("%d : Unknown error",                result); break;
+    case 602 : LOG_E("%d : FTP(S) server blocked",        result); break;
+    case 603 : LOG_E("%d : FTP(S) server busy",           result); break;
+    case 604 : LOG_E("%d : DNS parse failed",             result); break;
+    case 605 : LOG_E("%d : Network error",                result); break;
+    case 606 : LOG_E("%d : Control connection closed.",   result); break;
+    case 607 : LOG_E("%d : Data connection closed",       result); break;
+    case 608 : LOG_E("%d : Socket closed by peer",        result); break;
+    case 609 : LOG_E("%d : Timeout error",                result); break;
+    case 610 : LOG_E("%d : Invalid parameter",            result); break;
+    case 611 : LOG_E("%d : Failed to open file",          result); break;
+    case 612 : LOG_E("%d : File position invalid",        result); break;
+    case 613 : LOG_E("%d : File error",                   result); break;
+    case 614 : LOG_E("%d : Service not available, closing control connection", result); break;
+    case 615 : LOG_E("%d : Open data connection failed",  result); break;
+    case 616 : LOG_E("%d : Connection closed; transfer aborted", result); break;
+    case 617 : LOG_E("%d : Requested file action not taken", result); break;
+    case 618 : LOG_E("%d : Requested action aborted: local error in processing", result); break;
+    case 619 : LOG_E("%d : Requested action not taken: insufficient system storage", result); break;
+    case 620 : LOG_E("%d : Syntax error, command unrecognized", result); break;
+    case 621 : LOG_E("%d : Syntax error in parameters or arguments", result); break;
+    case 622 : LOG_E("%d : Command not implemented",      result); break;
+    case 623 : LOG_E("%d : Bad sequence of commands",     result); break;
+    case 624 : LOG_E("%d : Command parameter not implemented", result); break;
+    case 625 : LOG_E("%d : Not logged in",                result); break;
+    case 626 : LOG_E("%d : Need account for storing files", result); break;
+    case 627 : LOG_E("%d : Requested action not taken",   result); break;
+    case 628 : LOG_E("%d : Requested action aborted: page type unknown", result); break;
+    case 629 : LOG_E("%d : Requested file action aborted", result); break;
+    case 630 : LOG_E("%d : Requested file name invalid",  result); break;
+    case 631 : LOG_E("%d : SSL authentication failed",    result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -322,24 +322,24 @@ static void at_ftp_protocol_errcode_parse(int result)//FTP_Protocol
 {
     switch(result)
     {
-    case 421 : LOG_E("%d : Service not available, closing control connection\n", result); break;
-    case 425 : LOG_E("%d : Open data connection failed\n",  result); break;
-    case 426 : LOG_E("%d : Connection closed; transfer aborted\n", result); break;
-    case 450 : LOG_E("%d : Requested file action not taken\n", result); break;
-    case 451 : LOG_E("%d : Requested action aborted: local error in processing\n", result); break;
-    case 452 : LOG_E("%d : Requested action not taken: insufficient system storage\n", result); break;
-    case 500 : LOG_E("%d : Syntax error, command unrecognized\n", result); break;
-    case 501 : LOG_E("%d : Syntax error in parameters or arguments\n", result); break;
-    case 502 : LOG_E("%d : Command not implemented\n",      result); break;
-    case 503 : LOG_E("%d : Bad sequence of commands\n",     result); break;
-    case 504 : LOG_E("%d : Command parameter not implemented\n", result); break;
-    case 530 : LOG_E("%d : Not logged in\n",                result); break;
-    case 532 : LOG_E("%d : Need account for storing files\n", result); break;
-    case 550 : LOG_E("%d : Requested action not taken: file unavailable\n", result); break;
-    case 551 : LOG_E("%d : Requested action aborted: page type unknown\n", result); break;
-    case 552 : LOG_E("%d : Requested file action aborted: exceeded storage allocation\n", result); break;
-    case 553 : LOG_E("%d : Requested action not taken: file name not allowed\n", result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 421 : LOG_E("%d : Service not available, closing control connection", result); break;
+    case 425 : LOG_E("%d : Open data connection failed",  result); break;
+    case 426 : LOG_E("%d : Connection closed; transfer aborted", result); break;
+    case 450 : LOG_E("%d : Requested file action not taken", result); break;
+    case 451 : LOG_E("%d : Requested action aborted: local error in processing", result); break;
+    case 452 : LOG_E("%d : Requested action not taken: insufficient system storage", result); break;
+    case 500 : LOG_E("%d : Syntax error, command unrecognized", result); break;
+    case 501 : LOG_E("%d : Syntax error in parameters or arguments", result); break;
+    case 502 : LOG_E("%d : Command not implemented",      result); break;
+    case 503 : LOG_E("%d : Bad sequence of commands",     result); break;
+    case 504 : LOG_E("%d : Command parameter not implemented", result); break;
+    case 530 : LOG_E("%d : Not logged in",                result); break;
+    case 532 : LOG_E("%d : Need account for storing files", result); break;
+    case 550 : LOG_E("%d : Requested action not taken: file unavailable", result); break;
+    case 551 : LOG_E("%d : Requested action aborted: page type unknown", result); break;
+    case 552 : LOG_E("%d : Requested file action aborted: exceeded storage allocation", result); break;
+    case 553 : LOG_E("%d : Requested action not taken: file name not allowed", result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -347,39 +347,39 @@ static void at_smtp_errcode_parse(int result)//Email
 {
     switch(result)
     {
-    case 651 : LOG_E("%d : Unknown error\n",                result); break;
-    case 652 : LOG_E("%d : The SMTP server is busy, such as uploading the body or sending an email.\n", result); break;
-    case 653 : LOG_E("%d : Failed to get IP address according to the domain name.\n", result); break;
-    case 654 : LOG_E("%d : Network error, such as failed to activate GPRS/CSD context, failed to establish the TCP connection with the SMTP server or failed to send an email to the SMTP server, etc.\n", result); break;
-    case 655 : LOG_E("%d : Unsupported authentication type\n", result); break;
-    case 656 : LOG_E("%d : The connection for the SMTP server is closed by peer.\n", result); break;
-    case 657 : LOG_E("%d : GPRS/CSD context is deactivated.\n", result); break;
-    case 658 : LOG_E("%d : Timeout\n",                      result); break;
-    case 659 : LOG_E("%d : No recipient for the SMTP server\n", result); break;
-    case 660 : LOG_E("%d : Failed to send an email\n",      result); break;
-    case 661 : LOG_E("%d : Failed to open a file\n",        result); break;
-    case 662 : LOG_E("%d : No enough memory for the attachment\n", result); break;
-    case 663 : LOG_E("%d : Failed to save the attachment\n", result); break;
-    case 664 : LOG_E("%d : The input parameter is wrong\n", result); break;
-    case 665 : LOG_E("%d : SSL authentication failed\n",    result); break;
-    case 666 : LOG_E("%d : Service not available, closing transmission channel\n", result); break;
-    case 667 : LOG_E("%d : Requested mail action not taken: mailbox unavailable\n", result); break;
-    case 668 : LOG_E("%d : Requested action aborted: local error in processing\n", result); break;
-    case 669 : LOG_E("%d : Requested action not taken: insufficient system storage\n", result); break;
-    case 670 : LOG_E("%d : Syntax error, command unrecognized\n", result); break;
-    case 671 : LOG_E("%d : Syntax error in parameters or arguments\n", result); break;
-    case 672 : LOG_E("%d : Command not implemented\n",      result); break;
-    case 673 : LOG_E("%d : Bad sequence of commands\n",     result); break;
-    case 674 : LOG_E("%d : Command parameter not implemented\n", result); break;
-    case 675 : LOG_E("%d : <domain> does not accept mail (see RFC1846)\n", result); break;
-    case 676 : LOG_E("%d : Access denied\n",                result); break;
-    case 677 : LOG_E("%d : Authentication failed\n",        result); break;
-    case 678 : LOG_E("%d : Requested action not taken: mailbox unavailable\n", result); break;
-    case 679 : LOG_E("%d : User not local; please try <forward-path>\n", result); break;
-    case 680 : LOG_E("%d : Requested mail action aborted: exceeded storage allocation\n", result); break;
-    case 681 : LOG_E("%d : Requested action not taken: mailbox name not allowed\n", result); break;
-    case 682 : LOG_E("%d : Transaction failed\n",           result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 651 : LOG_E("%d : Unknown error",                result); break;
+    case 652 : LOG_E("%d : The SMTP server is busy, such as uploading the body or sending an email.", result); break;
+    case 653 : LOG_E("%d : Failed to get IP address according to the domain name.", result); break;
+    case 654 : LOG_E("%d : Network error, such as failed to activate GPRS/CSD context, failed to establish the TCP connection with the SMTP server or failed to send an email to the SMTP server, etc.", result); break;
+    case 655 : LOG_E("%d : Unsupported authentication type", result); break;
+    case 656 : LOG_E("%d : The connection for the SMTP server is closed by peer.", result); break;
+    case 657 : LOG_E("%d : GPRS/CSD context is deactivated.", result); break;
+    case 658 : LOG_E("%d : Timeout",                      result); break;
+    case 659 : LOG_E("%d : No recipient for the SMTP server", result); break;
+    case 660 : LOG_E("%d : Failed to send an email",      result); break;
+    case 661 : LOG_E("%d : Failed to open a file",        result); break;
+    case 662 : LOG_E("%d : No enough memory for the attachment", result); break;
+    case 663 : LOG_E("%d : Failed to save the attachment", result); break;
+    case 664 : LOG_E("%d : The input parameter is wrong", result); break;
+    case 665 : LOG_E("%d : SSL authentication failed",    result); break;
+    case 666 : LOG_E("%d : Service not available, closing transmission channel", result); break;
+    case 667 : LOG_E("%d : Requested mail action not taken: mailbox unavailable", result); break;
+    case 668 : LOG_E("%d : Requested action aborted: local error in processing", result); break;
+    case 669 : LOG_E("%d : Requested action not taken: insufficient system storage", result); break;
+    case 670 : LOG_E("%d : Syntax error, command unrecognized", result); break;
+    case 671 : LOG_E("%d : Syntax error in parameters or arguments", result); break;
+    case 672 : LOG_E("%d : Command not implemented",      result); break;
+    case 673 : LOG_E("%d : Bad sequence of commands",     result); break;
+    case 674 : LOG_E("%d : Command parameter not implemented", result); break;
+    case 675 : LOG_E("%d : <domain> does not accept mail (see RFC1846)", result); break;
+    case 676 : LOG_E("%d : Access denied",                result); break;
+    case 677 : LOG_E("%d : Authentication failed",        result); break;
+    case 678 : LOG_E("%d : Requested action not taken: mailbox unavailable", result); break;
+    case 679 : LOG_E("%d : User not local; please try <forward-path>", result); break;
+    case 680 : LOG_E("%d : Requested mail action aborted: exceeded storage allocation", result); break;
+    case 681 : LOG_E("%d : Requested action not taken: mailbox name not allowed", result); break;
+    case 682 : LOG_E("%d : Transaction failed",           result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -387,24 +387,24 @@ static void at_smtp_protocol_errcode_parse(int result)//Email_Protocol
 {
     switch(result)
     {
-    case 421 : LOG_E("%d : Service not available, closing transmission channel\n", result); break;
-    case 450 : LOG_E("%d : Requested mail action not taken: mailbox unavailable\n", result); break;
-    case 451 : LOG_E("%d : Requested action aborted: local error in processing\n", result); break;
-    case 452 : LOG_E("%d : Requested action not taken: insufficient system storage\n", result); break;
-    case 500 : LOG_E("%d : Syntax error, command unrecognized\n", result); break;
-    case 501 : LOG_E("%d : Syntax error in parameters or arguments\n", result); break;
-    case 502 : LOG_E("%d : Command not implemented\n",      result); break;
-    case 503 : LOG_E("%d : Bad sequence of commands\n",     result); break;
-    case 504 : LOG_E("%d : Command parameter not implemented\n", result); break;
-    case 521 : LOG_E("%d : <domain> does not accept mail (see RFC1846)\n", result); break;
-    case 530 : LOG_E("%d : Access denied\n",                result); break;
-    case 535 : LOG_E("%d : Authentication failed\n",        result); break;
-    case 550 : LOG_E("%d : Requested action not taken: mailbox unavailable\n", result); break;
-    case 551 : LOG_E("%d : User not local; please try <forward-path>\n", result); break;
-    case 552 : LOG_E("%d : Requested mail action aborted: exceeded storage allocation\n", result); break;
-    case 553 : LOG_E("%d : Requested action not taken: mailbox name not allowed\n", result); break;
-    case 554 : LOG_E("%d : Transaction failed\n",           result); break;
-    default  : LOG_E("%d : Unknown err code\n",             result); break;
+    case 421 : LOG_E("%d : Service not available, closing transmission channel", result); break;
+    case 450 : LOG_E("%d : Requested mail action not taken: mailbox unavailable", result); break;
+    case 451 : LOG_E("%d : Requested action aborted: local error in processing", result); break;
+    case 452 : LOG_E("%d : Requested action not taken: insufficient system storage", result); break;
+    case 500 : LOG_E("%d : Syntax error, command unrecognized", result); break;
+    case 501 : LOG_E("%d : Syntax error in parameters or arguments", result); break;
+    case 502 : LOG_E("%d : Command not implemented",      result); break;
+    case 503 : LOG_E("%d : Bad sequence of commands",     result); break;
+    case 504 : LOG_E("%d : Command parameter not implemented", result); break;
+    case 521 : LOG_E("%d : <domain> does not accept mail (see RFC1846)", result); break;
+    case 530 : LOG_E("%d : Access denied",                result); break;
+    case 535 : LOG_E("%d : Authentication failed",        result); break;
+    case 550 : LOG_E("%d : Requested action not taken: mailbox unavailable", result); break;
+    case 551 : LOG_E("%d : User not local; please try <forward-path>", result); break;
+    case 552 : LOG_E("%d : Requested mail action aborted: exceeded storage allocation", result); break;
+    case 553 : LOG_E("%d : Requested action not taken: mailbox name not allowed", result); break;
+    case 554 : LOG_E("%d : Transaction failed",           result); break;
+    default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
 
@@ -1219,20 +1219,20 @@ static void ec20_init_thread_entry(void *parameter)
     at_resp_parse_line_args_by_kw(resp, "+COPS:", "+COPS: %*[^\"]\"%[^\"]", &parsed_data);
     if(strcmp(parsed_data,"CHINA MOBILE") == 0)
     {
-//        LOG_I("CMCC");
+        /* "CMCC" */
         LOG_I("%s", parsed_data);
         AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_MOBILE);
     }
     else if(strcmp(parsed_data,"CHN-UNICOM") == 0)
     {
-//        LOG_I("UNICOM");
+        /* "UNICOM" */
         LOG_I("%s", parsed_data);
         AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_UNICOM);
     }
     else if(strcmp(parsed_data,"CHN-CT") == 0)
     {
         AT_SEND_CMD(resp, 0, 300, QICSGP_CHINA_TELECOM);
-//        LOG_I("CT");
+        /* "CT" */
         LOG_I("%s", parsed_data);
     }
     /* Enable automatic time zone update via NITZ and update LOCAL time to RTC */
