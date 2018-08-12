@@ -1283,13 +1283,6 @@ void ec20_net_init(void)
 #endif
 }
 
-int ec20_time(int argc, char **argv)
-{
-//    QNTP
-
-    return RT_EOK;
-}
-
 int ec20_ping(int argc, char **argv)
 {
     at_response_t resp = RT_NULL;
