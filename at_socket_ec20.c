@@ -526,7 +526,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
