@@ -847,22 +847,34 @@ static void ec20_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 static void urc_ping_func(const char *data, rt_size_t size)
 {
     static int icmp_seq = 0;
+    int i, j = 0;
     int result, recv_len, time, ttl;
+    int sent, rcvd, lost, min, max, avg;
     char dst_ip[16] = { 0 };
 
     RT_ASSERT(data);
 
-    sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
-
-    switch(result)
+    for (i=0;i<size;i++)
     {
-    case 0:
-        rt_kprintf("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms\n", recv_len, dst_ip, icmp_seq++, ttl, time);
-        break;
-    default:
-        rt_kprintf("ping: ");
+        if(*(data+i) == '.')
+            j++;
+    }
+    if (j != 0)
+    {
+        sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
+        if (result == 0)
+            LOG_I("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms", recv_len, dst_ip, icmp_seq++, ttl, time);
+    }
+    else
+    {
+        sscanf(data, "+QPING: %d,%d,%d,%d,%d,%d,%d", &result, &sent, &rcvd, &lost, &min, &max, &avg);
+        if (result == 0)
+            LOG_I("%d sent %d received %d lost, min=%dms max=%dms average=%dms", sent, rcvd, lost, min, max, avg);
+    }
+    if (result != 0)
+    {
+        LOG_E("ping: ");
         at_tcp_ip_errcode_parse(result);
-        break;
     }
 
 }
