@@ -886,7 +886,7 @@ static void urc_connect_func(const char *data, rt_size_t size)
 
     RT_ASSERT(data && size);
 
-    sscanf(data, "%*[^0-9]%d,%d", &socket , &result);
+    sscanf(data, "+QIOPEN: %d,%d", &socket , &result);
 
     if (result == 0)
     {
@@ -1224,8 +1224,6 @@ static void ec20_init_thread_entry(void *parameter)
     }
     /*Use AT+CEREG? to query current EPS Network Registration Status*/
     AT_SEND_CMD(resp, 0, 300, "AT+CEREG?");
-    /* Query Socket Service Status */
-    AT_SEND_CMD(resp, 0, 300, "AT+QISTATE?");
     /* Use AT+COPS? to query current Network Operator */
     AT_SEND_CMD(resp, 0, 300, "AT+COPS?");
     at_resp_parse_line_args_by_kw(resp, "+COPS:", "+COPS: %*[^\"]\"%[^\"]", &parsed_data);
