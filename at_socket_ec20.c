@@ -448,8 +448,8 @@ static int ec20_socket_close(int socket)
         LOG_E("No memory for response structure!");
         return -RT_ENOMEM;
     }
-    /* default connection timeout is 10 seconds, but it set to 8 seconds is convenient to use.*/
-    result = at_exec_cmd(resp, "AT+QICLOSE=%d,8", socket);
+    /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
+    result = at_exec_cmd(resp, "AT+QICLOSE=%d,1", socket);
 
     /* result == RT_EOK means close command received, we need to check more resps*/
     if (result == RT_EOK)
