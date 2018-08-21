@@ -613,32 +613,6 @@ static const struct at_urc urc_table[] = {
         {"+QPING:",     "\r\n",                 urc_ping_func},
 };
 
-/* AT client port initialization */
-int at_client_port_init(void)
-{
-    /* create current AT socket event */
-    at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
-    if (!at_socket_event)
-    {
-        LOG_E("AT client port initialize failed! at_sock_event create failed!");
-        return -RT_ENOMEM;
-    }
-
-    /* create current AT socket lock */
-    at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
-    if (!at_event_lock)
-    {
-        LOG_E("AT client port initialize failed! at_sock_lock create failed!");
-        rt_event_delete(at_socket_event);
-        return -RT_ENOMEM;
-    }
-
-    /* register URC data execution function  */
-    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-
-    return RT_EOK;
-}
-
 #define AT_SEND_CMD(resp, resp_line, timeout, cmd)                                                              \
     do                                                                                                          \
     {                                                                                                           \
@@ -661,7 +635,6 @@ static void m26_init_thread_entry(void *parameter)
     int i, qimux, qimode;
     char parsed_data[10];
     rt_err_t result = RT_EOK;
-    const char *line_buffer = RT_NULL;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (!resp)
@@ -823,6 +796,8 @@ int m26_net_init(void)
 #else
     m26_init_thread_entry(RT_NULL);
 #endif
+
+    return RT_EOK;
 }
 
 int m26_ping(int argc, char **argv)
@@ -879,11 +854,11 @@ int m26_ifconfig(void)
 
     if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
     {
-        LOG_D("ip adress : %s", resp_arg);
+        rt_kprintf("IP address : %s\n", resp_arg);
     }
     else
     {
-        LOG_E("Parse error, current line buff : %s", at_resp_get_line(resp, 2));
+        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
         result = RT_ERROR;
         goto __exit;
     }
@@ -914,11 +889,36 @@ static const struct at_device_ops m26_socket_ops = {
 
 static int at_socket_device_init(void)
 {
+    /* create current AT socket event */
+    at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
+    if (at_socket_event == RT_NULL)
+    {
+        LOG_E("AT client port initialize failed! at_sock_event create failed!");
+        return -RT_ENOMEM;
+    }
+
+    /* create current AT socket lock */
+    at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
+    if (at_event_lock == RT_NULL)
+    {
+        LOG_E("AT client port initialize failed! at_sock_lock create failed!");
+        rt_event_delete(at_socket_event);
+        return -RT_ENOMEM;
+    }
+
+    /* initialize AT client */
+    at_client_init();
+
+    /* register URC data execution function  */
+    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* initialize m26 network */
     m26_net_init();
 
+    /* set m26 AT Socket options */
     at_scoket_device_register(&m26_socket_ops);
 
-    return 0;
+    return RT_EOK;
 }
 INIT_APP_EXPORT(at_socket_device_init);
 
