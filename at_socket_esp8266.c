@@ -685,15 +685,15 @@ static const struct at_device_ops esp8266_socket_ops = {
 static int at_socket_device_init(void)
 {
     /* create current AT socket event */
-    at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
+    at_socket_event = rt_event_create("at_se", RT_IPC_FLAG_FIFO);
     if (at_socket_event == RT_NULL)
     {
         LOG_E("RT AT client port initialize failed! at_sock_event create failed!");
         return -RT_ENOMEM;
     }
 
-    /* create current AT socket lock */
-    at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
+    /* create current AT socket event lock */
+    at_event_lock = rt_mutex_create("at_se", RT_IPC_FLAG_FIFO);
     if (at_event_lock == RT_NULL)
     {
         LOG_E("RT AT client port initialize failed! at_sock_lock create failed!");
