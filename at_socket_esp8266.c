@@ -528,32 +528,6 @@ static struct at_urc urc_table[] = {
         {"WIFI DISCONNECT",  "\r\n",           urc_func},
 };
 
-/* AT client port initialization */
-int at_client_port_init(void)
-{
-    /* create current AT socket event */
-    at_socket_event = rt_event_create("at_sock_event", RT_IPC_FLAG_FIFO);
-    if (!at_socket_event)
-    {
-        LOG_E("RT AT client port initialize failed! at_sock_event create failed!");
-        return -RT_ENOMEM;
-    }
-
-    /* create current AT socket lock */
-    at_event_lock = rt_mutex_create("at_event_lock", RT_IPC_FLAG_FIFO);
-    if (!at_event_lock)
-    {
-        LOG_E("RT AT client port initialize failed! at_sock_lock create failed!");
-        rt_event_delete(at_socket_event);
-        return -RT_ENOMEM;
-    }
-
-    /* register URC data execution function  */
-    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-
-    return RT_EOK;
-}
-
 #define AT_SEND_CMD(resp, cmd)                                                                          \
     do                                                                                                  \
     {                                                                                                   \
@@ -643,6 +617,8 @@ int esp8266_net_init(void)
 #else
     esp8266_init_thread_entry(RT_NULL);
 #endif
+
+    return RT_EOK;
 }
 
 int esp8266_ping(int argc, char **argv)
@@ -708,11 +684,36 @@ static const struct at_device_ops esp8266_socket_ops = {
 
 static int at_socket_device_init(void)
 {
+    /* create current AT socket event */
+    at_socket_event = rt_event_create("at_se", RT_IPC_FLAG_FIFO);
+    if (at_socket_event == RT_NULL)
+    {
+        LOG_E("RT AT client port initialize failed! at_sock_event create failed!");
+        return -RT_ENOMEM;
+    }
+
+    /* create current AT socket event lock */
+    at_event_lock = rt_mutex_create("at_se", RT_IPC_FLAG_FIFO);
+    if (at_event_lock == RT_NULL)
+    {
+        LOG_E("RT AT client port initialize failed! at_sock_lock create failed!");
+        rt_event_delete(at_socket_event);
+        return -RT_ENOMEM;
+    }
+
+    /* initialize AT client */
+    at_client_init();
+
+    /* register URC data execution function  */
+    at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* initialize esp8266 network */
     esp8266_net_init();
 
+    /* set esp8266 AT Socket options */
     at_scoket_device_register(&esp8266_socket_ops);
 
-    return 0;
+    return RT_EOK;
 }
 INIT_APP_EXPORT(at_socket_device_init);
 
