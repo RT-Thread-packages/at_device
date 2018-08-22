@@ -19,7 +19,7 @@ at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
 ### 1.3 依赖 ###
 
 - RT_Thread 3.0+
-- RT_Thread AT 组件
+- RT_Thread AT 组件  0.3.X
 - RT_Thread SAL 组件
 
 ## 2. 获取方式 ##
