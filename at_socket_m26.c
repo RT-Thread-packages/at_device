@@ -780,7 +780,7 @@ __exit:
 
 int m26_net_init(void)
 {
-#ifdef AT_DEVICE_INIT_BY_THREAD
+#ifdef PKG_AT_INIT_BY_THREAD
     rt_thread_t tid;
 
     tid = rt_thread_create("m26_net_init", m26_init_thread_entry, RT_NULL, M26_THREAD_STACK_SIZE, M26_THREAD_PRIORITY, 20);

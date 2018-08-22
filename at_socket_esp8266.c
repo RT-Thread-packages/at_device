@@ -601,7 +601,7 @@ __exit:
 
 int esp8266_net_init(void)
 {
-#ifdef AT_DEVICE_INIT_BY_THREAD
+#ifdef PKG_AT_INIT_BY_THREAD
     rt_thread_t tid;
 
     tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL,ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
