@@ -31,6 +31,10 @@
 #include <at.h>
 #include <at_socket.h>
 
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10000
+#error "This AT Client version is older, please check and update latest AT Client!"
+#endif
+
 #ifndef AT_DEVICE_NOT_SELECTED
 
 #define M26_MODULE_SEND_MAX_SIZE       1460
