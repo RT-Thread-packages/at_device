@@ -240,7 +240,6 @@ static int esp8266_socket_send(int socket, const char *buff, size_t bfsz, enum a
     /* set current socket for send URC event */
     cur_socket = socket;
     /* set AT client end sign to deal with '>' sign.*/
-    extern int at_set_end_sign(char ch);
     at_set_end_sign('>');
 
     while (sent_size < bfsz)
@@ -702,7 +701,7 @@ static int at_socket_device_init(void)
     }
 
     /* initialize AT client */
-    at_client_init();
+    at_client_init(AT_DEVICE_NAME, AT_DEVICE_RECV_BUFF_LEN);
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
