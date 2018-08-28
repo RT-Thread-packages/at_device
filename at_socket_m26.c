@@ -883,11 +883,11 @@ MSH_CMD_EXPORT_ALIAS(m26_ifconfig, at_ifconfig, list the information of network 
 #endif
 
 static const struct at_device_ops m26_socket_ops = {
-    .connect =              m26_socket_connect,
-    .close =                m26_socket_close,
-    .send =                 m26_socket_send,
-    .domain_resolve =       m26_domain_resolve,
-    .set_event_cb =         m26_socket_set_event_cb,
+    m26_socket_connect,
+    m26_socket_close,
+    m26_socket_send,
+    m26_domain_resolve,
+    m26_socket_set_event_cb,
 };
 
 static int at_socket_device_init(void)

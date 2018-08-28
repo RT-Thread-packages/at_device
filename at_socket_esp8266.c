@@ -678,11 +678,11 @@ MSH_CMD_EXPORT_ALIAS(esp8266_ping, at_ping, AT ping network host);
 #endif
 
 static const struct at_device_ops esp8266_socket_ops = {
-    .connect =              esp8266_socket_connect,
-    .close =                esp8266_socket_close,
-    .send =                 esp8266_socket_send,
-    .domain_resolve =       esp8266_domain_resolve,
-    .set_event_cb =         esp8266_socket_set_event_cb,
+    esp8266_socket_connect,
+    esp8266_socket_close,
+    esp8266_socket_send,
+    esp8266_domain_resolve,
+    esp8266_socket_set_event_cb,
 };
 
 static int at_socket_device_init(void)
