@@ -556,11 +556,7 @@ static void esp8266_init_thread_entry(void *parameter)
         goto __exit;
     }
 
-    if (at_client_wait_connect(ESP8266_WAIT_CONNECT_TIME))
-    {
-        result = -RT_ETIMEOUT;
-        goto __exit;
-    }
+    rt_thread_delay(rt_tick_from_millisecond(5000));
     /* reset module */
     AT_SEND_CMD(resp, "AT+RST");
     /* reset waiting delay */
