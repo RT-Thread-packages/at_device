@@ -10,6 +10,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | ---- | ---- |
 | at_socket_esp8266.c  |  ESP8266 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_m26.c | M26/MC20 模块针对 AT 组件的移植文件，实现 AT socket |
+| at_socket_ec20.c | EC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_client_sample.c | ESP8266 模块 AT Client 功能示例文件 |
 
 ### 1.2 许可证 ###
@@ -19,7 +20,7 @@ at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
 ### 1.3 依赖 ###
 
 - RT_Thread 3.0+
-- RT_Thread AT 组件  0.3.X
+- RT_Thread AT 组件  1.0.0
 - RT_Thread SAL 组件
 
 ## 2. 获取方式 ##
@@ -31,7 +32,7 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
     RT-Thread Components  --->
         Network stack  --->
              Socket abstraction layer  --->
-                protocol family type  --->
+                protocol stack implement  --->
                   [ ] Support lwIP stack
                   [*] Support AT Commands stack
 
@@ -39,11 +40,13 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
 
     RT-Thread online packages  --->
          IoT - internet of things  --->
-            -*- AT DEVICE: RT-Thread AT component porting or samples for different device             
+            -*- AT DEVICE: RT-Thread AT component porting or samples for different device  
+            [ ]   Enable at device init by thread
                   AT socket device modules (Not selected, please select)  --->    
                   Version (latest)  --->
-
-- `AT socket device modules`: AT 设备选择，目前支持 ESP8266、M26/MC20 等设备；
+                  
+- `Enable at device init by thread`: 配置开启设备网络初始化是否通过创建线程完成；
+- `AT socket device modules`: AT 设备选择，目前支持 ESP8266、M26/MC20、EC20 等设备；
 - `Version`: 下载软件包版本；
 
 ## 3. 注意事项  ##
@@ -53,5 +56,5 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
 
 ## 5. 联系方式
 
-* 维护：[chenyong](https://github.com/chenyong111)
+* 维护：RT-Thread 开发团队及社区开发者
 * 主页：https://github.com/RT-Thread-packages/at_device
