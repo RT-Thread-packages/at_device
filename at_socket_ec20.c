@@ -450,28 +450,9 @@ static int ec20_socket_close(int socket)
     }
     /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
     result = at_exec_cmd(resp, "AT+QICLOSE=%d,1", socket);
-
-    /* result == RT_EOK means close command received, we need to check more resps*/
-    if (result == RT_EOK)
+    if (result < 0)
     {
-        if (at_resp_get_line_by_kw(resp, "OK") != RT_NULL)
-        {
-            goto __exit;
-        }
-        else if (at_resp_get_line_by_kw(resp, "ERROR") != RT_NULL)
-        {
-            LOG_E("socket (%d) close failed, \"ERROR\" returned.", socket);
-            goto __exit;
-        }
-        else
-        {
-            LOG_E("socket (%d) close failed, not \"OK\" OR \"ERROR\" returned.", socket);
-            goto __exit;
-        }
-    }
-    else if (result == -RT_ETIMEOUT)
-    {
-        LOG_E("socket (%d) close failed, wait close OK timeout.", socket);
+        LOG_E("socket (%d) close failed, wait close OK timeout or ERROR.", socket);
     }
 
 __exit:
@@ -1367,7 +1348,7 @@ int ec20_ifconfig(void)
     /* Query the status of the context profile */
     AT_SEND_CMD(resp, 0, 150 * 1000, "AT+QIACT?");
     at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", &resp_arg);
-    LOG_D("ip adress : %s", resp_arg);
+    rt_kprintf("IP adress : %s\n", resp_arg);
 
 __exit:
     if (resp)
