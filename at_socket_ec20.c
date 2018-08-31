@@ -442,7 +442,7 @@ static int ec20_socket_close(int socket)
     int result = 0;
     at_response_t resp = RT_NULL;
     
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(10*1000));
+    resp = at_create_resp(64, 2, rt_tick_from_millisecond(2 * 1000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -906,6 +906,10 @@ static void urc_close_func(const char *data, rt_size_t size)
     {
         at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, NULL, 0);
     }
+    
+    /* when TCP socket service is closed, host must send "AT+QICLOSE= <connID>,0" command to close socket */
+    at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,0\r\n", socket);
+    rt_thread_delay(rt_tick_from_millisecond(100));
 }
 
 static void urc_recv_func(const char *data, rt_size_t size)
@@ -997,10 +1001,6 @@ static void urc_dnsqip_func(const char *data, rt_size_t size)
         {
             at_tcp_ip_errcode_parse(result);
         }
-        else
-        {
-            LOG_D("DNS got %d IP address, ttl=%dms", ip_count, dns_ttl);
-        }
     }
 }
 
@@ -1015,7 +1015,7 @@ static void urc_qiurc_func(const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
 
-    LOG_D("qiurc : %s", data);
+//    LOG_D("qiurc : %s", data);
     switch(*(data+9))
     {
     case 'c' : urc_close_func(data, size); break;//+QIURC: "closed"

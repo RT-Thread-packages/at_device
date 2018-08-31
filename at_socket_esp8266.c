@@ -107,7 +107,6 @@ static int esp8266_socket_close(int socket)
 
     if (at_exec_cmd(resp, "AT+CIPCLOSE=%d", socket) < 0)
     {
-        LOG_E("socket(%d) close failed.", socket);
         result = -RT_ERROR;
         goto __exit;
     }
@@ -197,10 +196,6 @@ __retry:
 __exit:
     rt_mutex_release(at_event_lock);
 
-    if (result != RT_EOK)
-    {
-        LOG_E("socket (%d) connect failed, failed to establish a connection.", socket);
-    }
     if (resp)
     {
         at_delete_resp(resp);
