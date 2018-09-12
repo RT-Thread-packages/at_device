@@ -660,7 +660,7 @@ static void m26_init_thread_entry(void *parameter)
     /* show module version */
     for (i = 0; i < (int) resp->line_counts - 1; i++)
     {
-        LOG_D("%s", at_resp_get_line(resp, i + 1))
+        LOG_D("%s", at_resp_get_line(resp, i + 1));
     }
     /* check SIM card */
     for (i = 0; i < CPIN_RETRY; i++)

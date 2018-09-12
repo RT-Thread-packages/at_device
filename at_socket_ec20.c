@@ -1087,7 +1087,7 @@ static void ec20_init_thread_entry(void *parameter)
     /* show module version */
     for (i = 0; i < (int) resp->line_counts - 1; i++)
     {
-        LOG_D("%s", at_resp_get_line(resp, i + 1))
+        LOG_D("%s", at_resp_get_line(resp, i + 1));
     }
     /* Use AT+GSN to query the IMEI of module */
     AT_SEND_CMD(resp, 0, 300, "AT+GSN");
