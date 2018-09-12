@@ -565,7 +565,7 @@ static void esp8266_init_thread_entry(void *parameter)
     /* show module version */
     for (i = 0; i < resp->line_counts - 1; i++)
     {
-        LOG_D("%s", at_resp_get_line(resp, i + 1))
+        LOG_D("%s", at_resp_get_line(resp, i + 1));
     }
     /* connect to WiFi AP */
     if (at_exec_cmd(at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), "AT+CWJAP=\"%s\",\"%s\"",
