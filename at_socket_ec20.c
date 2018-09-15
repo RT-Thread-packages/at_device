@@ -32,6 +32,10 @@
 #include <at.h>
 #include <at_socket.h>
 
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10100
+#error "This AT Client version is older, please check and update latest AT Client!"
+#endif
+
 #ifndef AT_DEVICE_NOT_SELECTED
 
 #define EC20_MODULE_SEND_MAX_SIZE       1460
@@ -916,12 +920,15 @@ static void urc_recv_func(const char *data, rt_size_t size)
 {
     int socket = 0;
     rt_size_t bfsz = 0, temp_size = 0;
+    rt_int32_t timeout;
     char *recv_buf = RT_NULL, temp[8];
 
     RT_ASSERT(data && size);
     
     /* get the current socket and receive buffer size by receive data */
     sscanf(data, "+QIURC: \"recv\",%d,%d", &socket, (int *) &bfsz);
+    /* get receive timeout by receive buffer length */
+    timeout = bfsz;
 
     if (socket < 0 || bfsz == 0)
         return;
@@ -935,11 +942,11 @@ static void urc_recv_func(const char *data, rt_size_t size)
         {
             if (bfsz - temp_size > sizeof(temp))
             {
-                at_client_recv(temp, sizeof(temp));
+                at_client_recv(temp, sizeof(temp), timeout);
             }
             else
             {
-                at_client_recv(temp, bfsz - temp_size);
+                at_client_recv(temp, bfsz - temp_size, timeout);
             }
             temp_size += sizeof(temp);
         }
@@ -947,7 +954,7 @@ static void urc_recv_func(const char *data, rt_size_t size)
     }
 
     /* sync receive data */
-    if (at_client_recv(recv_buf, bfsz) != bfsz)
+    if (at_client_recv(recv_buf, bfsz, timeout) != bfsz)
     {
         LOG_E("receive size(%d) data failed!", bfsz);
         rt_free(recv_buf);
