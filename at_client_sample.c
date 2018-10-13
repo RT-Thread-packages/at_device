@@ -28,6 +28,9 @@
 #include <rtthread.h>
 #include <at.h>
 
+#define LOG_TAG              "at.sample"
+#include <at_log.h>
+
 /* AT+CIFSR            Query local IP address and MAC */
 int at_client_test(int argc, char **argv)
 {

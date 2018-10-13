@@ -32,11 +32,14 @@
 #include <at.h>
 #include <at_socket.h>
 
-#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10100
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
 
-#ifndef AT_DEVICE_NOT_SELECTED
+#define LOG_TAG              "at.ec20"
+#include <at_log.h>
+
+#ifdef AT_DEVICE_EC20
 
 #define EC20_MODULE_SEND_MAX_SIZE       1460
 #define EC20_WAIT_CONNECT_TIME          5000
@@ -1420,4 +1423,4 @@ static int at_socket_device_init(void)
 }
 INIT_APP_EXPORT(at_socket_device_init);
 
-#endif /* AT_DEVICE_NOT_SELECTED */
+#endif /* AT_DEVICE_EC20 */
