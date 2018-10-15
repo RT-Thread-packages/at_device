@@ -711,7 +711,7 @@ static int at_socket_device_init(void)
     esp8266_net_init();
 
     /* set esp8266 AT Socket options */
-    at_scoket_device_register(&esp8266_socket_ops);
+    at_socket_device_register(&esp8266_socket_ops);
 
     return RT_EOK;
 }
