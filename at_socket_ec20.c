@@ -1417,7 +1417,7 @@ static int at_socket_device_init(void)
     ec20_net_init();
 
     /* set EC20 AT Socket options */
-    at_scoket_device_register(&ec20_socket_ops);
+    at_socket_device_register(&ec20_socket_ops);
 
     return 0;
 }

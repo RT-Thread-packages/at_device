@@ -925,7 +925,7 @@ static int at_socket_device_init(void)
     m26_net_init();
 
     /* set m26 AT Socket options */
-    at_scoket_device_register(&m26_socket_ops);
+    at_socket_device_register(&m26_socket_ops);
 
     return RT_EOK;
 }
