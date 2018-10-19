@@ -112,7 +112,23 @@ __exit:
 
     return result;
 }
+
+int at_client_test_init(int argc, char **argv)
+{
+#define AT_CLIENT_RECV_BUFF_LEN         512
+
+    if (argc != 2)
+    {
+        rt_kprintf("at_client_init <dev_name>   -- AT client initialize.\n");
+        return -RT_ERROR;
+    }
+
+    at_client_init(argv[1], AT_CLIENT_RECV_BUFF_LEN);
+
+    return RT_EOK;
+}
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT(at_client_test, AT client send cmd and get response);
+MSH_CMD_EXPORT_ALIAS(at_client_test_init, at_client_init, initialize AT client);
 #endif
