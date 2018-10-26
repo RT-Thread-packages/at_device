@@ -993,7 +993,7 @@ static void urc_dnsqip_func(const char *data, rt_size_t size)
         recv_ip[15] = '\0';
         at_socket_event_send(EC20_EVENT_DOMAIN_OK);
     }
-    else
+    else if(j==0)
     {
         resolved = 0;
         sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
