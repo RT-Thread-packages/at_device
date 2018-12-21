@@ -782,7 +782,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
             /* waiting result event from AT URC, the device default connection timeout is 60 seconds.*/
             if (at_socket_event_recv(EC20_EVENT_DOMAIN_OK, rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
             {
-                LOG_E("Domain resolve failed, wait dns result timeout.", socket);
+                LOG_E("Domain  \"%s\" resolve failed, wait dns result timeout.", name);
                 result = -RT_ETIMEOUT;
                 continue;
             }
