@@ -11,6 +11,9 @@ if GetDepend(['AT_DEVICE_EC20']):
 if GetDepend(['AT_DEVICE_ESP8266']):
     src = Glob('at_socket_esp8266.c')
 
+if GetDepend(['AT_DEVICE_RW007']):
+    src = Glob('at_socket_rw007.c')
+
 if GetDepend(['AT_DEVICE_NOT_SELECTED']):
    src = Glob('*.c')
 

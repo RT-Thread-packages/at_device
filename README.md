@@ -2,13 +2,14 @@
 
 ## 1. 简介 ##
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP32、ESP8266、M26等，其中 ESP8266 和 M26 设备完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://github.com/RT-Thread/rtthread-manual-doc)AT 命令章节 。 
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP32、RW007、ESP8266、M26等，其中 RW007、ESP8266、 M26 设备完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://github.com/RT-Thread/rtthread-manual-doc)AT 命令章节 。 
 
 ### 1.1. 文件结构 ###
 
 | 名称 | 说明 |
 | ---- | ---- |
 | at_socket_esp8266.c  |  ESP8266 模块针对 AT 组件的移植文件，实现 AT socket |
+| at_socket_rw007.c  |  RW007 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_m26.c | M26/MC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_ec20.c | EC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_client_sample.c | ESP8266 模块 AT Client 功能示例文件 |
@@ -46,7 +47,7 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
                   Version (latest)  --->
                   
 - `Enable at device init by thread`: 配置开启设备网络初始化是否通过创建线程完成；
-- `AT socket device modules`: AT 设备选择，目前支持 ESP8266、M26/MC20、EC20 等设备；
+- `AT socket device modules`: AT 设备选择，目前支持 RW007、ESP8266、M26/MC20、EC20 等设备；
 - `Version`: 下载软件包版本；
 
 ## 3. 注意事项  ##
