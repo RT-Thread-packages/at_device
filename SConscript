@@ -19,6 +19,9 @@ if GetDepend(['AT_DEVICE_RW007']):
 if GetDepend(['AT_DEVICE_SIM800C']):
     src += Glob('at_socket_sim800c.c')
 
+if GetDepend(['AT_DEVICE_SIM76XX']):
+    src += Glob('at_socket_sim76xx.c')
+
 if GetDepend(['AT_DEVICE_NOT_SELECTED']):
    src = Glob('*.c')
 

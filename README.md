@@ -11,6 +11,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | at_socket_esp8266.c  |  ESP8266 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_rw007.c  |  RW007 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_sim800c.c  |  SIM800C 模块针对 AT 组件的移植文件，实现 AT socket |
+| at_socket_sim76xx.c  |  SIM76XX 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_m26.c | M26/MC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_socket_ec20.c | EC20 模块针对 AT 组件的移植文件，实现 AT socket |
 | at_client_sample.c | ESP8266 模块 AT Client 功能示例文件 |
