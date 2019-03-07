@@ -668,10 +668,86 @@ int esp8266_ping(int argc, char **argv)
     return RT_EOK;
 }
 
+int esp8266_ifconfig(int argc, char **argv)
+{
+#define AT_ADDR_LEN     128
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    char ip[AT_ADDR_LEN], mac[AT_ADDR_LEN];
+    char gateway[AT_ADDR_LEN], netmask[AT_ADDR_LEN];
+    const char *resp_expr = "%*[^\"]\"%[^\"]\"";
+    
+    if (argc != 1)
+    {
+        rt_kprintf("Please input: at_ifconfig\n");
+        return -RT_ERROR;
+    }
+    
+    rt_memset(ip, 0x00, sizeof(ip));
+    rt_memset(mac, 0x00, sizeof(mac));
+    rt_memset(gateway, 0x00, sizeof(gateway));
+    rt_memset(netmask, 0x00, sizeof(netmask));
+
+    resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        rt_kprintf("No memory for response structure!\n");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
+    {
+        rt_kprintf("AT send \"AT+CIFSR\" commands error!\n");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 2, resp_expr, mac) <= 0)
+    {
+        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+CIPSTA?") < 0)
+    {
+        rt_kprintf("AT send \"AT+CIPSTA?\" commands error!\n");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+	
+    if (at_resp_parse_line_args(resp, 1, resp_expr, ip) <= 0 ||
+            at_resp_parse_line_args(resp, 2, resp_expr, gateway) <= 0 ||
+                at_resp_parse_line_args(resp, 3, resp_expr, netmask) <= 0)
+    {
+        rt_kprintf("Prase \"AT+CIPSTA?\" commands resposne data error!");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    rt_kprintf("network interface: esp8266\n");
+    rt_kprintf("MAC: %s\n", mac);
+    rt_kprintf("ip address: %s\n", ip);
+    rt_kprintf("gw address: %s\n", gateway);
+    rt_kprintf("net mask  : %s\n", netmask);
+
+__exit:
+    rt_mutex_release(at_event_lock);
+    
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(esp8266_net_init, at_net_init, initialize AT network);
 MSH_CMD_EXPORT_ALIAS(esp8266_ping, at_ping, AT ping network host);
+MSH_CMD_EXPORT_ALIAS(esp8266_ifconfig, at_ifconfig, list the information of network interfaces);
 #endif
 
 static const struct at_device_ops esp8266_socket_ops = {
