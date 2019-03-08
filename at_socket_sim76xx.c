@@ -20,6 +20,8 @@
  * Change Logs:
  * Date           Author       Notes
  * 2018-12-22    thomasonegd  first version
+ * 2019-03-06    thomasonegd  fix udp connection.
+ * 2019-03-08    thomasonegd  add power_on & power_off api
  */
 
 #include <at.h>
@@ -40,10 +42,12 @@
 
 #ifdef AT_DEVICE_SIM76XX
 
-#define SIM76XX_MODULE_SEND_MAX_SIZE   2048
+#define SIM76XX_MODULE_SEND_MAX_SIZE   1500
 #define SIM76XX_WAIT_CONNECT_TIME      5000
 #define SIM76XX_THREAD_STACK_SIZE      1024
 #define SIM76XX_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX/2)
+
+#define SIM76XX_MAX_CONNECTIONS        10
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -66,6 +70,9 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_RECV] = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
+
+static char udp_ipstr[SIM76XX_MAX_CONNECTIONS][16];
+static int udp_port[SIM76XX_MAX_CONNECTIONS];
 
 static void at_tcp_ip_errcode_parse(int result)//Unsolicited TCP/IP command<err> codes
 {
@@ -122,6 +129,7 @@ static int sim76xx_socket_close(int socket)
     at_response_t resp = RT_NULL;
     int result = RT_EOK;
     int activated;
+    uint8_t s;
     uint8_t lnk_stat[10];
     
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(500));
@@ -298,10 +306,12 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_exec_cmd(resp, "AT+CIPOPEN=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+CIPOPEN=%d,\"UDP\",,,%d", socket, port) < 0)
             {
                 result = -RT_ERROR;
             }
+            strcpy(udp_ipstr[socket],ip);
+            udp_port[socket] = port;
             break;
 
         default:
@@ -414,14 +424,27 @@ static int sim76xx_socket_send(int socket, const char *buff, size_t bfsz, enum a
         {
             cur_pkt_size = SIM76XX_MODULE_SEND_MAX_SIZE;
         }
-
-        /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
-        if (at_exec_cmd(resp, "AT+CIPSEND=%d,%d", socket, cur_pkt_size) < 0)
+        
+        switch(type)
         {
-            result = -RT_ERROR;
-            goto __exit;
+        case AT_SOCKET_TCP:
+            /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
+            if (at_exec_cmd(resp, "AT+CIPSEND=%d,%d", socket, cur_pkt_size) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+            break;
+        case AT_SOCKET_UDP:
+            /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
+            if (at_exec_cmd(resp, "AT+CIPSEND=%d,%d,\"%s\",%d", socket, cur_pkt_size,udp_ipstr[socket],udp_port[socket]) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+            break;
         }
-
+        
         /* send the real data to server or client */
         result = (int) at_client_send(buff + sent_size, cur_pkt_size);
         if (result == 0)
@@ -675,7 +698,7 @@ static void urc_recv_func(const char *data, rt_size_t size)
     /* get the current socket and receive buffer size by receive data */
     sscanf(data, "+IPD%d:",(int *) &bfsz);
     /* get receive timeout by receive buffer length */
-    timeout = bfsz * 2;
+    timeout = bfsz * 10;
 
     if (bfsz == 0)
         return;
@@ -734,6 +757,36 @@ static struct at_urc urc_table[] = {
         }                                                                                               \
     } while(0);                                                                                         \
 
+
+/**
+ * power up sim76xx modem
+ */
+static void sim76xx_power_on(void)
+{
+    rt_pin_write(AT_DEVICE_POWER_PIN, PIN_HIGH);
+    rt_thread_delay(rt_tick_from_millisecond(300));
+    rt_pin_write(AT_DEVICE_POWER_PIN, PIN_LOW);
+    
+    while (rt_pin_read(AT_DEVICE_STATUS_PIN) == PIN_LOW)
+    {
+        rt_thread_delay(rt_tick_from_millisecond(10));
+    }
+}
+
+static void sim76xx_power_off(void)
+{
+    rt_pin_write(AT_DEVICE_POWER_PIN, PIN_HIGH);
+    rt_thread_delay(rt_tick_from_millisecond(3000));
+    rt_pin_write(AT_DEVICE_POWER_PIN, PIN_LOW);
+    
+    while (rt_pin_read(AT_DEVICE_STATUS_PIN) == PIN_HIGH)
+    {
+        rt_thread_delay(rt_tick_from_millisecond(10));
+    }
+    rt_pin_write(AT_DEVICE_POWER_PIN, PIN_LOW);
+}
+        
+  
 static void sim76xx_init_thread_entry(void *parameter)
 {
 #define CSQ_RETRY                      20
@@ -755,7 +808,8 @@ static void sim76xx_init_thread_entry(void *parameter)
         goto __exit;
     }
     
-    /* TODO: maybe you should power-up sim76xx first*/
+    /* power-up sim76xx */
+    sim76xx_power_on();
         
     LOG_D("Start initializing the SIM76XXE module");
     /* wait SIM76XX startup finish, Send AT every 5s, if receive OK, SYNC success*/
@@ -1103,6 +1157,10 @@ static int at_socket_device_init(void)
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
+    /* initialize sim76xx pin config */
+    rt_pin_mode(AT_DEVICE_POWER_PIN, PIN_MODE_OUTPUT);
+    rt_pin_mode(AT_DEVICE_STATUS_PIN, PIN_MODE_INPUT);
+    
     /* initialize sim76xx network */
     sim76xx_net_init();
 
