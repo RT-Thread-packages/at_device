@@ -31,6 +31,10 @@
 
 #include <at_socket.h>
 
+#ifdef RT_USING_SAL
+#include <sal_netif.h>
+#endif
+
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
@@ -56,6 +60,8 @@
 #define ESP8266_EVENT_CONN_FAIL        (1L << 4)
 #define ESP8266_EVENT_SEND_FAIL        (1L << 5)
 
+#define SAL_NETIF_NAME      "esp8266"
+
 static int cur_socket;
 static int cur_send_bfsz;
 static rt_event_t at_socket_event;
@@ -64,6 +70,8 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_RECV] = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
+
+static rt_err_t exp8266_get_netif_info(struct sal_netif *netif);
 
 static int at_socket_event_send(uint32_t event)
 {
@@ -114,7 +122,7 @@ static int esp8266_socket_close(int socket)
         goto __exit;
     }
 
- __exit:
+__exit:
     rt_mutex_release(at_event_lock);
 
     if (resp)
@@ -345,7 +353,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-    for(i = 0; i < RESOLVE_RETRY; i++)
+    for (i = 0; i < RESOLVE_RETRY; i++)
     {
         if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
         {
@@ -354,7 +362,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if(at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
         {
             rt_thread_delay(rt_tick_from_millisecond(100));
             /* resolve failed, maybe receive an URC CRLF */
@@ -510,12 +518,14 @@ static void urc_func(const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
 
-    if(strstr(data, "WIFI CONNECTED"))
+    if (strstr(data, "WIFI CONNECTED"))
     {
+        sal_netif_low_level_set_link_status(sal_netif_get_by_name(SAL_NETIF_NAME), RT_TRUE);
         LOG_I("ESP8266 WIFI is connected.");
     }
-    else if(strstr(data, "WIFI DISCONNECT"))
+    else if (strstr(data, "WIFI DISCONNECT"))
     {
+        sal_netif_low_level_set_link_status(sal_netif_get_by_name(SAL_NETIF_NAME), RT_FALSE);
         LOG_I("ESP8266 WIFI is disconnect.");
     }
 }
@@ -592,6 +602,7 @@ __exit:
 
     if (!result)
     {
+        exp8266_get_netif_info(sal_netif_get_by_name(SAL_NETIF_NAME));
         LOG_I("AT network initialize success!");
     }
     else
@@ -605,7 +616,7 @@ int esp8266_net_init(void)
 #ifdef PKG_AT_INIT_BY_THREAD
     rt_thread_t tid;
 
-    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL,ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
+    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL, ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
     if (tid)
     {
         rt_thread_startup(tid);
@@ -620,44 +631,270 @@ int esp8266_net_init(void)
 
     return RT_EOK;
 }
+#ifdef FINSH_USING_MSH
+    #include <finsh.h>
+    MSH_CMD_EXPORT_ALIAS(esp8266_net_init, at_net_init, initialize AT network);
+#endif
 
-int esp8266_ping(int argc, char **argv)
+static rt_err_t exp8266_get_netif_info(struct sal_netif *netif)
+{
+#define AT_ADDR_LEN     32
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    char ip[AT_ADDR_LEN], mac[AT_ADDR_LEN];
+    char gateway[AT_ADDR_LEN], netmask[AT_ADDR_LEN];
+    char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
+    const char *resp_expr = "%*[^\"]\"%[^\"]\"";
+    const char *resp_dns = "+CIPDNS_CUR:%s";
+    ip_addr_t sal_ip_addr;
+    rt_uint8_t mac_addr[6] = {0};
+
+    rt_memset(ip, 0x00, sizeof(ip));
+    rt_memset(mac, 0x00, sizeof(mac));
+    rt_memset(gateway, 0x00, sizeof(gateway));
+    rt_memset(netmask, 0x00, sizeof(netmask));
+
+    resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!\n");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
+    {
+        LOG_E("AT send \"AT+CIFSR\" commands error!\n");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 2, resp_expr, mac) <= 0)
+    {
+        LOG_E("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+CIPSTA?") < 0)
+    {
+        LOG_E("AT send \"AT+CIPSTA?\" commands error!\n");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 1, resp_expr, ip) <= 0 ||
+            at_resp_parse_line_args(resp, 2, resp_expr, gateway) <= 0 ||
+            at_resp_parse_line_args(resp, 3, resp_expr, netmask) <= 0)
+    {
+        LOG_E("Prase \"AT+CIPSTA?\" commands resposne data error!");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* set netif info */
+    inet_aton(ip, &sal_ip_addr);
+    sal_netif_low_level_set_ipaddr(netif, &sal_ip_addr);
+    inet_aton(gateway, &sal_ip_addr);
+    sal_netif_low_level_set_gw(netif, &sal_ip_addr);
+    inet_aton(netmask, &sal_ip_addr);
+    sal_netif_low_level_set_netmask(netif, &sal_ip_addr);
+    sscanf(mac, "%x:%x:%x:%x:%x:%x", (rt_uint32_t *)&mac_addr[0], (rt_uint32_t *)&mac_addr[1], (rt_uint32_t *)&mac_addr[2], (rt_uint32_t *)&mac_addr[3], (rt_uint32_t *)&mac_addr[4], (rt_uint32_t *)&mac_addr[5]);
+    memcpy(netif->hwaddr, (const void *)mac_addr, netif->hwaddr_len);
+
+    if (at_exec_cmd(resp, "AT+CIPDNS_CUR?") < 0)
+    {
+        LOG_E("AT send \"AT+CIPDNS_CUR?\" commands error!\n");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
+            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    {
+        LOG_E("Prase \"AT+CIPDNS_CUR?\" commands resposne data error!");
+        LOG_E("get dns server failed!");
+        goto __exit;
+    }
+
+    if (strlen(dns_server1) > 0)
+    {
+        inet_aton(dns_server1, &sal_ip_addr);
+        sal_netif_low_level_set_dns_server(netif, 0, &sal_ip_addr);
+    }
+
+    if (strlen(dns_server2) > 0)
+    {
+        inet_aton(dns_server2, &sal_ip_addr);
+        sal_netif_low_level_set_dns_server(netif, 1, &sal_ip_addr);
+    }
+
+__exit:
+    rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static const struct at_device_ops esp8266_socket_ops =
+{
+    esp8266_socket_connect,
+    esp8266_socket_close,
+    esp8266_socket_send,
+    esp8266_domain_resolve,
+    esp8266_socket_set_event_cb,
+};
+
+static int esp8266_netif_set_up(struct sal_netif *netif)
+{
+    LOG_D("esp8266_netif_set_up");
+    return RT_EOK;
+}
+
+static int esp8266_netif_set_down(struct sal_netif *netif)
+{
+    LOG_D("esp8266_netif_set_down");
+    return RT_EOK;
+}
+
+static int esp8266_netif_set_addr_info(struct sal_netif *netif, ip_addr_t *ip_addr, ip_addr_t *netmask, ip_addr_t *gw)
+{
+#define RESP_SIZE           8
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netif);
+    RT_ASSERT(ip_addr);
+    RT_ASSERT(netmask);
+    RT_ASSERT(gw);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!\n");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"", inet_ntoa(ip_addr), inet_ntoa(gw), inet_ntoa(netmask)) < 0)
+    {
+        LOG_E("set addr info failed");
+        result = -RT_ERROR;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static int esp8266_netif_set_dns_server(struct sal_netif *netif, ip_addr_t *dns_server)
+{
+#define RESP_SIZE           8
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netif);
+    RT_ASSERT(dns_server);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!\n");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(dns_server)) < 0)
+    {
+        LOG_E("set dns server(%s) failed", inet_ntoa(dns_server));
+        result = -RT_ERROR;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static int esp8266_netif_set_dhcp(struct sal_netif *netif, rt_bool_t is_enabled)
+{
+#define ESP8266_STATION     1
+#define RESP_SIZE           8
+
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netif);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!\n");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    if (at_exec_cmd(resp, "AT+CWDHCP_CUR=%d,%d", ESP8266_STATION, is_enabled) < 0)
+    {
+        LOG_E("set dhcp status(%d) failed", is_enabled);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static int esp8266_netif_ping(struct sal_netif *netif, ip_addr_t *ip_addr, size_t data_len,
+                              uint32_t timeout, struct sal_netif_ping_resp *ping_resp)
 {
     at_response_t resp = RT_NULL;
-    static int icmp_seq;
     int req_time;
 
-    if (argc != 2)
-    {
-        rt_kprintf("Please input: at_ping <host address>\n");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netif);
+    RT_ASSERT(ip_addr);
+    RT_ASSERT(ping_resp);
 
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
     if (!resp)
     {
-        rt_kprintf("No memory for response structure!\n");
+        LOG_E("No memory for response structure!\n");
         return -RT_ENOMEM;
     }
 
-    for(icmp_seq = 1; icmp_seq <= 4; icmp_seq++)
+    if (at_exec_cmd(resp, "AT+PING=\"%s\"", inet_ntoa(ip_addr->addr)) < 0)
     {
-        if (at_exec_cmd(resp, "AT+PING=\"%s\"", argv[1]) < 0)
-        {
-            rt_kprintf("ping: unknown remote server host\n");
-            at_delete_resp(resp);
-            return -RT_ERROR;
-        }
+        LOG_E("ping: unknown remote server host\n");
+        at_delete_resp(resp);
+        return -RT_ERROR;
+    }
 
-        if(at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
-        {
-            continue;
-        }
+    if (at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
+    {
+        return -RT_ERROR;
+    }
 
-        if (req_time)
-        {
-            rt_kprintf("32 bytes from %s icmp_seq=%d time=%d ms\n", argv[1], icmp_seq, req_time);
-        }
+    if (req_time)
+    {
+        ping_resp->data_len = data_len;
+        ping_resp->ttl = 0;
+        ping_resp->ticks = req_time;
     }
 
     if (resp)
@@ -668,95 +905,48 @@ int esp8266_ping(int argc, char **argv)
     return RT_EOK;
 }
 
-int esp8266_ifconfig(int argc, char **argv)
+void esp8266_netif_netstat(struct sal_netif *netif)
 {
-#define AT_ADDR_LEN     128
-    int result = RT_EOK;
-    at_response_t resp = RT_NULL;
-    char ip[AT_ADDR_LEN], mac[AT_ADDR_LEN];
-    char gateway[AT_ADDR_LEN], netmask[AT_ADDR_LEN];
-    const char *resp_expr = "%*[^\"]\"%[^\"]\"";
-    
-    if (argc != 1)
-    {
-        rt_kprintf("Please input: at_ifconfig\n");
-        return -RT_ERROR;
-    }
-    
-    rt_memset(ip, 0x00, sizeof(ip));
-    rt_memset(mac, 0x00, sizeof(mac));
-    rt_memset(gateway, 0x00, sizeof(gateway));
-    rt_memset(netmask, 0x00, sizeof(netmask));
+    // TODO
+    return;
+}
 
-    resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
-    if (!resp)
+const struct sal_netif_ops sal_esp8266_netif_ops =
+{
+    esp8266_netif_set_up,
+    esp8266_netif_set_down,
+
+    esp8266_netif_set_addr_info,
+    esp8266_netif_set_dns_server,
+    esp8266_netif_set_dhcp,
+
+    esp8266_netif_ping,
+    esp8266_netif_netstat,
+};
+
+static int sal_at_netif_add(const char *name)
+{
+#define ETHERNET_MTU        1500
+#define HWADDR_LEN          6
+    struct sal_netif *sal_netif = RT_NULL;
+
+    sal_netif = (struct sal_netif *)rt_calloc(1, sizeof(struct sal_netif));
+    if (sal_netif == RT_NULL)
     {
-        rt_kprintf("No memory for response structure!\n");
         return -RT_ENOMEM;
     }
 
-    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
-    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
-    {
-        rt_kprintf("AT send \"AT+CIFSR\" commands error!\n");
-        result = -RT_ERROR;
-        goto __exit;
-    }
+    sal_netif->flags = SAL_NETIF_FLAG_UP | SAL_NETIF_FLAG_DHCP;
+    sal_netif->mtu = ETHERNET_MTU;
+    sal_netif->ops = &sal_esp8266_netif_ops;
+    sal_netif->hwaddr_len = HWADDR_LEN;
 
-    if (at_resp_parse_line_args(resp, 2, resp_expr, mac) <= 0)
-    {
-        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
-        result = -RT_ERROR;
-        goto __exit;
-    }
+    extern int sal_netif_at_ops_register(struct sal_netif * netif);
+    /* set the network interface socket/netdb operations */
+    sal_netif_at_ops_register(sal_netif);
 
-    if (at_exec_cmd(resp, "AT+CIPSTA?") < 0)
-    {
-        rt_kprintf("AT send \"AT+CIPSTA?\" commands error!\n");
-        result = -RT_ERROR;
-        goto __exit;
-    }
-	
-    if (at_resp_parse_line_args(resp, 1, resp_expr, ip) <= 0 ||
-            at_resp_parse_line_args(resp, 2, resp_expr, gateway) <= 0 ||
-                at_resp_parse_line_args(resp, 3, resp_expr, netmask) <= 0)
-    {
-        rt_kprintf("Prase \"AT+CIPSTA?\" commands resposne data error!");
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    rt_kprintf("network interface: esp8266\n");
-    rt_kprintf("MAC: %s\n", mac);
-    rt_kprintf("ip address: %s\n", ip);
-    rt_kprintf("gw address: %s\n", gateway);
-    rt_kprintf("net mask  : %s\n", netmask);
-
-__exit:
-    rt_mutex_release(at_event_lock);
-    
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
+    return sal_netif_register(sal_netif, name, RT_NULL);
 }
-
-#ifdef FINSH_USING_MSH
-#include <finsh.h>
-MSH_CMD_EXPORT_ALIAS(esp8266_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(esp8266_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(esp8266_ifconfig, at_ifconfig, list the information of network interfaces);
-#endif
-
-static const struct at_device_ops esp8266_socket_ops = {
-    esp8266_socket_connect,
-    esp8266_socket_close,
-    esp8266_socket_send,
-    esp8266_domain_resolve,
-    esp8266_socket_set_event_cb,
-};
 
 static int at_socket_device_init(void)
 {
@@ -782,6 +972,9 @@ static int at_socket_device_init(void)
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* Add esp8266 to the netif list */
+    sal_at_netif_add(SAL_NETIF_NAME);
 
     /* initialize esp8266 network */
     esp8266_net_init();
