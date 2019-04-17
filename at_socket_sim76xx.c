@@ -31,6 +31,7 @@
 #include <rtthread.h>
 #include <sys/socket.h>
 
+#include <netdev.h>
 #include <at_socket.h>
 
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
@@ -41,6 +42,8 @@
 #include <at_log.h>
 
 #ifdef AT_DEVICE_SIM76XX
+
+#define SIM76XX_NETDEV_NAME            "sim76xx"
 
 #define SIM76XX_MODULE_SEND_MAX_SIZE   1500
 #define SIM76XX_WAIT_CONNECT_TIME      5000
@@ -129,7 +132,6 @@ static int sim76xx_socket_close(int socket)
     at_response_t resp = RT_NULL;
     int result = RT_EOK;
     int activated;
-    uint8_t s;
     uint8_t lnk_stat[10];
     
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(500));
@@ -1132,6 +1134,42 @@ static const struct at_device_ops sim76xx_socket_ops = {
     sim76xx_socket_set_event_cb,
 };
 
+static int sim76xx_netdev_add(const char *netdev_name)
+{
+#define ETHERNET_MTU        1500
+#define HWADDR_LEN          8
+    struct netdev *netdev = RT_NULL;
+    int result = 0;
+
+    RT_ASSERT(netdev_name);
+
+    netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return RT_NULL;
+    }
+
+    netdev->mtu = ETHERNET_MTU;
+    netdev->hwaddr_len = HWADDR_LEN;
+    netdev->ops = RT_NULL;
+
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
+#endif
+
+    result = netdev_register(netdev, netdev_name, RT_NULL);
+
+    /*TODO: improve netdev adaptation */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+    netdev->flags |= NETDEV_FLAG_INTERNET_UP;
+
+    return result;
+}
+
 static int at_socket_device_init(void)
 {
     /* create current AT socket event */
@@ -1156,6 +1194,13 @@ static int at_socket_device_init(void)
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* add network interface device to netdev list */
+    if (sim76xx_netdev_add(SIM76XX_NETDEV_NAME) < 0)
+    {
+        LOG_E("SIM76xx network interface device(%d) add failed.", SIM76XX_NETDEV_NAME);
+        return -RT_ENOMEM;
+    }
 
     /* initialize sim76xx pin config */
     rt_pin_mode(AT_DEVICE_POWER_PIN, PIN_MODE_OUTPUT);

@@ -32,6 +32,8 @@
 #include <at.h>
 #include <at_socket.h>
 
+#include <netdev.h>
+
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
@@ -40,6 +42,8 @@
 #include <at_log.h>
 
 #ifdef AT_DEVICE_EC20
+
+#define EC20_NETDEV_NAME               "ec20"
 
 #define EC20_MODULE_SEND_MAX_SIZE       1460
 #define EC20_WAIT_CONNECT_TIME          5000
@@ -57,8 +61,6 @@
 #define EC20_EVENT_CONN_FAIL            (1L << 4)
 #define EC20_EVENT_SEND_FAIL            (1L << 5)
 #define EC20_EVENT_DOMAIN_OK            (1L << 6)
-
-
 
 /* AT+QICSGP command default*/
 char *QICSGP_CHINA_MOBILE = "AT+QICSGP=1,1,\"CMNET\",\"\",\"\",0";
@@ -214,11 +216,11 @@ static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
     case 560 : LOG_E("%d : Socket accept failed",         result); break;
     case 561 : LOG_E("%d : Open PDP context failed",      result); break;
     case 562 : LOG_E("%d : Close PDP context failed",     result); break;
-    case 563 : LOG_E("%d : Socket identity has been used", result); break;
+    case 563 : LOG_W("%d : Socket identity has been used", result); break;
     case 564 : LOG_E("%d : DNS busy",                     result); break;
     case 565 : LOG_E("%d : DNS parse failed",             result); break;
     case 566 : LOG_E("%d : Socket connect failed",        result); break;
-    case 567 : LOG_E("%d : Socket has been closed",       result); break;
+    case 567 : LOG_W("%d : Socket has been closed",       result); break;
     case 568 : LOG_E("%d : Operation busy",               result); break;
     case 569 : LOG_E("%d : Operation timeout",            result); break;
     case 570 : LOG_E("%d : PDP context broken down",      result); break;
@@ -447,26 +449,18 @@ static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t opt
 static int ec20_socket_close(int socket)
 {
     int result = 0;
-    at_response_t resp = RT_NULL;
-    
-    resp = at_create_resp(64, 2, rt_tick_from_millisecond(2 * 1000));
-    if (!resp)
-    {
-        LOG_E("No memory for response structure!");
-        return -RT_ENOMEM;
-    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
     /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
-    result = at_exec_cmd(resp, "AT+QICLOSE=%d,1", socket);
+    result = at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,1", socket);
     if (result < 0)
     {
-        LOG_E("socket (%d) close failed, wait close OK timeout or ERROR.", socket);
+        return result;
     }
 
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
+    rt_mutex_release(at_event_lock);
+
     return result;
 }
 
@@ -496,6 +490,9 @@ static int ec20_socket_connect(int socket, char *ip, int32_t port, enum at_socke
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
 __retry:
+    
+    /* Clear socket connect event */
+    at_socket_event_recv(SET_EVENT(socket, EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL), 0, RT_EVENT_FLAG_OR);
 
     if (is_client)
     {
@@ -528,14 +525,14 @@ __retry:
     }
 
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
-    if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+    if (at_socket_event_recv(SET_EVENT(socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect result timeout.", socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
     /* waiting OK or failed result */
-    if ((event_result = at_socket_event_recv(EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL, rt_tick_from_millisecond(1 * 1000),
+    if ((event_result = at_socket_event_recv(EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND,
             RT_EVENT_FLAG_OR)) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect OK|FAIL timeout.", socket);
@@ -547,11 +544,9 @@ __retry:
     {
         if (!retryed)
         {
-            LOG_E("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
-            if (ec20_socket_close(socket) < 0)
-            {
-                goto __exit;
-            }
+            LOG_W("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
+            /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
+            at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,1", socket);
             retryed = RT_TRUE;
             goto __retry;
         }
@@ -569,7 +564,7 @@ __exit:
 
 static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nacked)
 {
-    at_response_t resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    at_response_t resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     int result = 0;
 
     if (!resp)
@@ -614,7 +609,7 @@ static int at_wait_send_finish(int socket, size_t settings_size)
         {
             return RT_EOK;
         }
-        rt_thread_delay(rt_tick_from_millisecond(50));
+        rt_thread_mdelay(50);
     }
 
     return -RT_ETIMEOUT;
@@ -641,7 +636,7 @@ static int ec20_socket_send(int socket, const char *buff, size_t bfsz, enum at_s
 
     RT_ASSERT(buff);
 
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -649,6 +644,9 @@ static int ec20_socket_send(int socket, const char *buff, size_t bfsz, enum at_s
     }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* Clear socket send event */
+    at_socket_event_recv(SET_EVENT(socket, EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL), 0, RT_EVENT_FLAG_OR);
 
     /* set current socket for send URC event */
     cur_socket = socket;
@@ -682,14 +680,13 @@ static int ec20_socket_send(int socket, const char *buff, size_t bfsz, enum at_s
         }
 
         /* waiting result event from AT URC */
-        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(300*3), RT_EVENT_FLAG_OR) < 0)
+        if (at_socket_event_recv(SET_EVENT(socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
-            LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = at_socket_event_recv(EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL, rt_tick_from_millisecond(1 * 1000),
+        if ((event_result = at_socket_event_recv(EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL, 1 * RT_TICK_PER_SECOND,
                 RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
@@ -740,18 +737,17 @@ __exit:
  */
 static int ec20_domain_resolve(const char *name, char ip[16])
 {
-#define RESOLVE_RETRY                  5
+#define RESOLVE_RETRY                  3
 
     int i, result;
 //    char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
 
-
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
     /* The maximum response time is 60 seconds, but it set to 10 seconds is convenient to use. */
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(10 * 1000));
+    resp = at_create_resp(128, 0, 10 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -759,38 +755,30 @@ static int ec20_domain_resolve(const char *name, char ip[16])
     }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    
     /* Clear EC20_EVENT_DOMAIN_OK */
     at_socket_event_recv(EC20_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
-    for(i = 0; i < RESOLVE_RETRY; i++)
+
+    result = at_exec_cmd(resp, "AT+QIDNSGIP=1,\"%s\"", name);
+    if (result < 0)
     {
-        if (at_exec_cmd(resp, "AT+QIDNSGIP=1,\"%s\"", name) < 0)
-        {
-            LOG_E("Domain \"%s\" resolve return ERROR (%d).", name, i);
-            result = -RT_ERROR;
-            continue;
-        }
-        else
-        {
-            result = RT_EOK;
-            break;
-        }
+        goto __exit;
     }
+    
     if (result == RT_EOK)
     {
         for(i = 0; i < RESOLVE_RETRY; i++)
         {
             /* waiting result event from AT URC, the device default connection timeout is 60 seconds.*/
-            if (at_socket_event_recv(EC20_EVENT_DOMAIN_OK, rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+            if (at_socket_event_recv(EC20_EVENT_DOMAIN_OK, 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
             {
-                LOG_E("Domain  \"%s\" resolve failed, wait dns result timeout.", name);
-                result = -RT_ETIMEOUT;
                 continue;
             }
             else
             {
                 if (strlen(recv_ip) < 8)
                 {
-                    rt_thread_delay(rt_tick_from_millisecond(100));
+                    rt_thread_mdelay(100);
                     /* resolve failed, maybe receive an URC CRLF */
                     result = -RT_ERROR;
                     continue;
@@ -804,8 +792,15 @@ static int ec20_domain_resolve(const char *name, char ip[16])
                 }
             }
         }
+        
+        /* response timeout */
+        if (i == RESOLVE_RETRY)
+        {
+            result = -RT_ENOMEM;
+        }
     }
 
+ __exit:
     rt_mutex_release(at_event_lock);
 
     if (resp)
@@ -829,41 +824,6 @@ static void ec20_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
     {
         at_evt_cb_set[event] = cb;
     }
-}
-
-static void urc_ping_func(const char *data, rt_size_t size)
-{
-    static int icmp_seq = 0;
-    int i, j = 0;
-    int result, recv_len, time, ttl;
-    int sent, rcvd, lost, min, max, avg;
-    char dst_ip[16] = { 0 };
-
-    RT_ASSERT(data);
-
-    for (i=0;i<size;i++)
-    {
-        if(*(data+i) == '.')
-            j++;
-    }
-    if (j != 0)
-    {
-        sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
-        if (result == 0)
-            LOG_I("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms", recv_len, dst_ip, icmp_seq++, ttl, time);
-    }
-    else
-    {
-        sscanf(data, "+QPING: %d,%d,%d,%d,%d,%d,%d", &result, &sent, &rcvd, &lost, &min, &max, &avg);
-        if (result == 0)
-            LOG_I("%d sent %d received %d lost, min=%dms max=%dms average=%dms", sent, rcvd, lost, min, max, avg);
-    }
-    if (result != 0)
-    {
-        LOG_E("ping: ");
-        at_tcp_ip_errcode_parse(result);
-    }
-
 }
 
 static void urc_connect_func(const char *data, rt_size_t size)
@@ -916,7 +876,7 @@ static void urc_close_func(const char *data, rt_size_t size)
     
     /* when TCP socket service is closed, host must send "AT+QICLOSE= <connID>,0" command to close socket */
     at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,0\r\n", socket);
-    rt_thread_delay(rt_tick_from_millisecond(100));
+    rt_thread_mdelay(100);
 }
 
 static void urc_recv_func(const char *data, rt_size_t size)
@@ -986,28 +946,25 @@ static void urc_dnsqip_func(const char *data, rt_size_t size)
 {
     int i = 0, j = 0;
     int result, ip_count, dns_ttl;
-    static uint8_t resolved = 0;
 
     RT_ASSERT(data && size);
 
-    for(i=0;i<size;i++)
+    for (i = 0; i < size; i++)
     {
-        if(*(data+i) == '.')
+        if (*(data + i) == '.')
             j++;
     }
-    /* There would be several dns result, we just pickup one*/
-    if(j == 3 && resolved == 0)
+    /* There would be several dns result, we just pickup one */
+    if (j == 3)
     {
-        resolved = 1;
         sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
         recv_ip[15] = '\0';
         at_socket_event_send(EC20_EVENT_DOMAIN_OK);
     }
     else
     {
-        resolved = 0;
         sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
-        if(result)
+        if (result)
         {
             at_tcp_ip_errcode_parse(result);
         }
@@ -1039,7 +996,6 @@ static void urc_qiurc_func(const char *data, rt_size_t size)
 static const struct at_urc urc_table[] = {
         {"SEND OK",     "\r\n",                 urc_send_func},
         {"SEND FAIL",   "\r\n",                 urc_send_func},
-        {"+QPING:",     "\r\n",                 urc_ping_func},
         {"+QIOPEN:",    "\r\n",                 urc_connect_func},
         {"+QIURC:",     "\r\n",                 urc_qiurc_func},
 };
@@ -1053,6 +1009,9 @@ static const struct at_urc urc_table[] = {
             goto __exit;                                                                                        \
         }                                                                                                       \
     } while(0);                                                                                                 \
+
+static int ec20_netdev_set_info(struct netdev *netdev);
+static int ec20_netdev_check_link_status(struct netdev *netdev); 
 
 /* init for EC20 */
 static void ec20_init_thread_entry(void *parameter)
@@ -1111,7 +1070,7 @@ static void ec20_init_thread_entry(void *parameter)
         goto __exit;
     }
     /* waiting for dirty data to be digested */
-    rt_thread_delay(rt_tick_from_millisecond(10));
+    rt_thread_mdelay(10);
     
     
     /* Use AT+CIMI to query the IMSI of SIM card */
@@ -1127,7 +1086,7 @@ static void ec20_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
 
     /* Use AT+QCCID to query ICCID number of SIM card */
@@ -1142,7 +1101,7 @@ static void ec20_init_thread_entry(void *parameter)
             LOG_D("Signal strength: %d  Channel bit error rate: %d", qi_arg[0], qi_arg[1]);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CSQ_RETRY)
     {
@@ -1160,7 +1119,7 @@ static void ec20_init_thread_entry(void *parameter)
             LOG_D("GSM network is registered (%s)", parsed_data);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CREG_RETRY)
     {
@@ -1178,7 +1137,7 @@ static void ec20_init_thread_entry(void *parameter)
             LOG_D("GPRS network is registered (%s)", parsed_data);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CGREG_RETRY)
     {
@@ -1222,23 +1181,29 @@ static void ec20_init_thread_entry(void *parameter)
     AT_SEND_CMD(resp, 0, 150 * 1000, "AT+QIACT?");
     at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", &parsed_data);
     LOG_I("%s", parsed_data);
-    
+
 __exit:
     if (resp)
     {
         at_delete_resp(resp);
     }
+
     if (!result)
     {
-     LOG_I("AT network initialize success!");
+        /* set network interface device status and address information */
+        ec20_netdev_set_info(netdev_get_by_name(EC20_NETDEV_NAME));
+        ec20_netdev_check_link_status(netdev_get_by_name(EC20_NETDEV_NAME));
+
+        LOG_I("AT network initialize success!");
     }
     else
     {
-    LOG_E("AT network initialize failed (%d)!", result);
+        LOG_E("AT network initialize failed (%d)!", result);
     }
 
 }
 
+/* EC20 device network initialize */
 void ec20_net_init(void)
 {
 #ifdef PKG_AT_INIT_BY_THREAD
@@ -1250,134 +1215,16 @@ void ec20_net_init(void)
     }
     else
     {
-        LOG_E("Create AT initialization thread fail!");
+        LOG_E("Create AT initialization thread failed!");
     }
 #else
     ec20_init_thread_entry(RT_NULL);
 #endif
 }
 
-int ec20_ping(int argc, char **argv)
-{
-    at_response_t resp = RT_NULL;
-
-    if (argc != 2)
-    {
-        rt_kprintf("Please input: at_ping <host address>\n");
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    if (at_exec_cmd(resp, "AT+QPING=1,\"%s\"", argv[1]) < 0)
-    {
-        rt_kprintf("AT send ping commands error!\n");
-        return -RT_ERROR;
-    }
-
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return RT_EOK;
-}
-
-int ec20_connect(int argc, char **argv)
-{
-    int32_t port;
-
-    if (argc != 3)
-    {
-        rt_kprintf("Please input: at_connect <host address>\n");
-        return -RT_ERROR;
-    }
-    sscanf(argv[2],"%d",&port);
-    ec20_socket_connect(0, argv[1], port, AT_SOCKET_TCP, 1);
-
-    return RT_EOK;
-}
-
-int ec20_close(int argc, char **argv)
-{
-    if (ec20_socket_close(0) < 0)
-    {
-        rt_kprintf("ec20_socket_close fail\n");
-    }
-    else
-    {
-        rt_kprintf("ec20_socket_closeed\n");
-    }
-    return RT_EOK;
-}
-
-int ec20_send(int argc, char **argv)
-{
-    const char *buff = "1234567890\n";
-    if (ec20_socket_send(0, buff, 11, AT_SOCKET_TCP) < 0)
-    {
-        rt_kprintf("ec20_socket_send fail\n");
-    }
-
-    return RT_EOK;
-}
-
-int ec20_domain(int argc, char **argv)
-{
-    char ip[16];
-    if (ec20_domain_resolve("baidu.com", ip) < 0)
-    {
-        rt_kprintf("ec20_socket_send fail\n");
-    }
-    else
-    {
-        rt_kprintf("baidu.com : %s\n", ip);
-    }
-
-    return RT_EOK;
-}
-
-int ec20_ifconfig(void)
-{
-    at_response_t resp = RT_NULL;
-    char resp_arg[AT_CMD_MAX_LEN] = { 0 };
-    rt_err_t result = RT_EOK;
-
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(300));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-    
-    /* Query the status of the context profile */
-    AT_SEND_CMD(resp, 0, 150 * 1000, "AT+QIACT?");
-    at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", &resp_arg);
-    rt_kprintf("IP adress : %s\n", resp_arg);
-
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(ec20_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(ec20_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(ec20_ifconfig, at_ifconfig, list the information of network interfaces);
-MSH_CMD_EXPORT_ALIAS(ec20_connect, at_connect, AT connect network host);
-MSH_CMD_EXPORT_ALIAS(ec20_close, at_close, AT close a socket);
-MSH_CMD_EXPORT_ALIAS(ec20_send, at_send, AT send a pack);
-MSH_CMD_EXPORT_ALIAS(ec20_domain, at_domain, AT domain resolve);
 #endif
 
 static const struct at_device_ops ec20_socket_ops = {
@@ -1387,6 +1234,406 @@ static const struct at_device_ops ec20_socket_ops = {
     ec20_domain_resolve,
     ec20_socket_set_event_cb,
 };
+
+/* set ec20 network interface device status and address information */
+static int ec20_netdev_set_info(struct netdev *netdev)
+{
+#define EC20_IEMI_RESP_SIZE      32
+#define EC20_IPADDR_RESP_SIZE    64
+#define EC20_DNS_RESP_SIZE       96
+#define EC20_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    ip_addr_t addr;
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* set network interface device status */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+
+    resp = at_create_resp(EC20_IEMI_RESP_SIZE, 0, EC20_INFO_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("EC20 set netdev information failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* set network interface device hardware address(IEMI) */
+    {
+        #define EC20_NETDEV_HWADDR_LEN   8
+        #define EC20_IEMI_LEN            15
+
+        char iemi[EC20_IEMI_LEN] = {0};
+        int i = 0, j = 0;
+
+        /* send "AT+GSN" commond to get device IEMI */
+        if (at_exec_cmd(resp, "AT+GSN") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
+        {
+            LOG_E("Prase \"AT+GSN\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("EC20 IEMI number: %s", iemi);
+
+        netdev->hwaddr_len = EC20_NETDEV_HWADDR_LEN;
+        /* get hardware address by IEMI */
+        for (i = 0, j = 0; i < EC20_NETDEV_HWADDR_LEN && j < EC20_IEMI_LEN; i++, j+=2)
+        {
+            if (j != EC20_IEMI_LEN - 1)
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+            }
+            else
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0');
+            }
+        }
+    }
+
+    /* set network interface device IP address */
+    {
+        #define IP_ADDR_SIZE_MAX    16
+        char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+        
+        at_resp_set_info(resp, EC20_IPADDR_RESP_SIZE, 0, EC20_INFO_RESP_TIMO);
+
+        /* send "AT+QIACT?" commond to get IP address */
+        if (at_exec_cmd(resp, "AT+QIACT?") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse response data "+QIACT: 1,<context_state>,<context_type>[,<IP_address>]" */
+        if (at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", ipaddr) <= 0)
+        {
+            LOG_E("Prase \"AT+QIACT?\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        LOG_D("EC20 IP address: %s", ipaddr);
+
+        /* set network interface address information */
+        inet_aton(ipaddr, &addr);
+        netdev_low_level_set_ipaddr(netdev, &addr);
+    }
+
+    /* set network interface device dns server */
+    {
+        #define DNS_ADDR_SIZE_MAX   16
+        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+
+        at_resp_set_info(resp, EC20_DNS_RESP_SIZE, 0, EC20_INFO_RESP_TIMO);
+
+        /* send "AT+QIDNSCFG=1" commond to get DNS servers address */
+        if (at_exec_cmd(resp, "AT+QIDNSCFG=1") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse response data "+QIDNSCFG: <contextID>,<pridnsaddr>,<secdnsaddr>" */
+        if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"", 
+                dns_server1, dns_server2) <= 0)
+        {
+            LOG_E("Prase \"AT+QIDNSCFG=1\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("EC20 primary DNS server address: %s", dns_server1);
+        LOG_D("EC20 secondary DNS server address: %s", dns_server2);
+
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
+
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+    
+    return result;
+}
+
+static void ec20_check_link_status_entry(void *parameter)
+{
+#define EC20_LINK_RESP_SIZE     64
+#define EC20_LINK_RESP_TIMO     (3 * RT_TICK_PER_SECOND)
+#define EC20_LINK_DELAY_TIME    (30 * RT_TICK_PER_SECOND)
+
+    int link_stat = 0;
+    at_response_t resp = RT_NULL;
+    struct netdev *netdev = (struct netdev *) parameter;
+    
+    resp = at_create_resp(EC20_LINK_RESP_SIZE, 0, EC20_LINK_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("EC20 set check link status failed, no memory for response object.");
+        return;
+    }
+
+    while (1)
+    {
+        rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+        /* send "AT+CGREG" commond  to check netweork interface device link status */
+        if (at_exec_cmd(resp, "AT+CGREG?") < 0)
+        {
+            if (netdev_is_link_up(netdev))
+            {
+                netdev_low_level_set_link_status(netdev, RT_FALSE);
+            }
+            
+            rt_mutex_release(at_event_lock);
+            rt_thread_mdelay(EC20_LINK_DELAY_TIME);
+            continue;
+        }
+        else
+        {
+            at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %*d,%d", &link_stat);
+
+            /* 1 Registered, home network,5 Registered, roaming */
+            if (link_stat == 1 || link_stat == 5)
+            {
+                if (netdev_is_link_up(netdev) == RT_FALSE)
+                {
+                    netdev_low_level_set_link_status(netdev, RT_TRUE);
+                }
+            }
+            else
+            {
+                if (netdev_is_link_up(netdev))
+                {
+                    netdev_low_level_set_link_status(netdev, RT_FALSE);
+                }
+            }
+        }
+
+        rt_mutex_release(at_event_lock);
+        rt_thread_mdelay(EC20_LINK_DELAY_TIME);
+    }
+}
+
+static int ec20_netdev_check_link_status(struct netdev *netdev)
+{
+#define EC20_LINK_THREAD_STACK_SIZE     1024
+#define EC20_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+#define EC20_LINK_THREAD_TICK           20
+
+    rt_thread_t tid;
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    /* create WIZnet link status Polling thread  */
+    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *) netdev, 
+            EC20_LINK_THREAD_STACK_SIZE, EC20_LINK_THREAD_PRIORITY, EC20_LINK_THREAD_TICK);
+    if (tid != RT_NULL)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
+}
+
+static int ec20_netdev_set_up(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    LOG_D("EC20 network interface set up status.");
+    return RT_EOK;
+}
+
+static int ec20_netdev_set_down(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_FALSE);
+    LOG_D("EC20 network interface set down status.");
+    return RT_EOK;
+}
+
+static int ec20_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+{
+#define EC20_DNS_RESP_LEN    8
+#define EC20_DNS_RESP_TIMEO  rt_tick_from_millisecond(300)
+
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    
+    resp = at_create_resp(EC20_DNS_RESP_LEN, 0, EC20_DNS_RESP_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("EC20 set dns server failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    if (at_exec_cmd(resp, "AT+QIDNSCFG=1,\"%s\"", inet_ntoa(dns_server)) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    netdev_low_level_set_dns_server(netdev, 0, dns_server);
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    
+    rt_mutex_release(at_event_lock);
+    
+    return result;
+}
+
+static int ec20_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define EC20_PING_RESP_SIZE       128
+#define EC20_PING_IP_SIZE         16
+#define EC20_PING_TIMEO           (5 * RT_TICK_PER_SECOND)
+
+    at_response_t resp = RT_NULL;
+    rt_err_t result = RT_EOK;
+    int response = -1, recv_data_len, ping_time, ttl;
+    char ip_addr[EC20_PING_IP_SIZE] = {0};
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+    
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    resp = at_create_resp(EC20_PING_RESP_SIZE, 4, EC20_PING_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("No memory for response structure!\n");
+        return -RT_ENOMEM;
+    }
+
+    /* send "AT+QPING="<host>"[,[<timeout>][,<pingnum>]]" commond to send ping request */
+    if (at_exec_cmd(resp, "AT+QPING=1,\"%s\",%d,1", host, timeout / RT_TICK_PER_SECOND) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d", &response);
+    /* Received the ping response from the server */
+    if (response == 0)
+    {
+        if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,\"%[^\"]\",%d,%d,%d",
+                    &response, ip_addr, &recv_data_len, &ping_time, &ttl) <= 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+    }
+
+    /* prase response number */
+    switch (response)
+    {
+    case 0:
+        inet_aton(ip_addr, &(ping_resp->ip_addr));
+        ping_resp->data_len = recv_data_len;
+        ping_resp->ticks = ping_time;
+        ping_resp->ttl = ttl;
+        result = RT_EOK;
+        break;
+    case 569:
+        result = -RT_ETIMEOUT;
+        break;
+    default:
+        result = -RT_ERROR;
+        break;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+    
+    return result;
+}
+
+void ec20_netdev_netstat(struct netdev *netdev)
+{
+    // TODO
+    return;
+}
+
+const struct netdev_ops ec20_netdev_ops =
+{
+    ec20_netdev_set_up,
+    ec20_netdev_set_down,
+
+    RT_NULL,
+    ec20_netdev_set_dns_server,
+    RT_NULL,
+
+    ec20_netdev_ping,
+    ec20_netdev_netstat,
+};
+
+static int ec20_netdev_add(const char *netdev_name)
+{
+#define ETHERNET_MTU        1500
+#define HWADDR_LEN          6
+    struct netdev *netdev = RT_NULL;
+
+    netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return RT_NULL;
+    }
+
+    netdev->mtu = ETHERNET_MTU;
+    netdev->ops = &ec20_netdev_ops;
+    netdev->hwaddr_len = HWADDR_LEN;
+
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
+#endif
+
+    return netdev_register(netdev, netdev_name, RT_NULL);
+}
 
 static int at_socket_device_init(void)
 {  
@@ -1412,14 +1659,21 @@ static int at_socket_device_init(void)
     
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-    
+
+    /* Add ec20 network inetrface device to the netdev list */
+    if (ec20_netdev_add(EC20_NETDEV_NAME) < 0)
+    {
+        LOG_E("EC20 network interface device(%d) add failed.", EC20_NETDEV_NAME);
+        return -RT_ENOMEM;
+    }
+
     /* initialize EC20 network */
     ec20_net_init();
 
     /* set EC20 AT Socket options */
     at_socket_device_register(&ec20_socket_ops);
 
-    return 0;
+    return RT_EOK;
 }
 INIT_APP_EXPORT(at_socket_device_init);
 

@@ -21,12 +21,15 @@
  * Date           Author       Notes
  * 2018-06-12     malongwei     first version
  */
+
 #include <stdio.h>
 #include <string.h>
 
 #include <rtthread.h>
 #include <rtdevice.h>
 #include <sys/socket.h>
+
+#include <netdev.h>
 
 #include <at.h>
 #include <at_socket.h>
@@ -40,6 +43,7 @@
 
 #ifdef AT_DEVICE_SIM800C
 
+#define SIM800C_NETDEV_NAME                "sim800c"
 
 #define SIM800C_MODULE_SEND_MAX_SIZE       1000
 #define SIM800C_WAIT_CONNECT_TIME          5000
@@ -107,6 +111,9 @@ static int sim800c_socket_close(int socket)
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
     cur_socket = socket;
 
+    /* Clear socket close event */
+    at_socket_event_recv(SET_EVENT(socket, SIM800C_EVNET_CLOSE_OK), 0, RT_EVENT_FLAG_OR);
+
     if (at_exec_cmd(RT_NULL, "AT+CIPCLOSE=%d", socket) < 0)
     {
         result = -RT_ERROR;
@@ -154,6 +161,9 @@ static int sim800c_socket_connect(int socket, char *ip, int32_t port, enum at_so
 
 __retry:
 
+    /* Clear socket connect event */
+    at_socket_event_recv(SET_EVENT(socket, SIM800C_EVENT_CONN_OK | SIM800C_EVENT_CONN_FAIL), 0, RT_EVENT_FLAG_OR);
+
     if (is_client)
     {
         switch (type)
@@ -179,19 +189,18 @@ __retry:
             LOG_E("Not supported connect type : %d.", type);
             result = -RT_ERROR;
             goto __exit;
-            break;
         }
     }
 
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
-    if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+    if (at_socket_event_recv(SET_EVENT(socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect result timeout.", socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
     /* waiting OK or failed result */
-    if ((event_result = at_socket_event_recv(SIM800C_EVENT_CONN_OK | SIM800C_EVENT_CONN_FAIL, rt_tick_from_millisecond(1 * 1000),
+    if ((event_result = at_socket_event_recv(SIM800C_EVENT_CONN_OK | SIM800C_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND,
             RT_EVENT_FLAG_OR)) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect OK|FAIL timeout.", socket);
@@ -244,7 +253,7 @@ static int sim800c_socket_send(int socket, const char *buff, size_t bfsz, enum a
 
     RT_ASSERT(buff);
 
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -252,6 +261,9 @@ static int sim800c_socket_send(int socket, const char *buff, size_t bfsz, enum a
     }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* Clear socket connect event */
+    at_socket_event_recv(SET_EVENT(socket, SIM800C_EVENT_SEND_OK | SIM800C_EVENT_SEND_FAIL), 0, RT_EVENT_FLAG_OR);
 
     /* set current socket for send URC event */
     cur_socket = socket;
@@ -285,14 +297,14 @@ static int sim800c_socket_send(int socket, const char *buff, size_t bfsz, enum a
         }
 
         /* waiting result event from AT URC */
-        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(5 * 1000), RT_EVENT_FLAG_OR) < 0)
+        if (at_socket_event_recv(SET_EVENT(socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = at_socket_event_recv(SIM800C_EVENT_SEND_OK | SIM800C_EVENT_SEND_FAIL, rt_tick_from_millisecond(5 * 1000),
+        if ((event_result = at_socket_event_recv(SIM800C_EVENT_SEND_OK | SIM800C_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND,
                 RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
@@ -353,7 +365,7 @@ static int sim800c_domain_resolve(const char *name, char ip[16])
     RT_ASSERT(ip);
 
     /* The maximum response time is 14 seconds, affected by network status */
-    resp = at_create_resp(128, 4, rt_tick_from_millisecond(14 * 1000));
+    resp = at_create_resp(128, 4, 14 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -362,25 +374,38 @@ static int sim800c_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-    for(i = 0; i < RESOLVE_RETRY; i++)
+    for (i = 0; i < RESOLVE_RETRY; i++)
     {
+        int err_code = 0;
+
         if (at_exec_cmd(resp, "AT+CDNSGIP=\"%s\"", name) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
-        /* parse the third line of response data, get the IP address */
-        if(at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
+        /* domain name prase error options */
+        if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP: 0", "+CDNSGIP: 0,%d", &err_code) > 0)
         {
-            rt_thread_delay(rt_tick_from_millisecond(100));
+            /* 3 - network error, 8 - dns common error */
+            if (err_code == 3 || err_code == 8)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+        }
+
+        /* parse the third line of response data, get the IP address */
+        if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
+        {
+            rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
             continue;
         }
 
         if (strlen(recv_ip) < 8)
         {
-            rt_thread_delay(rt_tick_from_millisecond(100));
+            rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
             continue;
         }
@@ -560,7 +585,7 @@ static void sim800c_power_on(void)
     rt_pin_write(AT_DEVICE_POWER_PIN, PIN_HIGH);
     while (rt_pin_read(AT_DEVICE_STATUS_PIN) == PIN_LOW)
     {
-        rt_thread_delay(rt_tick_from_millisecond(10));
+        rt_thread_mdelay(10);
     }
     rt_pin_write(AT_DEVICE_POWER_PIN, PIN_LOW);
 }
@@ -572,10 +597,13 @@ static void sim800c_power_off(void)
     rt_pin_write(AT_DEVICE_POWER_PIN, PIN_HIGH);
     while (rt_pin_read(AT_DEVICE_STATUS_PIN) == PIN_HIGH)
     {
-        rt_thread_delay(rt_tick_from_millisecond(10));
+        rt_thread_mdelay(10);
     }
     rt_pin_write(AT_DEVICE_POWER_PIN, PIN_LOW);
 }
+
+static int sim800c_netdev_set_info(struct netdev *netdev);
+static int sim800c_netdev_check_link_status(struct netdev *netdev); 
 
 /* init for SIM800C */
 static void sim800c_init_thread_entry(void *parameter)
@@ -596,9 +624,9 @@ static void sim800c_init_thread_entry(void *parameter)
     {
         result = RT_EOK;
         rt_memset(parsed_data, 0, sizeof(parsed_data));
-        rt_thread_delay(rt_tick_from_millisecond(500));
+        rt_thread_mdelay(500);
         sim800c_power_on();
-        rt_thread_delay(rt_tick_from_millisecond(2000));
+        rt_thread_mdelay(2000);
         resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
         if (!resp)
         {
@@ -625,14 +653,14 @@ static void sim800c_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            at_exec_cmd(at_resp_set_info(resp, 128, 2, rt_tick_from_millisecond(5000)), "AT+CPIN?");
+            at_exec_cmd(at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND), "AT+CPIN?");
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
                 LOG_D("SIM card detection success");
                 break;
             }
-            rt_thread_delay(rt_tick_from_millisecond(1000));
+            rt_thread_mdelay(1000);
         }
         if (i == CPIN_RETRY)
         {
@@ -641,7 +669,7 @@ static void sim800c_init_thread_entry(void *parameter)
             goto __exit;
         }
         /* waiting for dirty data to be digested */
-        rt_thread_delay(rt_tick_from_millisecond(10));
+        rt_thread_mdelay(10);
 
         /* check the GSM network is registered */
         for (i = 0; i < CREG_RETRY; i++)
@@ -653,7 +681,7 @@ static void sim800c_init_thread_entry(void *parameter)
                 LOG_D("GSM network is registered (%s)", parsed_data);
                 break;
             }
-            rt_thread_delay(rt_tick_from_millisecond(1000));
+            rt_thread_mdelay(1000);
         }
         if (i == CREG_RETRY)
         {
@@ -671,7 +699,7 @@ static void sim800c_init_thread_entry(void *parameter)
                 LOG_D("GPRS network is registered (%s)", parsed_data);
                 break;
             }
-            rt_thread_delay(rt_tick_from_millisecond(1000));
+            rt_thread_mdelay(1000);
         }
         if (i == CGREG_RETRY)
         {
@@ -690,7 +718,7 @@ static void sim800c_init_thread_entry(void *parameter)
                 LOG_D("Signal strength: %s", parsed_data);
                 break;
             }
-            rt_thread_delay(rt_tick_from_millisecond(1000));
+            rt_thread_mdelay(1000);
         }
         if (i == CSQ_RETRY)
         {
@@ -759,7 +787,13 @@ static void sim800c_init_thread_entry(void *parameter)
             LOG_E("AT network initialize failed (%d)!", result);
             sim800c_power_off();
         }
+        
+        rt_thread_mdelay(1000);
     }
+
+    /* set network interface device status and address information */
+    sim800c_netdev_set_info(netdev_get_by_name(SIM800C_NETDEV_NAME));
+    sim800c_netdev_check_link_status(netdev_get_by_name(SIM800C_NETDEV_NAME));
 }
 
 int sim800c_net_init(void)
@@ -783,61 +817,9 @@ int sim800c_net_init(void)
     return RT_EOK;
 }
 
-int sim800c_ping(int argc, char **argv)
-{
-    LOG_E("This device does not support Ping!");
-    return RT_EOK;
-}
-
-int sim800c_ifconfig(void)
-{
-    at_response_t resp = RT_NULL;
-    char resp_arg[AT_CMD_MAX_LEN] = { 0 };
-    const char * resp_expr = "%s";
-    rt_err_t result = RT_EOK;
-
-    resp = at_create_resp(64, 2, rt_tick_from_millisecond(300));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
-    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
-    {
-        rt_kprintf("AT send ip commands error!\n");
-        result = RT_ERROR;
-        goto __exit;
-    }
-
-    if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
-    {
-        rt_kprintf("IP address : %s\n", resp_arg);
-    }
-    else
-    {
-        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
-        result = RT_ERROR;
-        goto __exit;
-    }
-
-__exit:
-    rt_mutex_release(at_event_lock);
-    
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(sim800c_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(sim800c_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(sim800c_ifconfig, at_ifconfig, list the information of network interfaces);
 #endif
 
 static const struct at_device_ops sim800c_socket_ops = {
@@ -847,6 +829,400 @@ static const struct at_device_ops sim800c_socket_ops = {
     sim800c_domain_resolve,
     sim800c_socket_set_event_cb,
 };
+
+/* set sim800c network interface device status and address information */
+static int sim800c_netdev_set_info(struct netdev *netdev)
+{
+#define SIM800C_IEMI_RESP_SIZE      32
+#define SIM800C_IPADDR_RESP_SIZE    32
+#define SIM800C_DNS_RESP_SIZE       96
+#define SIM800C_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    ip_addr_t addr;
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* set network interface device status */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+
+    resp = at_create_resp(SIM800C_IEMI_RESP_SIZE, 0, SIM800C_INFO_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("SIM800C set IP address failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* set network interface device hardware address(IEMI) */
+    {
+        #define SIM800C_NETDEV_HWADDR_LEN   8
+        #define SIM800C_IEMI_LEN            15
+
+        char iemi[SIM800C_IEMI_LEN] = {0};
+        int i = 0, j = 0;
+
+        /* send "AT+GSN" commond to get device IEMI */
+        if (at_exec_cmd(resp, "AT+GSN") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
+        {
+            LOG_E("Prase \"AT+GSN\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("SIM800C IEMI number: %s", iemi);
+
+        netdev->hwaddr_len = SIM800C_NETDEV_HWADDR_LEN;
+        /* get hardware address by IEMI */
+        for (i = 0, j = 0; i < SIM800C_NETDEV_HWADDR_LEN && j < SIM800C_IEMI_LEN; i++, j+=2)
+        {
+            if (j != SIM800C_IEMI_LEN - 1)
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+            }
+            else
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0');
+            }
+        }
+    }
+
+    /* set network interface device IP address */
+    {
+        #define IP_ADDR_SIZE_MAX    16
+        char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+        
+        at_resp_set_info(resp, SIM800C_IPADDR_RESP_SIZE, 2, SIM800C_INFO_RESP_TIMO);
+
+        /* send "AT+CIFSR" commond to get IP address */
+        if (at_exec_cmd(resp, "AT+CIFSR") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, ".", "%s", ipaddr) <= 0)
+        {
+            LOG_E("Prase \"AT+CIFSR\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        LOG_D("SIM800C IP address: %s", ipaddr);
+
+        /* set network interface address information */
+        inet_aton(ipaddr, &addr);
+        netdev_low_level_set_ipaddr(netdev, &addr);
+    }
+
+    /* set network interface device dns server */
+    {
+        #define DNS_ADDR_SIZE_MAX   16
+        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+
+        at_resp_set_info(resp, SIM800C_DNS_RESP_SIZE, 0, SIM800C_INFO_RESP_TIMO);
+
+        /* send "AT+CDNSCFG?" commond to get DNS servers address */
+        if (at_exec_cmd(resp, "AT+CDNSCFG?") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
+                at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
+        {
+            LOG_E("Prase \"AT+CDNSCFG?\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("SIM800C primary DNS server address: %s", dns_server1);
+        LOG_D("SIM800C secondary DNS server address: %s", dns_server2);
+
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
+
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    
+    rt_mutex_release(at_event_lock);
+    
+    return result;
+}
+
+static void check_link_status_entry(void *parameter)
+{
+#define SIM800C_LINK_STATUS_OK   1
+#define SIM800C_LINK_RESP_SIZE   64
+#define SIM800C_LINK_RESP_TIMO   (3 * RT_TICK_PER_SECOND)
+#define SIM800C_LINK_DELAY_TIME  (30 * RT_TICK_PER_SECOND)
+
+    struct netdev *netdev = (struct netdev *)parameter;
+    at_response_t resp = RT_NULL;
+    int result_code, link_status;
+
+    resp = at_create_resp(SIM800C_LINK_RESP_SIZE, 0, SIM800C_LINK_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim800c set check link status failed, no memory for response object.");
+        return;
+    }
+
+    while (1)
+    { 
+        rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+        /* send "AT+CGREG?" commond  to check netweork interface device link status */
+        if (at_exec_cmd(resp, "AT+CGREG?") < 0)
+        {
+            rt_mutex_release(at_event_lock);
+            rt_thread_mdelay(SIM800C_LINK_DELAY_TIME);
+
+            continue;
+        }
+        
+        link_status = -1;
+        at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %d,%d", &result_code, &link_status);
+
+        /* check the network interface device link status  */
+        if ((SIM800C_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
+        {
+            netdev_low_level_set_link_status(netdev, (SIM800C_LINK_STATUS_OK == link_status));
+        }
+
+        rt_mutex_release(at_event_lock);
+        rt_thread_mdelay(SIM800C_LINK_DELAY_TIME);
+    }
+}
+
+static int sim800c_netdev_check_link_status(struct netdev *netdev)
+{
+#define SIM800C_LINK_THREAD_STACK_SIZE     512
+#define SIM800C_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+#define SIM800C_LINK_THREAD_TICK           20
+
+    rt_thread_t tid;
+    char tname[RT_NAME_MAX];
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_memset(tname, 0x00, sizeof(tname));
+    rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
+
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev, 
+            SIM800C_LINK_THREAD_STACK_SIZE, SIM800C_LINK_THREAD_PRIORITY, SIM800C_LINK_THREAD_TICK);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
+}
+
+static int sim800c_netdev_set_up(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    LOG_D("The network interface device(%s) set up status", netdev->name);
+
+    return RT_EOK;
+}
+
+static int sim800c_netdev_set_down(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_FALSE);
+    LOG_D("The network interface device(%s) set down status", netdev->name);
+    return RT_EOK;
+}
+
+static int sim800c_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+{
+#define SIM800C_DNS_RESP_LEN     8
+#define SIM800C_DNS_RESP_TIMEO   rt_tick_from_millisecond(300)
+
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    resp = at_create_resp(SIM800C_DNS_RESP_LEN, 0, SIM800C_DNS_RESP_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim800c set dns server failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* send "AT+CDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    if (at_exec_cmd(resp, "AT+CDNSCFG=\"%s\"", inet_ntoa(dns_server)) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    netdev_low_level_set_dns_server(netdev, 0, dns_server);
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+static int sim800c_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define SIM800C_PING_RESP_SIZE         128
+#define SIM800C_PING_IP_SIZE           16
+#define SIM800C_PING_TIMEO             (5 * RT_TICK_PER_SECOND)
+
+#define SIM800C_PING_ERR_TIME          600
+#define SIM800C_PING_ERR_TTL           255
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    char ip_addr[SIM800C_PING_IP_SIZE] = {0};
+    int response, time, ttl, i;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    for (i = 0; i < rt_strlen(host) && !isalpha(host[i]); i++);
+
+    if (i < strlen(host))
+    {
+        /* check domain name is usable */
+        if (sim800c_domain_resolve(host, ip_addr) < 0)
+        {
+            return -RT_ERROR;
+        }
+        rt_memset(ip_addr, 0x00, SIM800C_PING_IP_SIZE);
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    resp = at_create_resp(SIM800C_PING_RESP_SIZE, 0, SIM800C_PING_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim800c set dns server failed, no memory for response object.");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* send "AT+CIPPING=<IP addr>[,<retryNum>[,<dataLen>[,<timeout>[,<ttl>]]]]" commond to send ping request */
+    if (at_exec_cmd(resp, "AT+CIPPING=%s,1,%d,%d,64", host, data_len, SIM800C_PING_TIMEO / (RT_TICK_PER_SECOND / 10)) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPPING:", "+CIPPING:%d,\"%[^\"]\",%d,%d",
+             &response, ip_addr, &time, &ttl) <= 0)
+    {
+        LOG_E("Prase \"AT+CIPPING\" commands resposne data error!");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* the ping request timeout expires, the response time settting to 600 and ttl setting to 255 */
+    if (time == SIM800C_PING_ERR_TIME && ttl == SIM800C_PING_ERR_TTL)
+    {
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
+
+    inet_aton(ip_addr, &(ping_resp->ip_addr));
+    ping_resp->data_len = data_len;
+    /* reply time, in units of 100 ms */
+    ping_resp->ticks = time * 100;
+    ping_resp->ttl = ttl;
+
+ __exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    
+     rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+void sim800c_netdev_netstat(struct netdev *netdev)
+{ 
+    // TODO netstat support
+}
+
+const struct netdev_ops sim800c_netdev_ops =
+{
+    sim800c_netdev_set_up,
+    sim800c_netdev_set_down,
+
+    RT_NULL, /* not support set ip, netmask, gatway address */
+    sim800c_netdev_set_dns_server,
+    RT_NULL, /* not support set DHCP status */
+
+    sim800c_netdev_ping,
+    sim800c_netdev_netstat,
+};
+
+static int sim800c_netdev_add(const char *netdev_name)
+{
+#define SIM800C_NETDEV_MTU       1500
+    struct netdev *netdev = RT_NULL;
+
+    RT_ASSERT(netdev_name);
+
+    netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return -RT_ENOMEM;
+    }
+
+    netdev->mtu = SIM800C_NETDEV_MTU;
+    netdev->ops = &sim800c_netdev_ops;
+
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
+#endif
+
+    return netdev_register(netdev, netdev_name, RT_NULL);
+}
 
 static int at_socket_device_init(void)
 {
@@ -872,6 +1248,13 @@ static int at_socket_device_init(void)
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* add network interface device to netdev list */
+    if (sim800c_netdev_add(SIM800C_NETDEV_NAME) < 0)
+    {
+        LOG_E("SIM800C network interface device(%d) add failed.", SIM800C_NETDEV_NAME);
+        return -RT_ENOMEM;
+    }
 
     /* initialize sim800c network */
     rt_pin_mode(AT_DEVICE_POWER_PIN, PIN_MODE_OUTPUT);
