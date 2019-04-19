@@ -31,6 +31,8 @@
 
 #include <at_socket.h>
 
+#include <netdev.h>
+
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
@@ -56,8 +58,11 @@
 #define ESP8266_EVENT_CONN_FAIL        (1L << 4)
 #define ESP8266_EVENT_SEND_FAIL        (1L << 5)
 
+#define ESP8266_NETDEV_NAME            "esp8266"
+
 static int cur_socket;
 static int cur_send_bfsz;
+static struct rt_delayed_work esp8266_net_work;
 static rt_event_t at_socket_event;
 static rt_mutex_t at_event_lock;
 static at_evt_cb_t at_evt_cb_set[] = {
@@ -114,7 +119,7 @@ static int esp8266_socket_close(int socket)
         goto __exit;
     }
 
- __exit:
+__exit:
     rt_mutex_release(at_event_lock);
 
     if (resp)
@@ -345,7 +350,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
-    for(i = 0; i < RESOLVE_RETRY; i++)
+    for (i = 0; i < RESOLVE_RETRY; i++)
     {
         if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", name) < 0)
         {
@@ -354,7 +359,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if(at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
         {
             rt_thread_delay(rt_tick_from_millisecond(100));
             /* resolve failed, maybe receive an URC CRLF */
@@ -510,12 +515,15 @@ static void urc_func(const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
 
-    if(strstr(data, "WIFI CONNECTED"))
+    if (strstr(data, "WIFI CONNECTED"))
     {
+        netdev_low_level_set_link_status(netdev_get_by_name(ESP8266_NETDEV_NAME), RT_TRUE);
+        rt_work_submit(&(esp8266_net_work.work), RT_TICK_PER_SECOND);
         LOG_I("ESP8266 WIFI is connected.");
     }
-    else if(strstr(data, "WIFI DISCONNECT"))
+    else if (strstr(data, "WIFI DISCONNECT"))
     {
+        netdev_low_level_set_link_status(netdev_get_by_name(ESP8266_NETDEV_NAME), RT_FALSE);
         LOG_I("ESP8266 WIFI is disconnect.");
     }
 }
@@ -542,6 +550,134 @@ static struct at_urc urc_table[] = {
             goto __exit;                                                                                \
         }                                                                                               \
     } while(0);                                                                                         \
+
+static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
+{
+#define AT_ADDR_LEN     32
+    at_response_t resp = RT_NULL;
+    char ip[AT_ADDR_LEN], mac[AT_ADDR_LEN];
+    char gateway[AT_ADDR_LEN], netmask[AT_ADDR_LEN];
+    char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
+    const char *resp_expr = "%*[^\"]\"%[^\"]\"";
+    const char *resp_dns = "+CIPDNS_CUR:%s";
+    const char *resp_dhcp = "+CWDHCP_CUR:%d";
+    ip_addr_t sal_ip_addr;
+    rt_uint8_t mac_addr[6] = {0};
+    rt_uint8_t dhcp_stat = 0;
+    struct netdev *netdev = RT_NULL;
+
+    netdev = (struct netdev *)work_data;
+
+    rt_memset(ip, 0x00, sizeof(ip));
+    rt_memset(mac, 0x00, sizeof(mac));
+    rt_memset(gateway, 0x00, sizeof(gateway));
+    rt_memset(netmask, 0x00, sizeof(netmask));
+
+    resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+    /* send mac addr query commond "AT+CIFSR" and wait response */
+    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
+    {
+        LOG_E("AT send \"AT+CIFSR\" commands error!");
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 2, resp_expr, mac) <= 0)
+    {
+        LOG_E("Parse error, current line buff : %s", at_resp_get_line(resp, 2));
+        goto __exit;
+    }
+
+    /* send addr info query commond "AT+CIPSTA?" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPSTA?") < 0)
+    {
+        LOG_E("AT send \"AT+CIPSTA?\" commands error!");
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 1, resp_expr, ip) <= 0 ||
+            at_resp_parse_line_args(resp, 2, resp_expr, gateway) <= 0 ||
+            at_resp_parse_line_args(resp, 3, resp_expr, netmask) <= 0)
+    {
+        LOG_E("Prase \"AT+CIPSTA?\" commands resposne data error!");
+        goto __exit;
+    }
+
+    /* set netdev info */
+    inet_aton(ip, &sal_ip_addr);
+    netdev_low_level_set_ipaddr(netdev, &sal_ip_addr);
+    inet_aton(gateway, &sal_ip_addr);
+    netdev_low_level_set_gw(netdev, &sal_ip_addr);
+    inet_aton(netmask, &sal_ip_addr);
+    netdev_low_level_set_netmask(netdev, &sal_ip_addr);
+    sscanf(mac, "%x:%x:%x:%x:%x:%x", (rt_uint32_t *)&mac_addr[0], (rt_uint32_t *)&mac_addr[1], (rt_uint32_t *)&mac_addr[2], (rt_uint32_t *)&mac_addr[3], (rt_uint32_t *)&mac_addr[4], (rt_uint32_t *)&mac_addr[5]);
+    memcpy(netdev->hwaddr, (const void *)mac_addr, netdev->hwaddr_len);
+
+    /* send dns server query commond "AT+CIPDNS_CUR?" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPDNS_CUR?") < 0)
+    {
+        LOG_E("AT send \"AT+CIPDNS_CUR?\" commands error!");
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
+            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    {
+        LOG_E("Prase \"AT+CIPDNS_CUR?\" commands resposne data error!");
+        LOG_E("get dns server failed! Please check whether your firmware supports the \"AT+CIPDNS_CUR?\" command.");
+        goto __exit;
+    }
+
+    if (strlen(dns_server1) > 0)
+    {
+        inet_aton(dns_server1, &sal_ip_addr);
+        netdev_low_level_set_dns_server(netdev, 0, &sal_ip_addr);
+    }
+
+    if (strlen(dns_server2) > 0)
+    {
+        inet_aton(dns_server2, &sal_ip_addr);
+        netdev_low_level_set_dns_server(netdev, 1, &sal_ip_addr);
+    }
+
+    /* send DHCP query commond " AT+CWDHCP_CUR?" and wait response */
+    if (at_exec_cmd(resp, "AT+CWDHCP_CUR?") < 0)
+    {
+        LOG_E("AT send \"AT+CWDHCP_CUR?\" commands error!");
+        goto __exit;
+    }
+
+    /* parse response data, get the DHCP status */
+    if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP_CUR:", "+CWDHCP_CUR:%d", &dhcp_stat) < 0)
+    {
+        LOG_E("get DHCP status failed!");
+        goto __exit;
+    }
+
+    /* Bit0： SoftAP DHCP status, Bit1： Station DHCP status */
+    if (dhcp_stat & 0x02)
+    {
+        netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+    }
+    else
+    {
+        netdev_low_level_set_dhcp_status(netdev, RT_FALSE);
+    }
+
+__exit:
+    rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+}
 
 static void esp8266_init_thread_entry(void *parameter)
 {
@@ -592,10 +728,12 @@ __exit:
 
     if (!result)
     {
+        netdev_low_level_set_status(netdev_get_by_name(ESP8266_NETDEV_NAME), RT_TRUE);
         LOG_I("AT network initialize success!");
     }
     else
     {
+        netdev_low_level_set_status(netdev_get_by_name(ESP8266_NETDEV_NAME), RT_FALSE);
         LOG_E("AT network initialize failed (%d)!", result);
     }
 }
@@ -605,7 +743,7 @@ int esp8266_net_init(void)
 #ifdef PKG_AT_INIT_BY_THREAD
     rt_thread_t tid;
 
-    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL,ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
+    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, RT_NULL, ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
     if (tid)
     {
         rt_thread_startup(tid);
@@ -620,121 +758,93 @@ int esp8266_net_init(void)
 
     return RT_EOK;
 }
+#ifdef FINSH_USING_MSH
+    #include <finsh.h>
+    MSH_CMD_EXPORT_ALIAS(esp8266_net_init, at_net_init, initialize AT network);
+#endif
 
-int esp8266_ping(int argc, char **argv)
+static const struct at_device_ops esp8266_socket_ops =
 {
-    at_response_t resp = RT_NULL;
-    static int icmp_seq;
-    int req_time;
+    esp8266_socket_connect,
+    esp8266_socket_close,
+    esp8266_socket_send,
+    esp8266_domain_resolve,
+    esp8266_socket_set_event_cb,
+};
 
-    if (argc != 2)
-    {
-        rt_kprintf("Please input: at_ping <host address>\n");
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    for(icmp_seq = 1; icmp_seq <= 4; icmp_seq++)
-    {
-        if (at_exec_cmd(resp, "AT+PING=\"%s\"", argv[1]) < 0)
-        {
-            rt_kprintf("ping: unknown remote server host\n");
-            at_delete_resp(resp);
-            return -RT_ERROR;
-        }
-
-        if(at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
-        {
-            continue;
-        }
-
-        if (req_time)
-        {
-            rt_kprintf("32 bytes from %s icmp_seq=%d time=%d ms\n", argv[1], icmp_seq, req_time);
-        }
-    }
-
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
+static int esp8266_netdev_set_up(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    LOG_D("esp8266 network interface set up status.");
     return RT_EOK;
 }
 
-int esp8266_ifconfig(int argc, char **argv)
+static int esp8266_netdev_set_down(struct netdev *netdev)
 {
-#define AT_ADDR_LEN     128
-    int result = RT_EOK;
-    at_response_t resp = RT_NULL;
-    char ip[AT_ADDR_LEN], mac[AT_ADDR_LEN];
-    char gateway[AT_ADDR_LEN], netmask[AT_ADDR_LEN];
-    const char *resp_expr = "%*[^\"]\"%[^\"]\"";
-    
-    if (argc != 1)
-    {
-        rt_kprintf("Please input: at_ifconfig\n");
-        return -RT_ERROR;
-    }
-    
-    rt_memset(ip, 0x00, sizeof(ip));
-    rt_memset(mac, 0x00, sizeof(mac));
-    rt_memset(gateway, 0x00, sizeof(gateway));
-    rt_memset(netmask, 0x00, sizeof(netmask));
+    netdev_low_level_set_status(netdev, RT_FALSE);
+    LOG_D("esp8266 network interface set down status.");
+    return RT_EOK;
+}
 
-    resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
+static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, ip_addr_t *netmask, ip_addr_t *gw)
+{
+#define RESP_SIZE               128
+#define IPV4_ADDR_STRLEN_MAX    16
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+    char esp8266_ip_addr[IPV4_ADDR_STRLEN_MAX] = {0};
+    char esp8266_gw_addr[IPV4_ADDR_STRLEN_MAX] = {0};
+    char esp8266_netmask_addr[IPV4_ADDR_STRLEN_MAX] = {0};
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(ip_addr || netmask || gw);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (!resp)
     {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
-    if (at_exec_cmd(resp, "AT+CIFSR") < 0)
-    {
-        rt_kprintf("AT send \"AT+CIFSR\" commands error!\n");
-        result = -RT_ERROR;
+        LOG_E("No memory for response structure!");
+        result = -RT_ENOMEM;
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 2, resp_expr, mac) <= 0)
-    {
-        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
-        result = -RT_ERROR;
-        goto __exit;
-    }
+    /* Convert numeric IP address into decimal dotted ASCII representation. */
+    if (ip_addr)
+        rt_memcpy(esp8266_ip_addr, inet_ntoa(*ip_addr), IPV4_ADDR_STRLEN_MAX);
+    else
+        rt_memcpy(esp8266_ip_addr, inet_ntoa(netdev->ip_addr), IPV4_ADDR_STRLEN_MAX);
 
-    if (at_exec_cmd(resp, "AT+CIPSTA?") < 0)
-    {
-        rt_kprintf("AT send \"AT+CIPSTA?\" commands error!\n");
-        result = -RT_ERROR;
-        goto __exit;
-    }
-	
-    if (at_resp_parse_line_args(resp, 1, resp_expr, ip) <= 0 ||
-            at_resp_parse_line_args(resp, 2, resp_expr, gateway) <= 0 ||
-                at_resp_parse_line_args(resp, 3, resp_expr, netmask) <= 0)
-    {
-        rt_kprintf("Prase \"AT+CIPSTA?\" commands resposne data error!");
-        result = -RT_ERROR;
-        goto __exit;
-    }
+    if (gw)
+        rt_memcpy(esp8266_gw_addr, inet_ntoa(*gw), IPV4_ADDR_STRLEN_MAX);
+    else
+        rt_memcpy(esp8266_gw_addr, inet_ntoa(netdev->gw), IPV4_ADDR_STRLEN_MAX);
 
-    rt_kprintf("network interface: esp8266\n");
-    rt_kprintf("MAC: %s\n", mac);
-    rt_kprintf("ip address: %s\n", ip);
-    rt_kprintf("gw address: %s\n", gateway);
-    rt_kprintf("net mask  : %s\n", netmask);
+    if (netmask)
+        rt_memcpy(esp8266_netmask_addr, inet_ntoa(*netmask), IPV4_ADDR_STRLEN_MAX);
+    else
+        rt_memcpy(esp8266_netmask_addr, inet_ntoa(netdev->netmask), IPV4_ADDR_STRLEN_MAX);
+
+    /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"", esp8266_ip_addr, esp8266_gw_addr, esp8266_netmask_addr) < 0)
+    {
+        LOG_E("esp8266 set addr info failed.");
+        result = -RT_ERROR;
+    }
+    else
+    {
+        /* Update netdev information */
+        if (ip_addr)
+            netdev_low_level_set_ipaddr(netdev, ip_addr);
+
+        if (gw)
+            netdev_low_level_set_gw(netdev, gw);
+
+        if (netmask)
+            netdev_low_level_set_netmask(netdev, netmask);
+
+        LOG_D("esp8266 set addr info successfully.");
+    }
 
 __exit:
-    rt_mutex_release(at_event_lock);
-    
     if (resp)
     {
         at_delete_resp(resp);
@@ -743,20 +853,273 @@ __exit:
     return result;
 }
 
-#ifdef FINSH_USING_MSH
-#include <finsh.h>
-MSH_CMD_EXPORT_ALIAS(esp8266_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(esp8266_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(esp8266_ifconfig, at_ifconfig, list the information of network interfaces);
+static int esp8266_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+{
+#define RESP_SIZE           128
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(dns_server)) < 0)
+    {
+        LOG_E("set dns server(%s) failed", inet_ntoa(dns_server));
+        result = -RT_ERROR;
+    }
+    else
+    {
+        netdev_low_level_set_dns_server(netdev, 0, dns_server);
+        LOG_D("esp8266 set dns server successfully.");
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
+{
+#define ESP8266_STATION     1
+#define RESP_SIZE           128
+
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netdev);
+
+    resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+    
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send dhcp set commond "AT+CWDHCP_CUR=<mode>,<en>" and wait response */
+    if (at_exec_cmd(resp, "AT+CWDHCP_CUR=%d,%d", ESP8266_STATION, is_enabled) < 0)
+    {
+        LOG_E("set dhcp status(%d) failed", is_enabled);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+    else
+    {
+        netdev_low_level_set_dhcp_status(netdev, is_enabled);
+        LOG_D("esp8266 set dhcp successfully.");
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+static int esp8266_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define ESP8266_PING_IP_SIZE         16
+
+    at_response_t resp = RT_NULL;
+    rt_err_t result = RT_EOK;
+    int req_time;
+    char ip_addr[ESP8266_PING_IP_SIZE] = {0};
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send domain commond "AT+CIPDOMAIN=<domain name>" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", host) < 0)
+    {
+        LOG_E("ping: send commond AT+CIPDOMAIN=<domain name> failed");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* parse the third line of response data, get the IP address */
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", ip_addr) < 0)
+    {
+        LOG_E("ping: get the IP address failed");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* send ping commond "AT+PING=<IP>" and wait response */
+    if (at_exec_cmd(resp, "AT+PING=\"%s\"", host) < 0)
+    {
+        LOG_E("ping: unknown remote server host");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (req_time)
+    {
+        inet_aton(ip_addr, &(ping_resp->ip_addr));
+        ping_resp->data_len = data_len;
+        ping_resp->ttl = 0;
+        ping_resp->ticks = req_time;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+void esp8266_netdev_netstat(struct netdev *netdev)
+{
+#define ESP8266_NETSTAT_RESP_SIZE         320
+#define ESP8266_NETSTAT_TYPE_SIZE         4
+#define ESP8266_NETSTAT_IPADDR_SIZE       17
+#define ESP8266_NETSTAT_EXPRESSION        "+CIPSTATUS:%*d,\"%[^\"]\",\"%[^\"]\",%d,%d,%*d"
+
+    at_response_t resp = RT_NULL;
+    rt_err_t result = RT_EOK;
+    int remote_ip, remote_port, local_port, i;
+    char *type = RT_NULL;
+    char *ipaddr = RT_NULL;
+
+    type = rt_calloc(1, ESP8266_NETSTAT_TYPE_SIZE);
+    ipaddr = rt_calloc(1, ESP8266_NETSTAT_IPADDR_SIZE);
+    if ((type && ipaddr) == RT_NULL)
+    {
+        LOG_E("No memory for response structure!");
+        goto __exit;
+    }
+
+    resp = at_create_resp(ESP8266_NETSTAT_RESP_SIZE, 0, rt_tick_from_millisecond(5000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        goto __exit;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send network connection information commond "AT+CIPSTATUS" and wait response */
+    if (at_exec_cmd(resp, "AT+CIPSTATUS") < 0)
+    {
+        LOG_E("netstat: send commond AT+CIPSTATUS failed");
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    for (i = 1; i <= resp->line_counts; i++)
+    {
+        if (strstr(at_resp_get_line(resp, i), "+CIPSTATUS"))
+        {
+            /* parse the third line of response data, get the network connection information */
+            if (at_resp_parse_line_args(resp, i, ESP8266_NETSTAT_EXPRESSION, type, ipaddr, &remote_port, &local_port) < 0)
+                goto __exit;
+            else
+            {
+                LOG_RAW("%s: %s:%d ==> %s:%d\n", type, inet_ntoa(netdev->ip_addr), local_port, ipaddr, remote_port);
+            }
+        }
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    if (type)
+    {
+        rt_free(type);
+    }
+
+    if (ipaddr)
+    {
+        rt_free(ipaddr);
+    }
+
+    rt_mutex_release(at_event_lock);
+}
+
+const struct netdev_ops esp8266_netdev_ops =
+{
+    esp8266_netdev_set_up,
+    esp8266_netdev_set_down,
+
+    esp8266_netdev_set_addr_info,
+    esp8266_netdev_set_dns_server,
+    esp8266_netdev_set_dhcp,
+
+    esp8266_netdev_ping,
+    esp8266_netdev_netstat,
+};
+
+static struct netdev *esp8266_netdev_add(const char *netdev_name)
+{
+#define ETHERNET_MTU        1500
+#define HWADDR_LEN          6
+    struct netdev *netdev = RT_NULL;
+
+    RT_ASSERT(netdev_name);
+
+    netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return RT_NULL;
+    }
+
+    netdev->mtu = ETHERNET_MTU;
+    netdev->ops = &esp8266_netdev_ops;
+    netdev->hwaddr_len = HWADDR_LEN;
+
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
 #endif
 
-static const struct at_device_ops esp8266_socket_ops = {
-    esp8266_socket_connect,
-    esp8266_socket_close,
-    esp8266_socket_send,
-    esp8266_domain_resolve,
-    esp8266_socket_set_event_cb,
-};
+    netdev_register(netdev, netdev_name, RT_NULL);
+
+    return netdev;
+}
 
 static int at_socket_device_init(void)
 {
@@ -782,6 +1145,12 @@ static int at_socket_device_init(void)
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* Add esp8266 to the netdev list */
+    esp8266_netdev_add(ESP8266_NETDEV_NAME);
+
+    /* initialize esp8266 net workqueue */
+    rt_delayed_work_init(&esp8266_net_work, exp8266_get_netdev_info, (void *)netdev_get_by_name(ESP8266_NETDEV_NAME));
 
     /* initialize esp8266 network */
     esp8266_net_init();

@@ -28,6 +28,8 @@
 #include <rtthread.h>
 #include <sys/socket.h>
 
+#include <netdev.h>
+
 #include <at.h>
 #include <at_socket.h>
 
@@ -39,6 +41,8 @@
 #include <at_log.h>
 
 #ifdef AT_DEVICE_M26
+
+#define M26_NETDEV_NAME                "m26"
 
 #define M26_MODULE_SEND_MAX_SIZE       1460
 #define M26_WAIT_CONNECT_TIME          5000
@@ -100,6 +104,9 @@ static int m26_socket_close(int socket)
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
     cur_socket = socket;
 
+    /* Clear socket close event */
+    at_socket_event_recv(SET_EVENT(socket, M26_EVNET_CLOSE_OK), 0, RT_EVENT_FLAG_OR);
+
     if (at_exec_cmd(RT_NULL, "AT+QICLOSE=%d", socket) < 0)
     {
         result = -RT_ERROR;
@@ -147,6 +154,9 @@ static int m26_socket_connect(int socket, char *ip, int32_t port, enum at_socket
 
 __retry:
 
+    /* Clear socket connect event */
+    at_socket_event_recv(SET_EVENT(socket, M26_EVENT_CONN_OK | M26_EVENT_CONN_FAIL), 0, RT_EVENT_FLAG_OR);
+
     if (is_client)
     {
         switch (type)
@@ -175,14 +185,14 @@ __retry:
     }
 
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
-    if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(10 * 1000), RT_EVENT_FLAG_OR) < 0)
+    if (at_socket_event_recv(SET_EVENT(socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect result timeout.", socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
     /* waiting OK or failed result */
-    if ((event_result = at_socket_event_recv(M26_EVENT_CONN_OK | M26_EVENT_CONN_FAIL, rt_tick_from_millisecond(1 * 1000),
+    if ((event_result = at_socket_event_recv(M26_EVENT_CONN_OK | M26_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND,
             RT_EVENT_FLAG_OR)) < 0)
     {
         LOG_E("socket (%d) connect failed, wait connect OK|FAIL timeout.", socket);
@@ -216,7 +226,7 @@ __exit:
 
 static int at_get_send_size(int socket, size_t *size, size_t *acked, size_t *nacked)
 {
-    at_response_t resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    at_response_t resp = at_create_resp(64, 0, 5 * RT_TICK_PER_SECOND);
     int result = 0;
 
     if (!resp)
@@ -288,7 +298,7 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
 
     RT_ASSERT(buff);
 
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -296,6 +306,9 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
     }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* Clear socket send event */
+    at_socket_event_recv(SET_EVENT(socket, M26_EVENT_SEND_OK | M26_EVENT_SEND_FAIL), 0, RT_EVENT_FLAG_OR);
 
     /* set current socket for send URC event */
     cur_socket = socket;
@@ -329,14 +342,14 @@ static int m26_socket_send(int socket, const char *buff, size_t bfsz, enum at_so
         }
 
         /* waiting result event from AT URC */
-        if (at_socket_event_recv(SET_EVENT(socket, 0), rt_tick_from_millisecond(300*3), RT_EVENT_FLAG_OR) < 0)
+        if (at_socket_event_recv(SET_EVENT(socket, 0), 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect result timeout.", socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = at_socket_event_recv(M26_EVENT_SEND_OK | M26_EVENT_SEND_FAIL, rt_tick_from_millisecond(1 * 1000),
+        if ((event_result = at_socket_event_recv(M26_EVENT_SEND_OK | M26_EVENT_SEND_FAIL, 1 * RT_TICK_PER_SECOND,
                 RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("socket (%d) send failed, wait connect OK|FAIL timeout.", socket);
@@ -397,7 +410,7 @@ static int m26_domain_resolve(const char *name, char ip[16])
     RT_ASSERT(ip);
 
     /* The maximum response time is 14 seconds, affected by network status */
-    resp = at_create_resp(128, 4, rt_tick_from_millisecond(14 * 1000));
+    resp = at_create_resp(128, 4, 14 * RT_TICK_PER_SECOND);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -417,14 +430,14 @@ static int m26_domain_resolve(const char *name, char ip[16])
         /* parse the third line of response data, get the IP address */
         if(at_resp_parse_line_args_by_kw(resp, ".", "%s", recv_ip) < 0)
         {
-            rt_thread_delay(rt_tick_from_millisecond(100));
+            rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
             continue;
         }
 
         if (strlen(recv_ip) < 8)
         {
-            rt_thread_delay(rt_tick_from_millisecond(100));
+            rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
             continue;
         }
@@ -567,39 +580,6 @@ static void urc_recv_func(const char *data, rt_size_t size)
     }
 }
 
-static void urc_ping_func(const char *data, rt_size_t size)
-{
-    static int icmp_seq = 0;
-    int result, recv_len, time, ttl;
-    char dst_ip[16] = { 0 };
-
-    RT_ASSERT(data);
-
-    sscanf(data, "+QPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
-
-    switch(result)
-    {
-    case 0:
-        rt_kprintf("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms\n", recv_len, dst_ip, icmp_seq++, ttl, time);
-        break;
-    case 1:
-        rt_kprintf("ping request timeout!\n");
-        break;
-    case 2:
-        icmp_seq = 0;
-        break;
-    case 3:
-        rt_kprintf("ping: TCP/IP protocol stack is busy\n");
-        break;
-    case 4:
-        rt_kprintf("ping: unknown remote server host\n");
-        break;
-    default:
-        break;
-    }
-
-}
-
 static void urc_func(const char *data, rt_size_t size)
 {
     RT_ASSERT(data);
@@ -619,7 +599,6 @@ static const struct at_urc urc_table[] = {
         {"",            ", CLOSE OK\r\n",       urc_close_func},
         {"",            ", CLOSED\r\n",         urc_close_func},
         {"+RECEIVE:",   "\r\n",                 urc_recv_func},
-        {"+QPING:",     "\r\n",                 urc_ping_func},
 };
 
 #define AT_SEND_CMD(resp, resp_line, timeout, cmd)                                                              \
@@ -631,6 +610,9 @@ static const struct at_urc urc_table[] = {
             goto __exit;                                                                                        \
         }                                                                                                       \
     } while(0);                                                                                                 \
+
+static int m26_netdev_set_info(struct netdev *netdev);
+static int m26_netdev_check_link_status(struct netdev *netdev);
 
 /* init for M26 or MC20 */
 static void m26_init_thread_entry(void *parameter)
@@ -656,6 +638,7 @@ static void m26_init_thread_entry(void *parameter)
     /* wait M26 startup finish */
     if (at_client_wait_connect(M26_WAIT_CONNECT_TIME))
     {
+        LOG_E("AT device connection error.");
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -671,14 +654,14 @@ static void m26_init_thread_entry(void *parameter)
     /* check SIM card */
     for (i = 0; i < CPIN_RETRY; i++)
     {
-        at_exec_cmd(at_resp_set_info(resp, 128, 2, rt_tick_from_millisecond(5000)), "AT+CPIN?");
+        at_exec_cmd(at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND), "AT+CPIN?");
 
         if (at_resp_get_line_by_kw(resp, "READY"))
         {
             LOG_D("SIM card detection success");
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CPIN_RETRY)
     {
@@ -687,7 +670,7 @@ static void m26_init_thread_entry(void *parameter)
         goto __exit;
     }
     /* waiting for dirty data to be digested */
-    rt_thread_delay(rt_tick_from_millisecond(10));
+    rt_thread_mdelay(10);
     /* check signal strength */
     for (i = 0; i < CSQ_RETRY; i++)
     {
@@ -698,7 +681,7 @@ static void m26_init_thread_entry(void *parameter)
             LOG_D("Signal strength: %s", parsed_data);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CSQ_RETRY)
     {
@@ -716,7 +699,7 @@ static void m26_init_thread_entry(void *parameter)
             LOG_D("GSM network is registered (%s)", parsed_data);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CREG_RETRY)
     {
@@ -734,7 +717,7 @@ static void m26_init_thread_entry(void *parameter)
             LOG_D("GPRS network is registered (%s)", parsed_data);
             break;
         }
-        rt_thread_delay(rt_tick_from_millisecond(1000));
+        rt_thread_mdelay(1000);
     }
     if (i == CGREG_RETRY)
     {
@@ -779,13 +762,15 @@ __exit:
 
     if (!result)
     {
+        m26_netdev_set_info(netdev_get_by_name(M26_NETDEV_NAME));
+        m26_netdev_check_link_status(netdev_get_by_name(M26_NETDEV_NAME));
+
         LOG_I("AT network initialize success!");
     }
     else
     {
         LOG_E("AT network initialize failed (%d)!", result);
     }
-
 }
 
 int m26_net_init(void)
@@ -809,83 +794,9 @@ int m26_net_init(void)
     return RT_EOK;
 }
 
-int m26_ping(int argc, char **argv)
-{
-    at_response_t resp = RT_NULL;
-
-    if (argc != 2)
-    {
-        rt_kprintf("Please input: at_ping <host address>\n");
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    if (at_exec_cmd(resp, "AT+QPING=\"%s\"", argv[1]) < 0)
-    {
-        rt_kprintf("AT send ping commands error!\n");
-        return -RT_ERROR;
-    }
-
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return RT_EOK;
-}
-
-int m26_ifconfig(void)
-{
-    at_response_t resp = RT_NULL;
-    char resp_arg[AT_CMD_MAX_LEN] = { 0 };
-    const char * resp_expr = "%s";
-    rt_err_t result = RT_EOK;
-
-    resp = at_create_resp(64, 2, rt_tick_from_millisecond(300));
-    if (!resp)
-    {
-        rt_kprintf("No memory for response structure!\n");
-        return -RT_ENOMEM;
-    }
-
-    if (at_exec_cmd(resp, "AT+QILOCIP") < 0)
-    {
-        rt_kprintf("AT send ip commands error!\n");
-        result = RT_ERROR;
-        goto __exit;
-    }
-
-    if (at_resp_parse_line_args(resp, 2, resp_expr, resp_arg) == 1)
-    {
-        rt_kprintf("IP address : %s\n", resp_arg);
-    }
-    else
-    {
-        rt_kprintf("Parse error, current line buff : %s\n", at_resp_get_line(resp, 2));
-        result = RT_ERROR;
-        goto __exit;
-    }
-
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(m26_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(m26_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(m26_ifconfig, at_ifconfig, list the information of network interfaces);
 #endif
 
 static const struct at_device_ops m26_socket_ops = {
@@ -895,6 +806,396 @@ static const struct at_device_ops m26_socket_ops = {
     m26_domain_resolve,
     m26_socket_set_event_cb,
 };
+
+
+/* set m26 network interface device status and address information */
+static int m26_netdev_set_info(struct netdev *netdev)
+{
+#define M26_IEMI_RESP_SIZE      32
+#define M26_IPADDR_RESP_SIZE    32
+#define M26_DNS_RESP_SIZE       96
+#define M26_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    ip_addr_t addr;
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* set network interface device up status */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+
+    resp = at_create_resp(M26_IEMI_RESP_SIZE, 0, M26_INFO_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("M26 set IP address failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* set network interface device hardware address(IEMI) */
+    {
+        #define M26_NETDEV_HWADDR_LEN   8
+        #define M26_IEMI_LEN            15
+
+        char iemi[M26_IEMI_LEN] = {0};
+        int i = 0, j = 0;
+
+        /* send "AT+GSN" commond to get device IEMI */
+        if (at_exec_cmd(resp, "AT+GSN") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
+        {
+            LOG_E("Prase \"AT+GSN\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("M26 IEMI number: %s", iemi);
+
+        netdev->hwaddr_len = M26_NETDEV_HWADDR_LEN;
+        /* get hardware address by IEMI */
+        for (i = 0, j = 0; i < M26_NETDEV_HWADDR_LEN && j < M26_IEMI_LEN; i++, j+=2)
+        {
+            if (j != M26_IEMI_LEN - 1)
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+            }
+            else
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0');
+            }
+        }
+    }
+
+    /* set network interface device IP address */
+    {
+        #define IP_ADDR_SIZE_MAX    16
+        char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+        
+        at_resp_set_info(resp, M26_IPADDR_RESP_SIZE, 2, M26_INFO_RESP_TIMO);
+
+        /* send "AT+QILOCIP" commond to get IP address */
+        if (at_exec_cmd(resp, "AT+QILOCIP") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, ".", "%s", ipaddr) <= 0)
+        {
+            LOG_E("Prase \"AT+QILOCIP\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        LOG_D("M26 IP address: %s", ipaddr);
+
+        /* set network interface address information */
+        inet_aton(ipaddr, &addr);
+        netdev_low_level_set_ipaddr(netdev, &addr);
+    }
+
+    /* set network interface device dns server */
+    {
+        #define DNS_ADDR_SIZE_MAX   16
+        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+
+        at_resp_set_info(resp, M26_DNS_RESP_SIZE, 0, M26_INFO_RESP_TIMO);
+
+        /* send "AT+QIDNSCFG?" commond to get DNS servers address */
+        if (at_exec_cmd(resp, "AT+QIDNSCFG?") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
+                at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
+        {
+            LOG_E("Prase \"AT+QIDNSCFG?\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("M26 primary DNS server address: %s", dns_server1);
+        LOG_D("M26 secondary DNS server address: %s", dns_server2);
+
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
+
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+    
+    return result;
+}
+
+static void check_link_status_entry(void *parameter)
+{
+#define M26_LINK_STATUS_OK   0
+#define M26_LINK_RESP_SIZE   64
+#define M26_LINK_RESP_TIMO   (3 * RT_TICK_PER_SECOND)
+#define M26_LINK_DELAY_TIME  (30 * RT_TICK_PER_SECOND)
+
+    struct netdev *netdev = (struct netdev *)parameter;
+    at_response_t resp = RT_NULL;
+    int link_status;
+
+    resp = at_create_resp(M26_LINK_RESP_SIZE, 0, M26_LINK_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("m26 set check link status failed, no memory for response object.");
+        return;
+    }
+
+    while (1)
+    { 
+
+        rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+        
+        /* send "AT+QNSTATUS" commond  to check netweork interface device link status */
+        if (at_exec_cmd(resp, "AT+QNSTATUS") < 0)
+        {
+            rt_mutex_release(at_event_lock);
+            rt_thread_mdelay(M26_LINK_DELAY_TIME);
+
+            continue;
+        }
+        
+        link_status = -1;
+        at_resp_parse_line_args_by_kw(resp, "+QNSTATUS:", "+QNSTATUS: %d", &link_status);
+
+        /* check the network interface device link status  */
+        if ((M26_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
+        {
+            netdev_low_level_set_link_status(netdev, (M26_LINK_STATUS_OK == link_status));
+        }
+
+        rt_mutex_release(at_event_lock);
+        rt_thread_mdelay(M26_LINK_DELAY_TIME);
+    }
+}
+
+static int m26_netdev_check_link_status(struct netdev *netdev)
+{
+#define M26_LINK_THREAD_STACK_SIZE     512
+#define M26_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+#define M26_LINK_THREAD_TICK           20
+
+    rt_thread_t tid;
+    char tname[RT_NAME_MAX];
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("Input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_memset(tname, 0x00, sizeof(tname));
+    rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
+
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev, 
+            M26_LINK_THREAD_STACK_SIZE, M26_LINK_THREAD_PRIORITY, M26_LINK_THREAD_TICK);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
+}
+
+static int m26_netdev_set_up(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    LOG_D("The network interface device(%s) set up status", netdev->name);
+
+    return RT_EOK;
+}
+
+static int m26_netdev_set_down(struct netdev *netdev)
+{
+    netdev_low_level_set_status(netdev, RT_FALSE);
+    LOG_D("The network interface device(%s) set down status", netdev->name);
+    return RT_EOK;
+}
+
+static int m26_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+{
+#define M26_DNS_RESP_LEN    8
+#define M26_DNS_RESP_TIMEO   rt_tick_from_millisecond(300)
+
+    at_response_t resp = RT_NULL;
+    int result = RT_EOK;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    resp = at_create_resp(M26_DNS_RESP_LEN, 0, M26_DNS_RESP_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("m26 set dns server failed, no memory for response object.");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    if (at_exec_cmd(resp, "AT+QIDNSCFG=\"%s\"", inet_ntoa(dns_server)) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    netdev_low_level_set_dns_server(netdev, 0, dns_server);
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+static int m26_netdev_ping(struct netdev *netdev, const char *host, size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define M26_PING_RESP_SIZE       128
+#define M26_PING_IP_SIZE         16
+#define M26_PING_TIMEO           (5 * RT_TICK_PER_SECOND)
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    char ip_addr[M26_PING_IP_SIZE] = {0};
+    int response, recv_data_len, time, ttl;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    resp = at_create_resp(M26_PING_RESP_SIZE, 5, M26_PING_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("m26 set dns server failed, no memory for response object.");
+        return  -RT_ENOMEM;
+    }
+
+    rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
+
+    /* send "AT+QPING="<host>"[,[<timeout>][,<pingnum>]]" commond to send ping request */
+    if (at_exec_cmd(resp, "AT+QPING=\"%s\",%d,1", host, M26_PING_TIMEO / RT_TICK_PER_SECOND) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    at_resp_parse_line_args_by_kw(resp, "+QPING:","+QPING:%d", &response);
+    /* Received the ping response from the server */
+    if (response == 0)
+    {
+        if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,%[^,],%d,%d,%d",
+                &response, ip_addr, &recv_data_len, &time, &ttl) <= 0)
+        {
+            LOG_E("Prase \"AT+QPING\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }   
+    }
+
+
+    /* prase response number */
+    switch (response)
+    {
+    case 0:
+        inet_aton(ip_addr, &(ping_resp->ip_addr));
+        ping_resp->data_len = recv_data_len;
+        ping_resp->ticks = time;
+        ping_resp->ttl = ttl;
+        result = RT_EOK;
+        break;
+    case 1:
+        result = -RT_ETIMEOUT;
+        break;
+    default:
+        result = -RT_ERROR;
+        break;
+    }
+
+ __exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    rt_mutex_release(at_event_lock);
+
+    return result;
+}
+
+void m26_netdev_netstat(struct netdev *netdev)
+{ 
+    // TODO netstat support
+}
+
+const struct netdev_ops m26_netdev_ops =
+{
+    m26_netdev_set_up,
+    m26_netdev_set_down,
+
+    RT_NULL, /* not support set ip, netmask, gatway address */
+    m26_netdev_set_dns_server,
+    RT_NULL, /* not support set DHCP status */
+
+    m26_netdev_ping,
+    m26_netdev_netstat,
+};
+
+static int m26_netdev_add(const char *netdev_name)
+{
+#define M26_NETDEV_MTU       1500
+
+    struct netdev *netdev = RT_NULL;
+
+    RT_ASSERT(netdev_name);
+
+    netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        return RT_NULL;
+    }
+
+    netdev->mtu = M26_NETDEV_MTU;
+    netdev->ops = &m26_netdev_ops;
+
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
+#endif
+
+    return netdev_register(netdev, netdev_name, RT_NULL);
+}
 
 static int at_socket_device_init(void)
 {
@@ -920,6 +1221,13 @@ static int at_socket_device_init(void)
 
     /* register URC data execution function  */
     at_set_urc_table(urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
+
+    /* add network interface device to netdev list */
+    if (m26_netdev_add(M26_NETDEV_NAME) < 0)
+    {
+        LOG_E("M26 network interface device(%d) add failed.", M26_NETDEV_NAME);
+        return -RT_ENOMEM;
+    }
 
     /* initialize m26 network */
     m26_net_init();
