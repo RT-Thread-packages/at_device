@@ -562,7 +562,8 @@ static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
     const char *resp_dns = "+CIPDNS_CUR:%s";
     const char *resp_dhcp = "+CWDHCP_CUR:%d";
     ip_addr_t sal_ip_addr;
-    rt_uint8_t mac_addr[6] = {0};
+    rt_uint32_t mac_addr[6] = {0};
+    rt_uint32_t num = 0; 
     rt_uint8_t dhcp_stat = 0;
     struct netdev *netdev = RT_NULL;
 
@@ -616,13 +617,16 @@ static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_gw(netdev, &sal_ip_addr);
     inet_aton(netmask, &sal_ip_addr);
     netdev_low_level_set_netmask(netdev, &sal_ip_addr);
-    sscanf(mac, "%x:%x:%x:%x:%x:%x", (rt_uint32_t *)&mac_addr[0], (rt_uint32_t *)&mac_addr[1], (rt_uint32_t *)&mac_addr[2], (rt_uint32_t *)&mac_addr[3], (rt_uint32_t *)&mac_addr[4], (rt_uint32_t *)&mac_addr[5]);
-    memcpy(netdev->hwaddr, (const void *)mac_addr, netdev->hwaddr_len);
+    sscanf(mac, "%x:%x:%x:%x:%x:%x", &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
+    for (num = 0; num < netdev->hwaddr_len; num++)
+    {
+        netdev->hwaddr[num] = mac_addr[num];
+    }
 
     /* send dns server query commond "AT+CIPDNS_CUR?" and wait response */
     if (at_exec_cmd(resp, "AT+CIPDNS_CUR?") < 0)
     {
-        LOG_E("AT send \"AT+CIPDNS_CUR?\" commands error!");
+        LOG_W("Get dns server failed! Please check and update your firmware to support the \"AT+CIPDNS_CUR?\" command.");
         goto __exit;
     }
 
@@ -630,7 +634,6 @@ static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
             at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
     {
         LOG_E("Prase \"AT+CIPDNS_CUR?\" commands resposne data error!");
-        LOG_E("get dns server failed! Please check whether your firmware supports the \"AT+CIPDNS_CUR?\" command.");
         goto __exit;
     }
 
@@ -950,7 +953,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host, size_t d
     RT_ASSERT(host);
     RT_ASSERT(ping_resp);
 
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(64, 0, timeout);
     if (!resp)
     {
         LOG_E("No memory for response structure!");
