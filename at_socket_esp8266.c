@@ -22,16 +22,21 @@
  * 2018-06-20     chenyong     first version
  */
 
-#include <at.h>
 #include <stdio.h>
 #include <string.h>
 
 #include <rtthread.h>
 #include <sys/socket.h>
 
+#include <at.h>
 #include <at_socket.h>
 
+#if !defined(RT_USING_NETDEV)
+#error "This RT-Thread version is older, please check and updata laster RT-Thread!"
+#else
+#include <arpa/inet.h>
 #include <netdev.h>
+#endif /* RT_USING_NETDEV */
 
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10200
 #error "This AT Client version is older, please check and update latest AT Client!"
