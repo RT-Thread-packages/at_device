@@ -1044,7 +1044,7 @@ static int m26_netdev_set_down(struct netdev *netdev)
     return RT_EOK;
 }
 
-static int m26_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+static int m26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
 #define M26_DNS_RESP_LEN    8
 #define M26_DNS_RESP_TIMEO   rt_tick_from_millisecond(300)
@@ -1071,7 +1071,7 @@ static int m26_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_serve
         goto __exit;
     }
 
-    netdev_low_level_set_dns_server(netdev, 0, dns_server);
+    netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
 
 __exit:
     if (resp)

@@ -565,7 +565,6 @@ static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
     char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
     const char *resp_expr = "%*[^\"]\"%[^\"]\"";
     const char *resp_dns = "+CIPDNS_CUR:%s";
-    const char *resp_dhcp = "+CWDHCP_CUR:%d";
     ip_addr_t sal_ip_addr;
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0; 
@@ -668,7 +667,7 @@ static void exp8266_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    /* Bit0： SoftAP DHCP status, Bit1： Station DHCP status */
+    /* Bit0 - SoftAP DHCP status, Bit1 - Station DHCP status */
     if (dhcp_stat & 0x02)
     {
         netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
@@ -861,7 +860,7 @@ __exit:
     return result;
 }
 
-static int esp8266_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_server)
+static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
 #define RESP_SIZE           128
     at_response_t resp = RT_NULL;
@@ -887,11 +886,10 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, ip_addr_t *dns_s
     }
     else
     {
-        netdev_low_level_set_dns_server(netdev, 0, dns_server);
+        netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
         LOG_D("esp8266 set dns server successfully.");
     }
 
-__exit:
     if (resp)
     {
         at_delete_resp(resp);
@@ -1024,8 +1022,7 @@ void esp8266_netdev_netstat(struct netdev *netdev)
 #define ESP8266_NETSTAT_EXPRESSION        "+CIPSTATUS:%*d,\"%[^\"]\",\"%[^\"]\",%d,%d,%*d"
 
     at_response_t resp = RT_NULL;
-    rt_err_t result = RT_EOK;
-    int remote_ip, remote_port, local_port, i;
+    int remote_port, local_port, i;
     char *type = RT_NULL;
     char *ipaddr = RT_NULL;
 
@@ -1050,7 +1047,6 @@ void esp8266_netdev_netstat(struct netdev *netdev)
     if (at_exec_cmd(resp, "AT+CIPSTATUS") < 0)
     {
         LOG_E("netstat: send commond AT+CIPSTATUS failed");
-        result = -RT_ERROR;
         goto __exit;
     }
 
