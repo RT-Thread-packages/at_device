@@ -1505,7 +1505,7 @@ static int ec20_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     }
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_exec_cmd(resp, "AT+QIDNSCFG=1,\"%s\"", inet_ntoa(dns_server)) < 0)
+    if (at_exec_cmd(resp, "AT+QIDNSCFG=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         result = -RT_ERROR;
         goto __exit;

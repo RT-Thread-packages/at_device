@@ -1065,7 +1065,7 @@ static int m26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_exec_cmd(resp, "AT+QIDNSCFG=\"%s\"", inet_ntoa(dns_server)) < 0)
+    if (at_exec_cmd(resp, "AT+QIDNSCFG=\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
