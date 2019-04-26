@@ -1082,7 +1082,7 @@ static int sim800c_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
     resp = at_create_resp(SIM800C_DNS_RESP_LEN, 0, SIM800C_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim800c set dns server failed, no memory for response object.");
+        LOG_D("sim800c set dns server failed, no memory for response object.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -1142,7 +1142,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host, size_t d
     resp = at_create_resp(SIM800C_PING_RESP_SIZE, 0, SIM800C_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim800c set dns server failed, no memory for response object.");
+        LOG_D("sim800c set dns server failed, no memory for response object.");
         result = -RT_ERROR;
         goto __exit;
     }
@@ -1157,7 +1157,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host, size_t d
     if (at_resp_parse_line_args_by_kw(resp, "+CIPPING:", "+CIPPING:%d,\"%[^\"]\",%d,%d",
              &response, ip_addr, &time, &ttl) <= 0)
     {
-        LOG_E("Prase \"AT+CIPPING\" commands resposne data error!");
+        LOG_D("Prase \"AT+CIPPING\" commands resposne data error!");
         result = -RT_ERROR;
         goto __exit;
     }

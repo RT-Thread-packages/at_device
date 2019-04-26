@@ -1499,7 +1499,7 @@ static int ec20_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     resp = at_create_resp(EC20_DNS_RESP_LEN, 0, EC20_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("EC20 set dns server failed, no memory for response object.");
+        LOG_D("EC20 set dns server failed, no memory for response object.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -1544,7 +1544,7 @@ static int ec20_netdev_ping(struct netdev *netdev, const char *host, size_t data
     resp = at_create_resp(EC20_PING_RESP_SIZE, 4, EC20_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("No memory for response structure!\n");
+        LOG_D("No memory for response structure!\n");
         return -RT_ENOMEM;
     }
 
