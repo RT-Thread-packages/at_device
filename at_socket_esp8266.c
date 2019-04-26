@@ -346,7 +346,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(5000));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(20000));
     if (!resp)
     {
         LOG_E("No memory for response structure!");
@@ -833,7 +833,7 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
     /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
     if (at_exec_cmd(resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"", esp8266_ip_addr, esp8266_gw_addr, esp8266_netmask_addr) < 0)
     {
-        LOG_E("esp8266 set addr info failed.");
+        LOG_D("esp8266 set addr info failed.");
         result = -RT_ERROR;
     }
     else
@@ -879,9 +879,9 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
     /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
-    if (at_exec_cmd(resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(dns_server)) < 0)
+    if (at_exec_cmd(resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
-        LOG_E("set dns server(%s) failed", inet_ntoa(dns_server));
+        LOG_E("set dns server(%s) failed", inet_ntoa(*dns_server));
         result = -RT_ERROR;
     }
     else
@@ -968,7 +968,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host, size_t d
     /* send domain commond "AT+CIPDOMAIN=<domain name>" and wait response */
     if (at_exec_cmd(resp, "AT+CIPDOMAIN=\"%s\"", host) < 0)
     {
-        LOG_E("ping: send commond AT+CIPDOMAIN=<domain name> failed");
+        LOG_D("ping: send commond AT+CIPDOMAIN=<domain name> failed");
         result = -RT_ERROR;
         goto __exit;
     }
@@ -984,7 +984,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host, size_t d
     /* send ping commond "AT+PING=<IP>" and wait response */
     if (at_exec_cmd(resp, "AT+PING=\"%s\"", host) < 0)
     {
-        LOG_E("ping: unknown remote server host");
+        LOG_D("ping: unknown remote server host");
         result = -RT_ERROR;
         goto __exit;
     }

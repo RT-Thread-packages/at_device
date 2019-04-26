@@ -1058,14 +1058,14 @@ static int m26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_
     resp = at_create_resp(M26_DNS_RESP_LEN, 0, M26_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("m26 set dns server failed, no memory for response object.");
+        LOG_D("m26 set dns server failed, no memory for response object.");
         return -RT_ENOMEM;
     }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_exec_cmd(resp, "AT+QIDNSCFG=\"%s\"", inet_ntoa(dns_server)) < 0)
+    if (at_exec_cmd(resp, "AT+QIDNSCFG=\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -1102,7 +1102,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host, size_t data_
     resp = at_create_resp(M26_PING_RESP_SIZE, 5, M26_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("m26 set dns server failed, no memory for response object.");
+        LOG_D("m26 set dns server failed, no memory for response object.");
         return  -RT_ENOMEM;
     }
 
@@ -1122,7 +1122,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host, size_t data_
         if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,%[^,],%d,%d,%d",
                 &response, ip_addr, &recv_data_len, &time, &ttl) <= 0)
         {
-            LOG_E("Prase \"AT+QPING\" commands resposne data error!");
+            LOG_D("Prase \"AT+QPING\" commands resposne data error!");
             result = -RT_ERROR;
             goto __exit;
         }   
