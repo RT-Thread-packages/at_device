@@ -2,7 +2,7 @@
 
 ## 1. 简介 ##
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、RW007、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://github.com/RT-Thread/rtthread-manual-doc)AT 命令章节 。 
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、EC20、RW007、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://github.com/RT-Thread/rtthread-manual-doc)AT 命令章节 。 
 
 ### 1.1. 文件结构 ###
 
@@ -54,9 +54,10 @@ AT device 软件包是对 AT 组件库和 AT socket 功能的移植，需开启 
 - `Version`: 下载软件包版本；
   - **V1.2.0**：RT-Thread 版本小于 V3.1.3，AT 组件版本等于 V1.0.0；
   - **V1.3.0**：RT-Thread 版本小于 V3.1.3，AT 组件版本等于 V1.1.0；
-  - **V1.4.0**：RT-Thread 版本小于 V3.1.3或等于 V4.0.0， AT 组件版本等于 V1.2.0；
-  - **V1.5.0**:  RT-Thread 版本小于 V3.1.3 或等于 V4.0.0， AT 组件版本等于 V1.2.0；
-  - **laster**: RT-Thread 版本小于大于等于 V4.0.1 或者 大于等于 3.1.3， AT 组件版本等于 V1.2.0；
+  - **V1.4.0**：RT-Thread 版本小于 V3.1.3 或等于 V4.0.0， AT 组件版本等于 V1.2.0；
+  - **V1.5.0**：RT-Thread 版本小于 V3.1.3 或等于 V4.0.0， AT 组件版本等于 V1.2.0；
+  - **V1.6.0**：RT-Thread 版本等于 V3.1.3 或等于 V4.0.1， AT 组件版本等于 V1.2.0；
+  - **laster**：RT-Thread 版本小于大于 V4.0.1 或者 大于 3.1.3， AT 组件版本大于 V1.2.0；
 
 >上述 版本判断在 menuconfig 中自动完成，at_device 软件包选择版本时会根据当前系统环境给出最佳版本支持，这里版本介绍作为运行环境参考。
 
