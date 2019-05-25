@@ -454,17 +454,30 @@ static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t opt
 static int ec20_socket_close(int socket)
 {
     int result = 0;
+    at_response_t resp = RT_NULL;
+
+    resp = at_create_resp(128, 0, RT_TICK_PER_SECOND);
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
 
     /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
-    result = at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,1", socket);
+    result = at_exec_cmd(resp, "AT+QICLOSE=%d,1", socket);
     if (result < 0)
     {
         return result;
     }
 
     rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
 
     return result;
 }
@@ -487,9 +500,17 @@ static int ec20_socket_connect(int socket, char *ip, int32_t port, enum at_socke
 {
     int result = 0, event_result = 0;
     rt_bool_t retryed = RT_FALSE;
+    at_response_t resp = RT_NULL;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
+
+    resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
 
     /* lock AT socket connect */
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
@@ -508,7 +529,7 @@ __retry:
             /* contextID = 1 : use same contextID as AT+QICSGP & AT+QIACT */
             /* local_port=0 : local port assigned automatically */
             /* access_mode = 1 : Direct push mode */
-            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -516,7 +537,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -551,7 +572,11 @@ __retry:
         {
             LOG_W("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
             /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
-            at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,1", socket);
+            if (ec20_socket_close < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
             retryed = RT_TRUE;
             goto __retry;
         }
@@ -563,6 +588,11 @@ __retry:
 __exit:
     /* unlock AT socket connect */
     rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
 
     return result;
 }
@@ -879,9 +909,9 @@ static void urc_close_func(const char *data, rt_size_t size)
         at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, NULL, 0);
     }
     
-    /* when TCP socket service is closed, host must send "AT+QICLOSE= <connID>,0" command to close socket */
-    at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,0\r\n", socket);
-    rt_thread_mdelay(100);
+    // /* when TCP socket service is closed, host must send "AT+QICLOSE= <connID>,0" command to close socket */
+    // at_exec_cmd(RT_NULL, "AT+QICLOSE=%d,0\r\n", socket);
+    // rt_thread_mdelay(100);
 }
 
 static void urc_recv_func(const char *data, rt_size_t size)

@@ -105,6 +105,14 @@ static int at_socket_event_recv(uint32_t event, uint32_t timeout, rt_uint8_t opt
 static int m26_socket_close(int socket)
 {
     int result = 0;
+    at_response_t resp = RT_NULL;
+
+    resp = at_create_resp(128, 0, RT_TICK_PER_SECOND);
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
 
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
     cur_socket = socket;
@@ -112,7 +120,7 @@ static int m26_socket_close(int socket)
     /* Clear socket close event */
     at_socket_event_recv(SET_EVENT(socket, M26_EVNET_CLOSE_OK), 0, RT_EVENT_FLAG_OR);
 
-    if (at_exec_cmd(RT_NULL, "AT+QICLOSE=%d", socket) < 0)
+    if (at_exec_cmd(resp, "AT+QICLOSE=%d", socket) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -127,6 +135,11 @@ static int m26_socket_close(int socket)
 
 __exit:
     rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
 
     return result;
 }
@@ -150,9 +163,17 @@ static int m26_socket_connect(int socket, char *ip, int32_t port, enum at_socket
 {
     int result = 0, event_result = 0;
     rt_bool_t retryed = RT_FALSE;
+    at_response_t resp = RT_NULL;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
+
+    resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
 
     /* lock AT socket connect */
     rt_mutex_take(at_event_lock, RT_WAITING_FOREVER);
@@ -168,7 +189,7 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"TCP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+QIOPEN=%d,\"TCP\",\"%s\",%d", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -176,7 +197,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_exec_cmd(RT_NULL, "AT+QIOPEN=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
+            if (at_exec_cmd(resp, "AT+QIOPEN=%d,\"UDP\",\"%s\",%d", socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -225,6 +246,11 @@ __retry:
 __exit:
     /* unlock AT socket connect */
     rt_mutex_release(at_event_lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
 
     return result;
 }
