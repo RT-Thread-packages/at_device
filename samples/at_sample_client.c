@@ -1,5 +1,5 @@
 /*
- * File      : at_client_sample.c
+ * File      : at_sample_client.c
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
  *
