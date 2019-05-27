@@ -2,7 +2,7 @@
 
 ## 1. 简介 ##
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、RW007、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://github.com/RT-Thread/rtthread-manual-doc)AT 命令章节 。 
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、RW007、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
 
 ### 1.1. 目录结构 ###
 
@@ -25,8 +25,8 @@ at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
 
 ### 1.3 依赖 ###
 
-- RT_Thread 4.0.1+
-- RT_Thread AT 组件  1.2.0+
+- RT_Thread 4.0.2+
+- RT_Thread AT 组件  1.3.0+
 - RT_Thread SAL 组件
 - RT-Thread netdev 组件
 
@@ -43,7 +43,7 @@ AT device 软件包目前已经发布多个版本，各个版本之间选项配�
 - **V1.4.0**：RT-Thread 版本小于 V3.1.3或等于 V4.0.0， AT 组件版本等于 V1.2.0；
 - **V1.5.0**:  RT-Thread 版本小于 V3.1.3 或等于 V4.0.0， AT 组件版本等于 V1.2.0；
 - **V1.6.0**:  RT-Thread 版本等于 V3.1.3 或等于 V4.0.1， AT 组件版本等于 V1.2.0；
-- **laster**: RT-Thread 版本小于大于 V4.0.1 或者 大于 3.1.3， AT 组件版本大于 V1.2.0；
+- **laster**: RT-Thread 版本小于大于 V4.0.1 或者大于 3.1.3， AT 组件版本大于 V1.2.0；
 
 >  上述 版本判断在 menuconfig 中自动完成，at_device 软件包选择版本时会根据当前系统环境给出最佳版本支持，这里版本介绍作为运行环境参考。
 
@@ -100,7 +100,7 @@ RT-Thread online packages  --->
   - **Power status pin**：配置该示例设备上电状态引脚；
   - **AT client device name**：配置该示例设备使用的串口设备名称；
   - **The maximum length of receive line buffer**：配置该示例设备最大一行接收的数据长度；
-- **Quectel EC20 **：开启 EC20（4G 模块）设备支持；
+- **Quectel EC20**：开启 EC20（4G 模块）设备支持；
 - **Espressif ESP8266**：开启 ESP8266 （WIFI 模块）设备支持；
   - **Enable initialize by thread**：开启使用线程进行设备初始化功能（非阻塞模式初始化）；
   - **Enable sample**：开启示例代码，该示例代码中有对示例设备的注册；
