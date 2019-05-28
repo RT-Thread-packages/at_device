@@ -645,8 +645,6 @@ static void esp8266_init_thread_entry(void *parameter)
             LOG_D("%s", at_resp_get_line(resp, i + 1));
         }
 
-        AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
-
         /* connect to WiFi AP */
         if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), 
                     "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
@@ -657,6 +655,8 @@ static void esp8266_init_thread_entry(void *parameter)
             goto __exit;
         }
 
+        AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
+        
     __exit:
         if (result == RT_EOK)
         {
