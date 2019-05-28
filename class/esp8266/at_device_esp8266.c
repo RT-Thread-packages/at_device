@@ -122,8 +122,9 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
-            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    int ret1 = at_resp_parse_line_args(resp, 1, resp_dns, dns_server1);
+    int ret2 = at_resp_parse_line_args(resp, 2, resp_dns, dns_server2);
+    if(ret1 <= 0 && ret2 <= 0)
     {
         LOG_E("esp8266 device(%d) prase \"AT+CIPDNS_CUR?\" commands resposne data error.", device->name);
         goto __exit;
@@ -682,8 +683,6 @@ static void esp8266_init_thread_entry(void *parameter)
     {
         device->is_init = RT_TRUE;
         netdev_low_level_set_status(device->netdev, RT_TRUE);
-        netdev_low_level_set_link_status(device->netdev, RT_TRUE);
-        esp8266_netdev_start_delay_work(device);
         LOG_I("esp8266 device(%s) network initialize successfully.", device->name);
     }
 }
