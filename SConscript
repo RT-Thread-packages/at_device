@@ -30,7 +30,16 @@ if GetDepend(['AT_DEVICE_USING_ESP8266']):
         src += Glob('class/esp8266/at_socket_esp8266.c')
     if GetDepend(['AT_DEVICE_ESP8266_SAMPLE']):
         src += Glob('samples/at_sample_esp8266.c')
-        
+
+# MW31
+if GetDepend(['AT_DEVICE_USING_MW31']):
+    path += [cwd + '/class/mw31']
+    src += Glob('class/mw31/at_device_mw31.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/mw31/at_socket_mw31.c')
+    if GetDepend(['AT_DEVICE_MW31_SAMPLE']):
+        src += Glob('samples/at_sample_mw31.c')
+
 # RW007
 if GetDepend(['AT_DEVICE_USING_RW007']):
     path += [cwd + '/class/rw007']
