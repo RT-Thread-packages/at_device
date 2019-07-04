@@ -2,7 +2,7 @@
 
 ## 1. 简介 ##
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、RW007、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、M26、MC20、RW007、MW31、SIM800C 以及 SIM76XX 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
 
 ### 1.1. 目录结构 ###
 
@@ -18,7 +18,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/sim76xx | SIM76XX 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/m26 | M26/MC20 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/ec20 | EC20 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
-
+| class/mw31 | MW31 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 ### 1.2 许可证 ###
 
 at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
@@ -90,6 +90,7 @@ RT-Thread online packages  --->
         [ ]   Realthread RW007  --->
         [ ]   SIMCom SIM800C  --->
         [ ]   SIMCom SIM76XX  --->
+        [ ]   Notion MW31  --->
         Version (latest)  --->
 ```
 
@@ -111,6 +112,7 @@ RT-Thread online packages  --->
 - **Realthread RW007**：开启 RW007 （WIFI 模块）设备支持；
 - **SIMCom SIM800C**：开启 SIM800C （2G 模块）设备支持；
 - **SIMCom SIM76XX**：开启 SIM76XX （4G 模块）设备支持； 
+- **Notion MW31**：开启 MW31 （WIFI 模块）设备支持； 
 - **Version** 下载软件包版本；
 
 上面配置选项以 2G 模块和 WIFI 模块选项为例，介绍了`V2.X.X` 版本 AT device 软件包配置方式，如下几点值得注意：
