@@ -27,10 +27,6 @@
 
 #include <at_device_mw31.h>
 
-#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10300
-    #error "This AT Client version is older, please check and update latest AT Client!"
-#endif
-
 #define LOG_TAG                       "at.skt"
 #include <at_log.h>
 
