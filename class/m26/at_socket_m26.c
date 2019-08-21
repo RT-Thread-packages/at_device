@@ -399,7 +399,7 @@ __exit:
         at_delete_resp(resp);
     }
 
-    return result;
+    return result > 0 ? sent_size : result;
 }
 
 /**
