@@ -398,7 +398,10 @@ __exit:
     {
         at_delete_resp(resp);
     }
-
+    
+    if(result > 0){
+        result = sent_size;
+    }
     return result;
 }
 
