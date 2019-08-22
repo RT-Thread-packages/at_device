@@ -286,7 +286,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-
+#ifdef RT_USING_RTC
         /* get real time */
         int year, month, day, hour, min, sec;
 
@@ -317,6 +317,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
+ #endif /* RT_USING_RTC */
 
         /* set active PDP context's profile number */
         AT_SEND_CMD(client, resp, "AT+CSOCKSETPN=1");
