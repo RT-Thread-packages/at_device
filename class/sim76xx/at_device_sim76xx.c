@@ -23,6 +23,7 @@
  * 2019-03-06    thomasonegd  fix udp connection.
  * 2019-03-08    thomasonegd  add power_on & power_off api
  * 2019-05-14    chenyong     multi AT socket client support
+ * 2019-08-24    chenyong     add netdev support
  */
 
 #include <stdio.h>
@@ -39,9 +40,7 @@
 #define SIM76XX_THREAD_STACK_SIZE      1024
 #define SIM76XX_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX / 2)
 
-/**
- * power up sim76xx modem
- */
+/* power up sim76xx modem */
 static void sim76xx_power_on(struct at_device *device)
 {
     struct at_device_sim76xx *sim76xx = RT_NULL;
@@ -67,6 +66,7 @@ static void sim76xx_power_on(struct at_device *device)
     rt_pin_write(sim76xx->power_pin, PIN_LOW);
 }
 
+/* power off sim76xx modem */
 static void sim76xx_power_off(struct at_device *device)
 {
     struct at_device_sim76xx *sim76xx = RT_NULL;
@@ -94,6 +94,348 @@ static void sim76xx_power_off(struct at_device *device)
 
 /* =============================  sim76xx network interface operations ============================= */
 
+/* set sim76xx network interface device status and address information */
+static int sim76xx_netdev_set_info(struct netdev *netdev)
+{
+#define SIM76XX_IEMI_RESP_SIZE      256
+#define SIM76XX_IPADDR_RESP_SIZE    64
+#define SIM76XX_DNS_RESP_SIZE       96
+#define SIM76XX_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+
+    int result = RT_EOK;
+    ip_addr_t addr;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("input network interface device is NULL.");
+        return -RT_ERROR;
+    }
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    /* set network interface device status */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
+
+    resp = at_create_resp(SIM76XX_IEMI_RESP_SIZE, 0, SIM76XX_INFO_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim76xx device(%s) set IP address failed, no memory for response object.", device->name);
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* set network interface device hardware address(IEMI) */
+    {
+        #define SIM76XX_NETDEV_HWADDR_LEN   8
+        #define SIM76XX_IEMI_LEN            15
+
+        char iemi[SIM76XX_IEMI_LEN] = {0};
+        int i = 0, j = 0;
+
+        /* send "ATI" commond to get device IEMI */
+        if (at_obj_exec_cmd(device->client, resp, "ATI") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, "IMEI:", "IMEI: %s", iemi) <= 0)
+        {
+            LOG_E("sim76xx device(%s) prase \"ATI\" commands resposne data error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("sim76xx device(%s) IEMI number: %s", device->name, iemi);
+
+        netdev->hwaddr_len = SIM76XX_NETDEV_HWADDR_LEN;
+        /* get hardware address by IEMI */
+        for (i = 0, j = 0; i < SIM76XX_NETDEV_HWADDR_LEN && j < SIM76XX_IEMI_LEN; i++, j += 2)
+        {
+            if (j != SIM76XX_IEMI_LEN - 1)
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+            }
+            else
+            {
+                netdev->hwaddr[i] = (iemi[j] - '0');
+            }
+        }
+    }
+
+    /* set network interface device IP address */
+    {
+        #define IP_ADDR_SIZE_MAX    16
+        char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+
+        at_resp_set_info(resp, SIM76XX_IPADDR_RESP_SIZE, 2, SIM76XX_INFO_RESP_TIMO);
+
+        /* send "AT+IPADDR" commond to get IP address */
+        if (at_obj_exec_cmd(device->client, resp, "AT+IPADDR") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args_by_kw(resp, "+IPADDR:", "+IPADDR: %s", ipaddr) <= 0)
+        {
+            LOG_E("sim76xx device(%s) prase \"AT+IPADDR\" commands resposne data error!", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("sim76xx device(%s) IP address: %s", device->name, ipaddr);
+
+        /* set network interface address information */
+        inet_aton(ipaddr, &addr);
+        netdev_low_level_set_ipaddr(netdev, &addr);
+    }
+
+    /* set network interface device dns server */
+    {
+        #define DEF_DNS_ADDR   "114.114.114.114"
+        const char *dns_server = DEF_DNS_ADDR;
+        ip_addr_t addr;
+
+        /* not support get dns server address, using default dns server address */
+        inet_aton(dns_server, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+/* check sim76xx device link_up status */
+static void check_link_status_entry(void *parameter)
+{
+#define SIM76XX_LINK_STATUS_OK   1
+#define SIM76XX_LINK_RESP_SIZE   64
+#define SIM76XX_LINK_RESP_TIMO   (3 * RT_TICK_PER_SECOND)
+#define SIM76XX_LINK_DELAY_TIME  (30 * RT_TICK_PER_SECOND)
+
+    at_response_t resp = RT_NULL;
+    int result_code, link_status;
+    struct at_device *device = RT_NULL;
+    struct netdev *netdev = (struct netdev *)parameter;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        return;
+    }
+
+    resp = at_create_resp(SIM76XX_LINK_RESP_SIZE, 0, SIM76XX_LINK_RESP_TIMO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim76xx device(%s) set check link status failed, no memory for response object.", device->name);
+        return;
+    }
+
+    while (1)
+    {
+        /* send "AT+CGREG?" commond  to check netweork interface device link status */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") < 0)
+        {
+            rt_thread_mdelay(SIM76XX_LINK_DELAY_TIME);
+
+            continue;
+        }
+
+        link_status = -1;
+        at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %d,%d", &result_code, &link_status);
+
+        /* check the network interface device link status  */
+        if ((SIM76XX_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
+        {
+            netdev_low_level_set_link_status(netdev, (SIM76XX_LINK_STATUS_OK == link_status));
+        }
+
+        rt_thread_mdelay(SIM76XX_LINK_DELAY_TIME);
+    }
+}
+
+static int sim76xx_netdev_check_link_status(struct netdev *netdev)
+{
+#define SIM76XX_LINK_THREAD_TICK           20
+#define SIM76XX_LINK_THREAD_STACK_SIZE     (1024 + 512)
+#define SIM76XX_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+
+    rt_thread_t tid;
+    char tname[RT_NAME_MAX] = {0};
+
+    if (netdev == RT_NULL)
+    {
+        LOG_E("input network interface device is NULL.\n");
+        return -RT_ERROR;
+    }
+
+    rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
+
+    tid = rt_thread_create(tname, check_link_status_entry, (void *) netdev,
+            SIM76XX_LINK_THREAD_STACK_SIZE, SIM76XX_LINK_THREAD_PRIORITY, SIM76XX_LINK_THREAD_TICK);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
+}
+
+static int sim76xx_net_init(struct at_device *device);
+
+/* sim76xx network interface device set up status */
+static int sim76xx_netdev_set_up(struct netdev *netdev)
+{
+    struct at_device *device = RT_NULL;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    if (device->is_init == RT_FALSE)
+    {
+        sim76xx_net_init(device);
+        device->is_init = RT_TRUE;
+
+        netdev_low_level_set_status(netdev, RT_TRUE);
+        LOG_D("the network intterface device(%s) set up status.", netdev->name);
+    }
+
+    return RT_EOK;
+}
+
+/* sim76xx network interface device set down status */
+static int sim76xx_netdev_set_down(struct netdev *netdev)
+{
+    struct at_device *device = RT_NULL;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    if (device->is_init == RT_TRUE)
+    {
+        sim76xx_power_off(device);
+        device->is_init = RT_FALSE;
+
+        netdev_low_level_set_status(netdev, RT_FALSE);
+        LOG_D("the network interface device(%s) set down status.", netdev->name);
+    }
+
+    return RT_EOK;
+}
+
+#ifdef NETDEV_USING_PING
+/* sim76xx network interface device ping feature */
+static int sim76xx_netdev_ping(struct netdev *netdev, const char *host,
+        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define SIM76XX_PING_RESP_SIZE         128
+#define SIM76XX_PING_IP_SIZE           16
+#define SIM76XX_PING_TIMEO             (12 * RT_TICK_PER_SECOND)
+
+    int result = RT_EOK;
+    int response, pkg_size, time, ttl;
+    char ip_addr[SIM76XX_PING_IP_SIZE] = {0};
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(SIM76XX_PING_RESP_SIZE, 6, SIM76XX_PING_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_E("sim76xx device(%s) set dns server failed, no memory for response object.", device->name);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* send "AT+CIPPING=<dest_addr>,<dest_addr_type>[,<num_pings>[,<package_size>[,<interval_time>[,<wait_timer>[,<TTL>]]]]]"
+       commond to send ping request */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CPING=\"%s\",1,1,%d,,,64", host, data_len) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args_by_kw(resp, "+CPING:", "+CPING:%d,%[^,],%d,%d,%d",
+             &response, ip_addr, &pkg_size, &time, &ttl) <= 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* 2 - ping timeout */
+    if (response == 2)
+    {
+        result = -RT_ETIMEOUT;
+        goto __exit;
+    }
+
+    inet_aton(ip_addr, &(ping_resp->ip_addr));
+    ping_resp->data_len = pkg_size;
+    /* reply time, in units of ms */
+    ping_resp->ticks = rt_tick_from_millisecond(time);
+    ping_resp->ttl = ttl;
+
+ __exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+#endif /* NETDEV_USING_PING */
+
+/* sim76xx network interface device operations */
+const struct netdev_ops sim76xx_netdev_ops =
+{
+    sim76xx_netdev_set_up,
+    sim76xx_netdev_set_down,
+
+    RT_NULL, /* not support set ip, netmask, gatway address */
+    RT_NULL, /* not support set DNS server address */
+    RT_NULL, /* not support set DHCP status */
+
+#ifdef NETDEV_USING_PING
+    sim76xx_netdev_ping,
+#endif
+    RT_NULL, /* not support netstat feature */
+};
+
+/* register sim76xx network interface */
 static struct netdev *sim76xx_netdev_add(const char *netdev_name)
 {
 #define ETHERNET_MTU 1500
@@ -111,7 +453,7 @@ static struct netdev *sim76xx_netdev_add(const char *netdev_name)
 
     netdev->mtu = ETHERNET_MTU;
     netdev->hwaddr_len = HWADDR_LEN;
-    netdev->ops = RT_NULL;
+    netdev->ops = &sim76xx_netdev_ops;
 
 #ifdef SAL_USING_AT
     extern int sal_at_netdev_set_pf_info(struct netdev * netdev);
@@ -120,12 +462,6 @@ static struct netdev *sim76xx_netdev_add(const char *netdev_name)
 #endif
 
     netdev_register(netdev, netdev_name, RT_NULL);
-
-    /*TODO: improve netdev adaptation */
-    netdev_low_level_set_status(netdev, RT_TRUE);
-    netdev_low_level_set_link_status(netdev, RT_TRUE);
-    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
-    netdev->flags |= NETDEV_FLAG_INTERNET_UP;
 
     return netdev;
 }
@@ -142,13 +478,14 @@ static struct netdev *sim76xx_netdev_add(const char *netdev_name)
         }                                                                       \
     } while(0)                                                                  \
 
-
+/* initialize the sim76xx device network connection by command */
 static void sim76xx_init_thread_entry(void *parameter)
 {
 #define INIT_RETRY                     5
-#define CSQ_RETRY                      20
+#define CPIN_RETRY                     5
+#define CSQ_RETRY                      10
 #define CREG_RETRY                     10
-#define CGREG_RETRY                    20
+#define CGREG_RETRY                    10
 #define CGATT_RETRY                    10
 #define CCLK_RETRY                     10
 
@@ -173,7 +510,6 @@ static void sim76xx_init_thread_entry(void *parameter)
     {
         /* power-up sim76xx */
         sim76xx_power_on(device);
-        rt_thread_mdelay(1000);
 
         /* wait SIM76XX startup finish, Send AT every 5s, if receive OK, SYNC success*/
         if (at_client_wait_connect(SIM76XX_WAIT_CONNECT_TIME))
@@ -195,10 +531,21 @@ static void sim76xx_init_thread_entry(void *parameter)
         }
         /* check SIM card */
 
-        AT_SEND_CMD(client, resp, "AT+CPIN?");
-        if (!at_resp_get_line_by_kw(resp, "READY"))
+        rt_thread_mdelay(1000);
+        for (i = 0; i < CPIN_RETRY; i++)
         {
-            LOG_E("sim76xx device(%s) SIM card detection failed.", device->name);
+            at_obj_exec_cmd(client, resp, "AT+CPIN?");
+            if (at_resp_get_line_by_kw(resp, "READY"))
+            {
+                LOG_D("sim76xx device(%s) SIM card detection failed.", device->name);
+                break;
+            }
+            LOG_I("\"AT+CPIN\" commands send retry...");
+            rt_thread_mdelay(1000);
+        }
+
+        if (i == CPIN_RETRY)
+        {
             result = -RT_ERROR;
             goto __exit;
         }
@@ -246,6 +593,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
+
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
@@ -273,7 +621,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT: %s", &parsed_data);
             if (!strncmp(parsed_data, "1", 1))
             {
-                LOG_I("sim76xx device(%s) Packet domain attach.", device->name);
+                LOG_D("sim76xx device(%s) Packet domain attach.", device->name);
                 break;
             }
 
@@ -286,6 +634,26 @@ static void sim76xx_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
+
+        /* configure context */
+        AT_SEND_CMD(client, resp, "AT+CGDCONT=1,\"IP\",\"CMNET\"");
+
+        /* activate context */
+        {
+            int net_status = 0;
+
+            AT_SEND_CMD(client, resp, "AT+NETOPEN?");
+            at_resp_parse_line_args_by_kw(resp, "+NETOPEN:", "+NETOPEN: %d", &net_status);
+            /* 0 - netwoek close, 1 - network open */
+            if (net_status == 0)
+            {
+                AT_SEND_CMD(client, resp, "AT+NETOPEN");
+            }
+        }
+
+        /* set active PDP context's profile number */
+        AT_SEND_CMD(client, resp, "AT+CSOCKSETPN=1");
+
 #ifdef RT_USING_RTC
         /* get real time */
         int year, month, day, hour, min, sec;
@@ -317,17 +685,14 @@ static void sim76xx_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
- #endif /* RT_USING_RTC */
+#endif /* RT_USING_RTC */
 
-        /* set active PDP context's profile number */
-        AT_SEND_CMD(client, resp, "AT+CSOCKSETPN=1");
+        /* initialize successfully  */
+        result = RT_EOK;
+        break;
 
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             /* power off the sim76xx device */
             sim76xx_power_off(device);
@@ -344,6 +709,10 @@ static void sim76xx_init_thread_entry(void *parameter)
 
     if (result == RT_EOK)
     {
+        /* set network interface device status and address information */
+        sim76xx_netdev_set_info(device->netdev);
+        sim76xx_netdev_check_link_status(device->netdev);
+
         LOG_I("sim76xx devuce(%s) network initialize success!", device->name);
     }
     else
@@ -375,128 +744,12 @@ int sim76xx_net_init(struct at_device *device)
     return RT_EOK;
 }
 
-int sim76xx_ping(int argc, char **argv)
-{
-    at_response_t resp = RT_NULL;
-    struct at_device *device = RT_NULL;
-
-    if (argc != 2)
-    {
-        rt_kprintf("Please input: at_ping <host address>\n");
-        return -RT_ERROR;
-    }
-
-    device = at_device_get_first_initialized();
-    if (device == RT_NULL)
-    {
-        rt_kprintf("get first initialized sim76xx device failed.\n");
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(64, 0, 5 * RT_TICK_PER_SECOND);
-    if (resp == RT_NULL)
-    {
-        rt_kprintf("no memory for sim76xx device(%s) response structure.\n", device->name);
-        return -RT_ENOMEM;
-    }
-
-    if (at_obj_exec_cmd(device->client, resp, "AT+CPING=\"%s\",1,4,64,1000,10000,255", argv[1]) < 0)
-    {
-        if (resp)
-        {
-            at_delete_resp(resp);
-        }
-        rt_kprintf("sim76xx device(%s) send ping commands error.\n", device->name);
-        return -RT_ERROR;
-    }
-
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return RT_EOK;
-}
-
-int sim76xx_ifconfig(void)
-{
-    at_response_t resp = RT_NULL;
-    char resp_arg[AT_CMD_MAX_LEN] = {0};
-    rt_err_t result = RT_EOK;
-    struct at_device *device = RT_NULL;
-
-    device = at_device_get_first_initialized();
-    if (device == RT_NULL)
-    {
-        rt_kprintf("get first initialized sim76xx device failed.\n");
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(300));
-    if (resp == RT_NULL)
-    {
-        rt_kprintf("no memory for sim76xx device(%s) response structure.\n", device->name);
-        return -RT_ENOMEM;
-    }
-
-    /* Show PDP address */
-    AT_SEND_CMD(device->client, resp, "AT+CGPADDR");
-    at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %s", &resp_arg);
-    rt_kprintf("IP adress : %s\n", resp_arg);
-
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 MSH_CMD_EXPORT_ALIAS(sim76xx_net_init, at_net_init, initialize AT network);
-MSH_CMD_EXPORT_ALIAS(sim76xx_ping, at_ping, AT ping network host);
-MSH_CMD_EXPORT_ALIAS(sim76xx_ifconfig, at_ifconfig, list the information of network interfaces);
 #endif
 
-static void urc_ping_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    static int icmp_seq = 0;
-    int i, j = 0;
-    int result, recv_len, time, ttl;
-    int sent, rcvd, lost, min, max, avg;
-    char dst_ip[16] = {0};
-
-    RT_ASSERT(data);
-
-    for (i = 0; i < size; i++)
-    {
-        if (*(data + i) == '.')
-            j++;
-    }
-    if (j != 0)
-    {
-        sscanf(data, "+CPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
-        if (result == 1)
-            LOG_I("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms", recv_len, dst_ip, icmp_seq++, ttl, time);
-    }
-    else
-    {
-        sscanf(data, "+CPING: %d,%d,%d,%d,%d,%d,%d", &result, &sent, &rcvd, &lost, &min, &max, &avg);
-        if (result == 3)
-            LOG_I("%d sent %d received %d lost, min=%dms max=%dms average=%dms", sent, rcvd, lost, min, max, avg);
-        if (result == 2)
-            LOG_I("ping requst timeout");
-    }
-}
-
-/* sim76xx device URC table for the device control */
-static struct at_urc urc_table[] = 
-{
-        {"+CPING:",        "\r\n",           urc_ping_func},
-};
-
+/* initialize the sim76xx device network connection and register network interface device */
 static int sim76xx_init(struct at_device *device)
 {
     struct at_device_sim76xx *sim76xx = (struct at_device_sim76xx *) device->user_data;
@@ -510,9 +763,6 @@ static int sim76xx_init(struct at_device *device)
         LOG_E("sim76xx device(%s) initialize failed, get AT client(%s) failed.", sim76xx->device_name, sim76xx->client_name);
         return -RT_ERROR;
     }
-
-    /* register URC data execution function  */
-    at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
 #ifdef AT_USING_SOCKET
     sim76xx_socket_init(device);
@@ -534,18 +784,16 @@ static int sim76xx_init(struct at_device *device)
     }
 
     /* initialize sim76xx device network */
-    sim76xx_net_init(device);
-
-    return RT_EOK;
+    return sim76xx_netdev_set_up(device->netdev);
 }
 
+/* deinit sim76xx device network connect */
 static int sim76xx_deinit(struct at_device *device)
 {
-    // TODO netdev operation
-    device->is_init = RT_FALSE;
-    return RT_EOK;
+    return sim76xx_netdev_set_down(device->netdev);
 }
 
+/* custom device control operations */
 static int sim76xx_control(struct at_device *device, int cmd, void *arg)
 {
     int result = -RT_ERROR;
@@ -583,6 +831,7 @@ const struct at_device_ops sim76xx_device_ops =
     sim76xx_control,
 };
 
+/* register sim76xx class to the global at_device class list */
 static int sim76xx_device_class_register(void)
 {
     struct at_device_class *class = RT_NULL;

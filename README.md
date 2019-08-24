@@ -15,7 +15,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/esp8266 | ESP8266 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/rw007 | RW007 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/sim800c | SIM800C 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
-| class/sim76xx | SIM76XX 设备针对 AT 组件的移植目录，实现 AT Socket 功能（未完整适配，不建议使用） |
+| class/sim76xx | SIM76XX 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/m26 | M26/MC20 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/ec20 | EC20 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/mw31 | MW31 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
