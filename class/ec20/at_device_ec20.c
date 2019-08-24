@@ -35,7 +35,7 @@
 #ifdef AT_DEVICE_USING_EC20
 
 #define EC20_WAIT_CONNECT_TIME          5000
-#define EC20_THREAD_STACK_SIZE          1024
+#define EC20_THREAD_STACK_SIZE          2048
 #define EC20_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
 
 /* AT+QICSGP command default*/
@@ -299,7 +299,7 @@ static int ec20_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         resp = at_resp_set_info(resp, EC20_IPADDR_RESP_SIZE, 0, EC20_INFO_RESP_TIMO);
 
         /* send "AT+QIACT?" commond to get IP address */
@@ -316,7 +316,7 @@ static int ec20_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("ec20 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
@@ -339,7 +339,7 @@ static int ec20_netdev_set_info(struct netdev *netdev)
         }
 
         /* parse response data "+QIDNSCFG: <contextID>,<pridnsaddr>,<secdnsaddr>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"", 
+        if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"",
                 dns_server1, dns_server2) <= 0)
         {
             LOG_E("ec20 device(%s) prase \"AT+QIDNSCFG=1\" commands resposne data error.", device->name);
@@ -362,7 +362,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -376,7 +376,7 @@ static void ec20_check_link_status_entry(void *parameter)
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
     struct netdev *netdev = (struct netdev *) parameter;
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
@@ -400,7 +400,7 @@ static void ec20_check_link_status_entry(void *parameter)
             {
                 netdev_low_level_set_link_status(netdev, RT_FALSE);
             }
-            
+
             rt_thread_mdelay(EC20_LINK_DELAY_TIME);
             continue;
         }
@@ -432,7 +432,7 @@ static void ec20_check_link_status_entry(void *parameter)
 static int ec20_netdev_check_link_status(struct netdev *netdev)
 {
 #define EC20_LINK_THREAD_TICK           20
-#define EC20_LINK_THREAD_STACK_SIZE     1024
+#define EC20_LINK_THREAD_STACK_SIZE     (1024 + 512)
 #define EC20_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
@@ -444,7 +444,7 @@ static int ec20_netdev_check_link_status(struct netdev *netdev)
     }
 
     /* create ec20 link status polling thread  */
-    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *) netdev, 
+    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *) netdev,
             EC20_LINK_THREAD_STACK_SIZE, EC20_LINK_THREAD_PRIORITY, EC20_LINK_THREAD_TICK);
     if (tid != RT_NULL)
     {
@@ -520,7 +520,7 @@ static int ec20_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
         LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
-    
+
     resp = at_create_resp(EC20_DNS_RESP_LEN, 0, EC20_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
@@ -543,12 +543,12 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
 #ifdef NETDEV_USING_PING
-static int ec20_netdev_ping(struct netdev *netdev, const char *host, 
+static int ec20_netdev_ping(struct netdev *netdev, const char *host,
         size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define EC20_PING_RESP_SIZE       128
@@ -621,7 +621,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 #endif /* NETDEV_USING_PING */
@@ -748,7 +748,7 @@ static void ec20_init_thread_entry(void *parameter)
         }
         /* Use AT+GSN to query the IMEI of module */
         AT_SEND_CMD(client, resp, 0, 300, "AT+GSN");
-        
+
         /* check SIM card */
         AT_SEND_CMD(client, resp, 2, 5 * 1000, "AT+CPIN?");
         if (!at_resp_get_line_by_kw(resp, "READY"))
@@ -759,8 +759,8 @@ static void ec20_init_thread_entry(void *parameter)
         }
         /* waiting for dirty data to be digested */
         rt_thread_mdelay(10);
-        
-        
+
+
         /* Use AT+CIMI to query the IMSI of SIM card */
         // AT_SEND_CMD(client, resp, 2, 300, "AT+CIMI");
         i = 0;
@@ -786,7 +786,7 @@ static void ec20_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &qi_arg[0], &qi_arg[1]);
             if (qi_arg[0] != 99)
             {
-                LOG_D("ec20 device(%s) signal strength: %d, channel bit error rate: %d", 
+                LOG_D("ec20 device(%s) signal strength: %d, channel bit error rate: %d",
                         device->name, qi_arg[0], qi_arg[1]);
                 break;
             }
@@ -803,7 +803,7 @@ static void ec20_init_thread_entry(void *parameter)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+CREG?");
             at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
-            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) || 
+            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
                 LOG_D("ec20 device(%s) GSM network is registered(%s)", device->name, parsed_data);
@@ -822,7 +822,7 @@ static void ec20_init_thread_entry(void *parameter)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+CGREG?");
             at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %s", &parsed_data);
-            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) || 
+            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
                 LOG_D("ec20 device(%s) GPRS network is registered(%s)", device->name, parsed_data);
@@ -928,7 +928,7 @@ static int ec20_net_init(struct at_device *device)
 #else
     ec20_init_thread_entry(device);
 #endif /* AT_DEVICE_EC20_INIT_ASYN */
-    
+
     return RT_EOK;
 }
 
@@ -965,7 +965,7 @@ static int ec20_init(struct at_device *device)
         rt_pin_mode(ec20->power_pin, PIN_MODE_OUTPUT);
         rt_pin_mode(ec20->power_status_pin, PIN_MODE_INPUT);
     }
-    
+
     /* initialize ec20 device network */
     return ec20_netdev_set_up(device->netdev);
 }
@@ -1005,7 +1005,7 @@ static int ec20_control(struct at_device *device, int cmd, void *arg)
     return result;
 }
 
-const struct at_device_ops ec20_device_ops = 
+const struct at_device_ops ec20_device_ops =
 {
     ec20_init,
     ec20_deinit,
@@ -1028,7 +1028,7 @@ static int ec20_device_class_register(void)
     ec20_socket_class_register(class);
 #endif
     class->device_ops = &ec20_device_ops;
-    
+
     return at_device_class_register(class, AT_DEVICE_CLASS_EC20);
 }
 INIT_DEVICE_EXPORT(ec20_device_class_register);

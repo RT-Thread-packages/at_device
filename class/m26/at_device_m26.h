@@ -37,7 +37,7 @@ extern "C" {
 #define AT_DEVICE_M26_SOCKETS_NUM      6
 
 struct at_device_m26
-{     
+{
     char *device_name;
     char *client_name;
 

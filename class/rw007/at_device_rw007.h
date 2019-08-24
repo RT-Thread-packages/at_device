@@ -37,7 +37,7 @@ extern "C" {
 #define AT_DEVICE_RW007_SOCKETS_NUM  5
 
 struct at_device_rw007
-{     
+{
     char *device_name;
     char *client_name;
 

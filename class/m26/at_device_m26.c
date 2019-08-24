@@ -34,7 +34,7 @@
 #ifdef AT_DEVICE_USING_M26
 
 #define M26_WAIT_CONNECT_TIME          5000
-#define M26_THREAD_STACK_SIZE          1024
+#define M26_THREAD_STACK_SIZE          2048
 #define M26_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
 
 static void m26_power_on(struct at_device *device)
@@ -172,7 +172,7 @@ static int m26_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         at_resp_set_info(resp, M26_IPADDR_RESP_SIZE, 2, M26_INFO_RESP_TIMO);
 
         /* send "AT+QILOCIP" commond to get IP address */
@@ -188,7 +188,7 @@ static int m26_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("m26 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
@@ -233,7 +233,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -264,8 +264,8 @@ static void check_link_status_entry(void *parameter)
     }
 
    while (1)
-    { 
-        
+    {
+
         /* send "AT+QNSTATUS" commond  to check netweork interface device link status */
         if (at_obj_exec_cmd(device->client, resp, "AT+QNSTATUS") < 0)
         {
@@ -273,7 +273,7 @@ static void check_link_status_entry(void *parameter)
 
            continue;
         }
-        
+
         link_status = -1;
         at_resp_parse_line_args_by_kw(resp, "+QNSTATUS:", "+QNSTATUS: %d", &link_status);
 
@@ -290,7 +290,7 @@ static void check_link_status_entry(void *parameter)
 static int m26_netdev_check_link_status(struct netdev *netdev)
 {
 #define M26_LINK_THREAD_TICK           20
-#define M26_LINK_THREAD_STACK_SIZE     512
+#define M26_LINK_THREAD_STACK_SIZE     (1024 + 512)
 #define M26_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
@@ -304,7 +304,7 @@ static int m26_netdev_check_link_status(struct netdev *netdev)
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
-    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev, 
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
             M26_LINK_THREAD_STACK_SIZE, M26_LINK_THREAD_PRIORITY, M26_LINK_THREAD_TICK);
     if (tid)
     {
@@ -406,7 +406,7 @@ __exit:
 }
 
 #ifdef NETDEV_USING_PING
-static int m26_netdev_ping(struct netdev *netdev, const char *host, 
+static int m26_netdev_ping(struct netdev *netdev, const char *host,
             size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define M26_PING_RESP_SIZE       128
@@ -452,7 +452,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
         {
             result = -RT_ERROR;
             goto __exit;
-        }   
+        }
     }
 
     /* prase response number */
@@ -485,7 +485,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
 
 #ifdef NETDEV_USING_NETSTAT
 static void m26_netdev_netstat(struct netdev *netdev)
-{ 
+{
     // TODO netstat support
 }
 #endif /* NETDEV_USING_NETSTAT */
@@ -586,7 +586,7 @@ static void m26_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-        
+
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, 300, "ATE0");
         /* get module version */
@@ -639,7 +639,7 @@ static void m26_init_thread_entry(void *parameter)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+CREG?");
             at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
-            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) || 
+            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
                 LOG_D("m26 device(%s) GSM network is registered(%s).", device->name, parsed_data);
@@ -658,7 +658,7 @@ static void m26_init_thread_entry(void *parameter)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+CGREG?");
             at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %s", &parsed_data);
-            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) || 
+            if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
                 LOG_D("m26 device(%s) GPRS network is registered(%s).", device->name, parsed_data);
@@ -714,7 +714,7 @@ static void m26_init_thread_entry(void *parameter)
             rt_thread_mdelay(1000);
 
             LOG_I("m26 device(%s) initialize retry...", device->name);
-        }    
+        }
     }
 
     if (resp)
@@ -740,7 +740,7 @@ static int m26_net_init(struct at_device *device)
 #ifdef AT_DEVICE_M26_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, (void *)device, 
+    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, (void *)device,
             M26_THREAD_STACK_SIZE, M26_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -754,7 +754,7 @@ static int m26_net_init(struct at_device *device)
 #else
     m26_init_thread_entry(device);
 #endif /* AT_DEVICE_M26_INIT_ASYN */
-    
+
     return RT_EOK;
 }
 
@@ -785,10 +785,10 @@ static int m26_init(struct at_device *device)
         LOG_E("m26 device(%s) initialize failed, get AT client(%s) failed.", m26->device_name, m26->client_name);
         return -RT_ERROR;
     }
-    
+
     /* register URC data execution function  */
     at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-    
+
 #ifdef AT_USING_SOCKET
     m26_socket_init(device);
 #endif
@@ -800,14 +800,14 @@ static int m26_init(struct at_device *device)
         LOG_E("m26 device(%s) initialize failed, get network interface device failed.", m26->device_name);
         return -RT_ERROR;
     }
-    
+
     /* initialize m26 pin configuration */
     if (m26->power_pin != -1 && m26->power_status_pin != -1)
     {
         rt_pin_mode(m26->power_pin, PIN_MODE_OUTPUT);
         rt_pin_mode(m26->power_status_pin, PIN_MODE_INPUT);
     }
-    
+
     /* initialize m26 device network */
     return m26_netdev_set_up(device->netdev);
 }
@@ -846,7 +846,7 @@ static int m26_control(struct at_device *device, int cmd, void *arg)
 
     return result;
 }
-static const struct at_device_ops m26_device_ops = 
+static const struct at_device_ops m26_device_ops =
 {
     m26_init,
     m26_deinit,

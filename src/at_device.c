@@ -60,7 +60,7 @@ struct at_device *at_device_get_first_initialized(void)
     }
 
     rt_hw_interrupt_enable(level);
-    
+
     return RT_NULL;
 }
 
@@ -87,15 +87,15 @@ struct at_device *at_device_get_by_name(int type, const char *name)
         device = rt_slist_entry(node, struct at_device, list);
         if (device)
         {
-            if (((type == AT_DEVICE_NAMETYPE_DEVICE) || (type == AT_DEVICE_NAMETYPE_NETDEV)) && 
+            if (((type == AT_DEVICE_NAMETYPE_DEVICE) || (type == AT_DEVICE_NAMETYPE_NETDEV)) &&
                 (rt_strncmp(device->name, name, rt_strlen(name)) == 0))
             {
                 rt_hw_interrupt_enable(level);
                 return device;
             }
-            else if ((type == AT_DEVICE_NAMETYPE_CLIENT) && 
+            else if ((type == AT_DEVICE_NAMETYPE_CLIENT) &&
                 (rt_strncmp(device->client->device->parent.name, name, rt_strlen(name)) == 0))
-            {                
+            {
                 rt_hw_interrupt_enable(level);
                 return device;
             }
@@ -103,18 +103,18 @@ struct at_device *at_device_get_by_name(int type, const char *name)
     }
 
     rt_hw_interrupt_enable(level);
-    
+
     return RT_NULL;
 }
 
 #ifdef AT_USING_SOCKET
 /**
  * This function will get AT device by ip address.
- * 
+ *
  * @param ip_addr input ip address
  * network
  * @return != NULL: network interface device object
- *            NULL: get failed 
+ *            NULL: get failed
  */
 struct at_device *at_device_get_by_ipaddr(ip_addr_t *ip_addr)
 {
@@ -135,9 +135,9 @@ struct at_device *at_device_get_by_ipaddr(ip_addr_t *ip_addr)
     }
 
     rt_hw_interrupt_enable(level);
-    
-    return RT_NULL; 
-    
+
+    return RT_NULL;
+
 }
 #endif /* AT_USING_SOCKET */
 
@@ -150,7 +150,7 @@ struct at_device *at_device_get_by_ipaddr(ip_addr_t *ip_addr)
  * @param arg the argument of command
  *
  * @return = 0: perform successfully
- *         < 0: perform failed      
+ *         < 0: perform failed
  */
 int at_device_control(struct at_device *device, int cmd, void *arg)
 {
@@ -308,7 +308,7 @@ int at_device_register(struct at_device *device, const char *device_name,
     }
 
     rt_hw_interrupt_enable(level);
-  
+
     /* Initialize AT device */
     result = class->device_ops->init(device);
     if (result < 0)

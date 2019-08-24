@@ -35,7 +35,7 @@
 #ifdef AT_DEVICE_USING_RW007
 
 #define RW007_WAIT_CONNECT_TIME        5000
-#define RW007_THREAD_STACK_SIZE        1024
+#define RW007_THREAD_STACK_SIZE        2048
 #define RW007_THREAD_PRIORITY          (RT_THREAD_PRIORITY_MAX / 2)
 
 /* =============================  rw007 network interface operations ============================= */
@@ -130,10 +130,10 @@ static void rw007_init_thread_entry(void *parameter)
             LOG_D("%s", at_resp_get_line(resp, i + 1));
         }
         /* connect to WiFi AP */
-        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), 
+        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
                     "AT+CWJAP=\"%s\",\"%s\"", rw007->wifi_ssid, rw007->wifi_password) != RT_EOK)
         {
-            LOG_E("rw007 device(%s) network initialize failed, check ssid(%s) and password(%s).", 
+            LOG_E("rw007 device(%s) network initialize failed, check ssid(%s) and password(%s).",
                     device->name, rw007->wifi_ssid, rw007->wifi_password);
             result = -RT_ERROR;
             goto __exit;
@@ -175,7 +175,7 @@ int rw007_net_init(struct at_device *device)
 #ifdef AT_DEVICE_RW007_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("rw007_net_init", rw007_init_thread_entry, 
+    tid = rt_thread_create("rw007_net_init", rw007_init_thread_entry,
                 (void *)device, RW007_THREAD_STACK_SIZE, RW007_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -244,7 +244,7 @@ static int rw007_init(struct at_device *device)
     device->client = at_client_get(rw007->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("rw007 device(%s) initialize failed, get AT client(%s) failed.", 
+        LOG_E("rw007 device(%s) initialize failed, get AT client(%s) failed.",
                 rw007->device_name, rw007->client_name);
         return -RT_ERROR;
     }
@@ -294,7 +294,7 @@ static int rw007_reset(struct at_device *device)
 
     /* initialize rw007 device network */
     rw007_net_init(device);
-    
+
     device->is_init = RT_TRUE;
 
     return result;
@@ -322,7 +322,7 @@ static int rw007_wifi_info_set(struct at_device *device, struct at_device_ssid_p
     /* connect to input wifi ap */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWJAP=\"%s\",\"%s\"", info->ssid, info->password) != RT_EOK)
     {
-        LOG_E("rw007 device(%s) wifi connect failed, check ssid(%s) and password(%s).",  
+        LOG_E("rw007 device(%s) wifi connect failed, check ssid(%s) and password(%s).",
                 device->name, info->ssid, info->password);
         result = -RT_ERROR;
     }
@@ -368,7 +368,7 @@ static int rw007_control(struct at_device *device, int cmd, void *arg)
     return result;
 }
 
-const struct at_device_ops rw007_device_ops = 
+const struct at_device_ops rw007_device_ops =
 {
     rw007_init,
     rw007_deinit,

@@ -52,7 +52,7 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_RECV] = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
-    
+
 static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
 {
     switch(result)
@@ -308,7 +308,7 @@ static int ec20_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     resp = at_create_resp(64, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
@@ -318,7 +318,7 @@ static int ec20_socket_close(struct at_socket *socket)
 
     /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
     result = at_obj_exec_cmd(device->client, resp, "AT+QICLOSE=%d,1", device_socket);
-    
+
     if (resp)
     {
         at_delete_resp(resp);
@@ -341,7 +341,7 @@ static int ec20_socket_close(struct at_socket *socket)
  *          -2: wait socket event timeout
  *          -5: no memory
  */
-static int ec20_socket_connect(struct at_socket *socket, char *ip, int32_t port, 
+static int ec20_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     enum at_socket_type type, rt_bool_t is_client)
 {
     uint32_t event = 0;
@@ -361,7 +361,7 @@ static int ec20_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         return -RT_ENOMEM;
     }
 
-__retry:  
+__retry:
     /* clear socket connect event */
     event = SET_EVENT(device_socket, EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL);
     ec20_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
@@ -376,7 +376,7 @@ __retry:
             /* contextID   = 1 : use same contextID as AT+QICSGP & AT+QIACT */
             /* local_port  = 0 : local port assigned automatically */
             /* access_mode = 1 : Direct push mode */
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -385,7 +385,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -407,7 +407,7 @@ __retry:
         goto __exit;
     }
     /* waiting OK or failed result */
-    event_result = ec20_socket_event_recv(device, 
+    event_result = ec20_socket_event_recv(device,
         EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
@@ -420,7 +420,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("ec20 device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", 
+            LOG_D("ec20 device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
                     device->name, device_socket);
             /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
             if (ec20_socket_close(socket) < 0)
@@ -579,7 +579,7 @@ static int ec20_socket_send(struct at_socket *socket, const char *buff, size_t b
             goto __exit;
         }
         /* waiting OK or failed result */
-        event_result = ec20_socket_event_recv(device, 
+        event_result = ec20_socket_event_recv(device,
             EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
@@ -645,7 +645,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
     {
         LOG_E("get first initialization ec20 device failed.");
         return -RT_ERROR;
-    } 
+    }
 
     /* the maximum response time is 60 seconds, but it set to 10 seconds is convenient to use. */
     resp = at_create_resp(128, 0, 10 * RT_TICK_PER_SECOND);
@@ -654,7 +654,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
         LOG_E("no memory for ec20 device(%s) response structure.", device->name);
         return -RT_ENOMEM;
     }
-    
+
     /* clear EC20_EVENT_DOMAIN_OK */
     ec20_socket_event_recv(device, EC20_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
 
@@ -663,7 +663,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
     {
         goto __exit;
     }
-    
+
     if (result == RT_EOK)
     {
         for(i = 0; i < RESOLVE_RETRY; i++)
@@ -694,7 +694,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
                 }
             }
         }
-        
+
         /* response timeout */
         if (i == RESOLVE_RETRY)
         {
@@ -760,7 +760,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     struct at_device *device = RT_NULL;
     struct at_device_ec20 *ec20 = RT_NULL;
     char *client_name = client->device->parent.name;
-    
+
     RT_ASSERT(data && size);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
@@ -820,7 +820,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -865,7 +865,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         rt_free(recv_buf);
         return;
     }
-    
+
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -927,7 +927,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
             }
         }
         rt_memcpy(ec20->socket_data, recv_ip, sizeof(recv_ip));
-        
+
 
         ec20_socket_event_send(device, EC20_EVENT_DOMAIN_OK);
     }
@@ -962,7 +962,7 @@ static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t
     }
 }
 
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
     {"SEND OK",     "\r\n",                 urc_send_func},
     {"SEND FAIL",   "\r\n",                 urc_send_func},
@@ -970,7 +970,7 @@ static const struct at_urc urc_table[] =
     {"+QIURC:",     "\r\n",                 urc_qiurc_func},
 };
 
-static const struct at_socket_ops ec20_socket_ops = 
+static const struct at_socket_ops ec20_socket_ops =
 {
     ec20_socket_connect,
     ec20_socket_close,

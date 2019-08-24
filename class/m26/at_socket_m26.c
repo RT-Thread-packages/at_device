@@ -46,7 +46,7 @@
 #define M26_EVENT_CONN_FAIL            (1L << 4)
 #define M26_EVENT_SEND_FAIL            (1L << 5)
 
-static at_evt_cb_t at_evt_cb_set[] = 
+static at_evt_cb_t at_evt_cb_set[] =
 {
     [AT_SOCKET_EVT_RECV] = NULL,
     [AT_SOCKET_EVT_CLOSED] = NULL,
@@ -87,7 +87,7 @@ static int m26_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socke = (int) socket->user_data;
     struct at_device *device  = (struct at_device *) socket->device;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -104,7 +104,7 @@ static int m26_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-    if (m26_socket_event_recv(device, SET_EVENT(device_socke, M26_EVNET_CLOSE_OK), 
+    if (m26_socket_event_recv(device, SET_EVENT(device_socke, M26_EVNET_CLOSE_OK),
             rt_tick_from_millisecond(300 * 3), RT_EVENT_FLAG_AND) < 0)
     {
         LOG_E("m26 device(%s) socket(%d) close failed, wait close OK timeout.", device->name, device_socke);
@@ -165,7 +165,7 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+QIOPEN=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -174,7 +174,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+QIOPEN=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -196,7 +196,7 @@ __retry:
         goto __exit;
     }
     /* waiting OK or failed result */
-    if ((event_result = m26_socket_event_recv(device, M26_EVENT_CONN_OK | M26_EVENT_CONN_FAIL, 
+    if ((event_result = m26_socket_event_recv(device, M26_EVENT_CONN_OK | M26_EVENT_CONN_FAIL,
             1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR)) < 0)
     {
         LOG_E("m26 device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, device_socket);
@@ -208,7 +208,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("m26 device(%s) socket(%d) connect failed, maybe the socket was not be closed and now will retry.", 
+            LOG_D("m26 device(%s) socket(%d) connect failed, maybe the socket was not be closed and now will retry.",
                     device->name, device_socket);
             if (m26_socket_close(socket) < 0)
             {
@@ -365,7 +365,7 @@ static int m26_socket_send(struct at_socket *socket, const char *buff, size_t bf
             goto __exit;
         }
         /* waiting OK or failed result */
-        if ((event_result = m26_socket_event_recv(device, M26_EVENT_SEND_OK | M26_EVENT_SEND_FAIL, 
+        if ((event_result = m26_socket_event_recv(device, M26_EVENT_SEND_OK | M26_EVENT_SEND_FAIL,
                 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR)) < 0)
         {
             LOG_E("m26 device(%s) socket(%d) send failed, wait connect OK|FAIL timeout.", device->name, device_socket);
@@ -511,7 +511,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     sscanf(data, "%d%*[^0-9]", &device_socket);
-    
+
     if (rt_strstr(data, "CONNECT OK"))
     {
         m26_socket_event_send(device, SET_EVENT(device_socket, M26_EVENT_CONN_OK));
@@ -562,7 +562,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     if (device == RT_NULL)
     {
         LOG_E("get m26 device by client name(%s) failed.", client_name);
-        return;      
+        return;
     }
 
     sscanf(data, "%d%*s", &device_socket);
@@ -597,7 +597,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -654,7 +654,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 }
 
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
     {"",            ", CONNECT OK\r\n",     urc_connect_func},
     {"",            ", CONNECT FAIL\r\n",   urc_connect_func},
@@ -665,7 +665,7 @@ static const struct at_urc urc_table[] =
     {"+RECEIVE:",   "\r\n",                 urc_recv_func},
 };
 
-static const struct at_socket_ops m26_socket_ops = 
+static const struct at_socket_ops m26_socket_ops =
 {
     m26_socket_connect,
     m26_socket_close,

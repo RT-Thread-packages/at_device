@@ -34,7 +34,7 @@
 #ifdef AT_DEVICE_USING_MW31
 
 #define MW31_WAIT_CONNECT_TIME      5000
-#define MW31_THREAD_STACK_SIZE      1024
+#define MW31_THREAD_STACK_SIZE      2048
 #define MW31_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX / 2)
 
 /* =============================  mw31 network interface operations ============================= */
