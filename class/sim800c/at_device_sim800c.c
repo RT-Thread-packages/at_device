@@ -35,7 +35,7 @@
 #ifdef AT_DEVICE_USING_SIM800C
 
 #define SIM800C_WAIT_CONNECT_TIME      5000
-#define SIM800C_THREAD_STACK_SIZE      1024
+#define SIM800C_THREAD_STACK_SIZE      2048
 #define SIM800C_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX/2)
 
 /* AT+CSTT command default*/
@@ -238,7 +238,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -294,7 +294,7 @@ static void check_link_status_entry(void *parameter)
 static int sim800c_netdev_check_link_status(struct netdev *netdev)
 {
 #define SIM800C_LINK_THREAD_TICK           20
-#define SIM800C_LINK_THREAD_STACK_SIZE     512
+#define SIM800C_LINK_THREAD_STACK_SIZE     (1024 + 512)
 #define SIM800C_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
@@ -308,7 +308,7 @@ static int sim800c_netdev_check_link_status(struct netdev *netdev)
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
-    tid = rt_thread_create(tname, check_link_status_entry, (void *) netdev, 
+    tid = rt_thread_create(tname, check_link_status_entry, (void *) netdev,
             SIM800C_LINK_THREAD_STACK_SIZE, SIM800C_LINK_THREAD_PRIORITY, SIM800C_LINK_THREAD_TICK);
     if (tid)
     {
@@ -459,7 +459,7 @@ __exit:
 }
 
 #ifdef NETDEV_USING_PING
-static int sim800c_netdev_ping(struct netdev *netdev, const char *host, 
+static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
         size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define SIM800C_PING_RESP_SIZE         128
@@ -518,7 +518,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* send "AT+CIPPING=<IP addr>[,<retryNum>[,<dataLen>[,<timeout>[,<ttl>]]]]" commond to send ping request */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPPING=%s,1,%d,%d,64", 
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPPING=%s,1,%d,%d,64",
             host, data_len, SIM800C_PING_TIMEO / (RT_TICK_PER_SECOND / 10)) < 0)
     {
         result = -RT_ERROR;
@@ -557,7 +557,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
 
 #ifdef NETDEV_USING_NETSTAT
 void sim800c_netdev_netstat(struct netdev *netdev)
-{ 
+{
     // TODO netstat support
 }
 #endif /* NETDEV_USING_NETSTAT */
@@ -856,7 +856,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 }
 
 /* sim800c device URC table for the device control */
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
         {"RDY",         "\r\n",                 urc_func},
 };
@@ -936,7 +936,7 @@ static int sim800c_control(struct at_device *device, int cmd, void *arg)
     return result;
 }
 
-const struct at_device_ops sim800c_device_ops = 
+const struct at_device_ops sim800c_device_ops =
 {
     sim800c_init,
     sim800c_deinit,

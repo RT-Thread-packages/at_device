@@ -23,6 +23,7 @@
  * 2019-03-06    thomasonegd  fix udp connection.
  * 2019-03-08    thomasonegd  add power_on & power_off api
  * 2019-05-14    chenyong     multi AT socket client support
+ * 2019-08-24    chenyong     add netdev support
  */
 
 #include <stdio.h>
@@ -37,6 +38,7 @@
 
 #define SIM76XX_MODULE_SEND_MAX_SIZE   1500
 #define SIM76XX_MAX_CONNECTIONS        10
+#define SIM76XX_IPADDR_LEN             16
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -49,25 +51,25 @@
 #define SIM76XX_EVENT_CONN_FAIL        (1L << 4)
 #define SIM76XX_EVENT_SEND_FAIL        (1L << 5)
 
-static at_evt_cb_t at_evt_cb_set[] = 
+static at_evt_cb_t at_evt_cb_set[] =
 {
     [AT_SOCKET_EVT_RECV] = NULL,
     [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
-static char udp_ipstr[SIM76XX_MAX_CONNECTIONS][16];
-static int udp_port[SIM76XX_MAX_CONNECTIONS];
+static char udp_ipstr[SIM76XX_MAX_CONNECTIONS][SIM76XX_IPADDR_LEN] = {0};
+static int udp_port[SIM76XX_MAX_CONNECTIONS] = {0};
 
 /* unsolicited TCP/IP command<err> codes */
-static void at_tcp_ip_errcode_parse(int result) 
+static void at_tcp_ip_errcode_parse(int result)
 {
     switch(result)
     {
-    case 0   : LOG_D("%d : operation succeeded ",           result); break;
+    case 0 : LOG_D("%d : operation succeeded ",             result); break;
     case 1 : LOG_E("%d : UNetwork failure",                 result); break;
     case 2 : LOG_E("%d : Network not opened",               result); break;
     case 3 : LOG_E("%d : Wrong parameter",                  result); break;
-    case 4 : LOG_E("%d : Operation not supported",          result); break;
+    case 4 : LOG_D("%d : Operation not supported",          result); break;
     case 5 : LOG_E("%d : Failed to create socket",          result); break;
     case 6 : LOG_E("%d : Failed to bind socket",            result); break;
     case 7 : LOG_E("%d : TCP server is already listening",  result); break;
@@ -111,8 +113,7 @@ static int sim76xx_socket_event_recv(struct at_device *device, uint32_t event, u
 static int sim76xx_socket_close(struct at_socket *socket)
 {
     int result = RT_EOK;
-    int activated = 0;
-    uint8_t lnk_stat[10] = {0};
+    int lnk_stat[10] = {0};
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
@@ -134,7 +135,7 @@ static int sim76xx_socket_close(struct at_socket *socket)
     }
 
     if (at_resp_parse_line_args_by_kw(resp, "+CIPCLOSE:", "+CIPCLOSE: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
-                                      &lnk_stat[0], &lnk_stat[1], &lnk_stat[1], &lnk_stat[2], &lnk_stat[3], &lnk_stat[4],
+                                      &lnk_stat[0], &lnk_stat[1], &lnk_stat[2], &lnk_stat[3], &lnk_stat[4],
                                       &lnk_stat[5], &lnk_stat[6], &lnk_stat[7], &lnk_stat[8], &lnk_stat[9]) < 0)
     {
         result = -RT_ERROR;
@@ -143,90 +144,37 @@ static int sim76xx_socket_close(struct at_socket *socket)
 
     if (lnk_stat[device_socket])
     {
+        #define CLOSE_COUNTS   5
+        int i = 0;
+
         /* close tcp or udp socket if connected */
         if (at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-    }
-    /* check the network open or not */
-    if (at_obj_exec_cmd(device->client, resp, "AT+NETOPEN?") < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+NETOPEN:", "+NETOPEN: %d", &activated) < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    if (activated)
-    {
-        /* if already open,then close it */
-        if (at_obj_exec_cmd(device->client, resp, "AT+NETCLOSE") < 0)
+        /* wait sim76xx device sockt closed */
+        for (i = 0; i < CLOSE_COUNTS; i++)
         {
-            result = -RT_ERROR;
-            goto __exit;
+            if (at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE?") < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+
+            at_resp_parse_line_args_by_kw(resp, "+CIPCLOSE:", "+CIPCLOSE: %d,%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                                            &lnk_stat[0], &lnk_stat[1], &lnk_stat[2], &lnk_stat[3], &lnk_stat[4],
+                                            &lnk_stat[5], &lnk_stat[6], &lnk_stat[7], &lnk_stat[8], &lnk_stat[9]);
+            if (lnk_stat[device_socket] == 0)
+            {
+                break;
+            }
+            rt_thread_delay(1000);
         }
     }
 
  __exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
-/**
- * open packet network
- */
-static int sim76xx_network_socket_open(struct at_socket *socket)
-{
-    int result = RT_EOK, activated = 0;
-    at_response_t resp = RT_NULL;
-    struct at_device *device = (struct at_device *) socket->device;
-
-    resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
-    if (resp == RT_NULL)
-    {
-        LOG_E("no memory for sim76xx device(%s) response structure.", device->name);
-        return -RT_ENOMEM;
-    }
-
-    /* check the network open or not */
-    if (at_obj_exec_cmd(device->client, resp, "AT+NETOPEN?") < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    if (at_resp_parse_line_args_by_kw(resp, "+NETOPEN:", "+NETOPEN: %d", &activated) < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    if (activated)
-    {
-        /* network socket is already opened */
-        goto __exit;
-    }
-    else
-    {
-        /* if not opened the open it */
-        if (at_obj_exec_cmd(device->client, resp, "AT+NETOPEN") < 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-    }
-
-__exit:
     if (resp)
     {
         at_delete_resp(resp);
@@ -268,14 +216,14 @@ static int sim76xx_socket_connect(struct at_socket *socket, char *ip, int32_t po
         return -RT_ENOMEM;
     }
 
-    rt_mutex_take(lock, RT_WAITING_FOREVER);
+	rt_mutex_take(lock, RT_WAITING_FOREVER);
+
+    /* check and close current socket */
+    sim76xx_socket_close(socket);
 
 __retry:
     if (is_client)
     {
-        /* open network socket first(AT+NETOPEN) */
-        sim76xx_network_socket_open(socket);
-
         switch (type)
         {
         case AT_SOCKET_TCP:
@@ -291,7 +239,7 @@ __retry:
             {
                 result = -RT_ERROR;
             }
-            strcpy(udp_ipstr[device_socket], ip);
+            rt_strncpy(udp_ipstr[device_socket], ip, SIM76XX_IPADDR_LEN);
             udp_port[device_socket] = port;
             break;
 
@@ -314,16 +262,16 @@ __retry:
                                         1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
-        LOG_E("sim76xx device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, socket);
+        LOG_E("sim76xx device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
     /* check result */
     if (event_result & SIM76XX_EVENT_CONN_FAIL)
     {
-        if (!retryed)
+        if (retryed == RT_FALSE)
         {
-            LOG_E("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
+            LOG_D("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", device_socket);
             if (sim76xx_socket_close(socket) < 0)
             {
 			    result = -RT_ERROR;
@@ -332,21 +280,9 @@ __retry:
             retryed = RT_TRUE;
             goto __retry;
         }
-        LOG_E("socket (%d) connect failed, failed to establish a connection.", socket);
+        LOG_E("socket (%d) connect failed, failed to establish a connection.", device_socket);
         result = -RT_ERROR;
         goto __exit;
-    }
-
-    if (result != RT_EOK && !retryed)
-    {
-        LOG_D("socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", socket);
-        if (sim76xx_socket_close(socket) < 0)
-        {
-            goto __exit;
-        }
-        retryed = RT_TRUE;
-        result = RT_EOK;
-        goto __retry;
     }
 
 __exit:
@@ -411,12 +347,12 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
         {
             cur_pkt_size = SIM76XX_MODULE_SEND_MAX_SIZE;
         }
-        
+
         switch (socket->type)
         {
         case AT_SOCKET_TCP:
             /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
-            if (at_obj_exec_cmd(device->client,  resp, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size) < 0)
+            if (at_obj_exec_cmd(device->client, resp, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -424,15 +360,18 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
             break;
         case AT_SOCKET_UDP:
             /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line. */
-            if (at_obj_exec_cmd(device->client,  resp, "AT+CIPSEND=%d,%d,\"%s\",%d", 
+            if (at_obj_exec_cmd(device->client, resp, "AT+CIPSEND=%d,%d,\"%s\",%d",
                     device_socket, cur_pkt_size, udp_ipstr[device_socket], udp_port[device_socket]) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
             }
             break;
+        default:
+            LOG_E("input socket type(%d) error.", socket->type);
+            break;
         }
-        
+
         /* send the real data to server or client */
         result = (int) at_client_send(buff + sent_size, cur_pkt_size);
         if (result == 0)
@@ -463,11 +402,6 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
             LOG_E("sim76xx device(%s) socket(%d) send failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
-        }
-
-        if (type == AT_SOCKET_TCP)
-        {
-            //cur_pkt_size = cur_send_bfsz;
         }
 
         sent_size += cur_pkt_size;
@@ -599,41 +533,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     sscanf(data, "+CIPSEND: %d,%d,%d", &device_socket, &rqst_size, &cnf_size);
-
-    //cur_send_bfsz = cnf_size;
-
     sim76xx_socket_event_send(device, SET_EVENT(device_socket, SIM76XX_EVENT_SEND_OK));
-}
-
-static void urc_ping_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    static int icmp_seq = 0;
-    int i, j = 0;
-    int result, recv_len, time, ttl;
-    int sent, rcvd, lost, min, max, avg;
-    char dst_ip[16] = {0};
-
-    RT_ASSERT(data);
-
-    for (i = 0; i < size; i++)
-    {
-        if (*(data + i) == '.')
-            j++;
-    }
-    if (j != 0)
-    {
-        sscanf(data, "+CPING: %d,%[^,],%d,%d,%d", &result, dst_ip, &recv_len, &time, &ttl);
-        if (result == 1)
-            LOG_I("%d bytes from %s icmp_seq=%d ttl=%d time=%d ms", recv_len, dst_ip, icmp_seq++, ttl, time);
-    }
-    else
-    {
-        sscanf(data, "+CPING: %d,%d,%d,%d,%d,%d,%d", &result, &sent, &rcvd, &lost, &min, &max, &avg);
-        if (result == 3)
-            LOG_I("%d sent %d received %d lost, min=%dms max=%dms average=%dms", sent, rcvd, lost, min, max, avg);
-        if (result == 2)
-            LOG_I("ping requst timeout");
-    }
 }
 
 static void urc_connect_func(struct at_client *client, const char *data, rt_size_t size)
@@ -681,20 +581,6 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     sscanf(data, "+IPCLOSE %d,%d", &device_socket, &reason);
-
-    switch (reason)
-    {
-    case 0:
-        LOG_E("socket is closed by local,active");
-        break;
-    case 1:
-        LOG_E("socket is closed by remote,passive");
-        break;
-    case 2:
-        LOG_E("socket is closed for sending timeout");
-        break;
-    }
-
     /* get AT socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -775,78 +661,15 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 }
 
-static struct at_urc urc_table[] = 
+static struct at_urc urc_table[] =
 {
     {"+CIPSEND:",      "\r\n",           urc_send_func},
     {"+CIPOPEN:",      "\r\n",           urc_connect_func},
-    {"+CPING:",        "\r\n",           urc_ping_func},
     {"+IPCLOSE",       "\r\n",           urc_close_func},
     {"+IPD",           "\r\n",           urc_recv_func},
 };
 
-int sim76xx_connect(int argc, char **argv)
-{
-    int32_t port;
-
-    if (argc != 3)
-    {
-        rt_kprintf("Please input: at_connect <host address>\n");
-        return -RT_ERROR;
-    }
-    sscanf(argv[2], "%d", &port);
-    sim76xx_socket_connect(at_get_socket(0), argv[1], port, AT_SOCKET_TCP, 1);
-
-    return RT_EOK;
-}
-
-int sim76xx_close(int argc, char **argv)
-{
-    if (sim76xx_socket_close(at_get_socket(0)) < 0)
-    {
-        rt_kprintf("sim76xx_socket_close fail\n");
-    }
-    else
-    {
-        rt_kprintf("sim76xx_socket_closeed\n");
-    }
-    return RT_EOK;
-}
-
-int sim76xx_send(int argc, char **argv)
-{
-    const char *buff = "1234567890\n";
-    if (sim76xx_socket_send(at_get_socket(0), buff, 11, AT_SOCKET_TCP) < 0)
-    {
-        rt_kprintf("sim76xx_socket_send fail\n");
-    }
-
-    return RT_EOK;
-}
-
-int sim76xx_domain(int argc, char **argv)
-{
-    char ip[16];
-    if (sim76xx_domain_resolve("www.baidu.com", ip) < 0)
-    {
-        rt_kprintf("sim76xx_socket_send fail\n");
-    }
-    else
-    {
-        rt_kprintf("baidu.com : %s\n", ip);
-    }
-
-    return RT_EOK;
-}
-
-#ifdef FINSH_USING_MSH
-#include <finsh.h>
-MSH_CMD_EXPORT_ALIAS(sim76xx_connect, at_connect, AT connect network host);
-MSH_CMD_EXPORT_ALIAS(sim76xx_close, at_close, AT close a socket);
-MSH_CMD_EXPORT_ALIAS(sim76xx_send, at_send, AT send a pack);
-MSH_CMD_EXPORT_ALIAS(sim76xx_domain, at_domain, AT domain resolve);
-#endif
-
-static const struct at_socket_ops sim76xx_socket_ops = 
+static const struct at_socket_ops sim76xx_socket_ops =
 {
     sim76xx_socket_connect,
     sim76xx_socket_close,
@@ -855,6 +678,7 @@ static const struct at_socket_ops sim76xx_socket_ops =
     sim76xx_socket_set_event_cb,
 };
 
+/* initialize sim76xx device network URC feature */
 int sim76xx_socket_init(struct at_device *device)
 {
     RT_ASSERT(device);
@@ -865,6 +689,7 @@ int sim76xx_socket_init(struct at_device *device)
     return RT_EOK;
 }
 
+/* resgiter sim76xx device socket operations */
 int sim76xx_socket_class_register(struct at_device_class *class)
 {
     RT_ASSERT(class);

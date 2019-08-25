@@ -35,7 +35,7 @@
 #ifdef AT_DEVICE_USING_ESP8266
 
 #define ESP8266_WAIT_CONNECT_TIME      5000
-#define ESP8266_THREAD_STACK_SIZE      1024
+#define ESP8266_THREAD_STACK_SIZE      2048
 #define ESP8266_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX / 2)
 
 /* =============================  esp8266 network interface operations ============================= */
@@ -51,7 +51,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     const char *resp_dns = "+CIPDNS_CUR:%s";
     ip_addr_t ip_addr;
     rt_uint32_t mac_addr[6] = {0};
-    rt_uint32_t num = 0; 
+    rt_uint32_t num = 0;
     rt_uint8_t dhcp_stat = 0;
     struct rt_delayed_work *delay_work = (struct rt_delayed_work *)work;
     struct at_device *device = (struct at_device *)work_data;
@@ -69,7 +69,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         LOG_E("no memory for esp8266 device(%d) response structure.", device->name);
         return;
     }
-    
+
     /* send mac addr query commond "AT+CIFSR" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+CIFSR") < 0)
     {
@@ -104,7 +104,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_netmask(netdev, &ip_addr);
     inet_aton(ip, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
-    sscanf(mac, "%x:%x:%x:%x:%x:%x", 
+    sscanf(mac, "%x:%x:%x:%x:%x:%x",
             &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
@@ -165,14 +165,14 @@ static int esp8266_net_init(struct at_device *device);
 static int esp8266_netdev_set_up(struct netdev *netdev)
 {
     struct at_device *device = RT_NULL;
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
         LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
-    
+
     if (device->is_init == RT_FALSE)
     {
         esp8266_net_init(device);
@@ -186,19 +186,19 @@ static int esp8266_netdev_set_up(struct netdev *netdev)
 static int esp8266_netdev_set_down(struct netdev *netdev)
 {
     struct at_device *device = RT_NULL;
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
         LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
-    
+
     if (device->is_init == RT_TRUE)
     {
         device->is_init = RT_FALSE;
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status", netdev->name);        
+        LOG_D("the network interface device(%s) set down status", netdev->name);
     }
 
     return RT_EOK;
@@ -251,7 +251,7 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
         rt_memcpy(esp8266_netmask_addr, inet_ntoa(netdev->netmask), IPADDR_SIZE);
 
     /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"", 
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"",
             esp8266_ip_addr, esp8266_gw_addr, esp8266_netmask_addr) < 0)
     {
         LOG_E("esp8266 device(%s) set address information failed.", device->name);
@@ -374,7 +374,7 @@ __exit:
 }
 
 #ifdef NETDEV_USING_PING
-static int esp8266_netdev_ping(struct netdev *netdev, const char *host, 
+static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
                 size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define ESP8266_PING_IP_SIZE         16
@@ -608,7 +608,7 @@ static void esp8266_init_thread_entry(void *parameter)
     rt_size_t i = 0, retry_num = INIT_RETRY;
 
     LOG_D("esp8266 device(%s) initialize start.", device->name);
-    
+
     /* wait esp8266 device startup finish */
     if (at_client_obj_wait_connect(client, ESP8266_WAIT_CONNECT_TIME))
     {
@@ -621,7 +621,7 @@ static void esp8266_init_thread_entry(void *parameter)
         LOG_E("no memory for esp8266 device(%d) response structure.", device->name);
         return;
     }
-    
+
     while (retry_num--)
     {
         /* reset module */
@@ -643,10 +643,10 @@ static void esp8266_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
 
         /* connect to WiFi AP */
-        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND), 
+        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
                     "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
         {
-            LOG_E("AT device(%s) network initialize failed, check ssid(%s) and password(%s).", 
+            LOG_E("AT device(%s) network initialize failed, check ssid(%s) and password(%s).",
                     device->name, esp8266->wifi_ssid, esp8266->wifi_password);
             result = -RT_ERROR;
             goto __exit;
@@ -658,7 +658,7 @@ static void esp8266_init_thread_entry(void *parameter)
             break;
         }
         else
-        {            
+        {
             rt_thread_mdelay(1000);
             LOG_I("esp8266 device(%s) initialize retry...", device->name);
         }
@@ -738,7 +738,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
         if (device->is_init)
         {
             netdev_low_level_set_link_status(device->netdev, RT_TRUE);
-            
+
             esp8266_netdev_start_delay_work(device);
         }
     }
@@ -753,7 +753,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     }
 }
 
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
     {"busy p",           "\r\n",           urc_busy_p_func},
     {"busy s",           "\r\n",           urc_busy_s_func},
@@ -764,14 +764,14 @@ static const struct at_urc urc_table[] =
 static int esp8266_init(struct at_device *device)
 {
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
-    
+
     /* initialize AT client */
     at_client_init(esp8266->client_name, esp8266->recv_line_num);
 
     device->client = at_client_get(esp8266->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("esp8266 device(%s) initialize failed, get AT client(%s) failed.", 
+        LOG_E("esp8266 device(%s) initialize failed, get AT client(%s) failed.",
                 esp8266->device_name, esp8266->client_name);
         return -RT_ERROR;
     }
@@ -819,7 +819,7 @@ static int esp8266_reset(struct at_device *device)
 
     /* initialize esp8266 device network */
     esp8266_net_init(device);
-    
+
     device->is_init = RT_TRUE;
 
     return result;
@@ -843,11 +843,11 @@ static int esp8266_wifi_info_set(struct at_device *device, struct at_device_ssid
         LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
         return -RT_ENOMEM;
     }
-    
+
     /* connect to input wifi ap */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWJAP=\"%s\",\"%s\"", info->ssid, info->password) != RT_EOK)
     {
-        LOG_E("esp8266 device(%s) wifi connect failed, check ssid(%s) and password(%s).",  
+        LOG_E("esp8266 device(%s) wifi connect failed, check ssid(%s) and password(%s).",
                 device->name, info->ssid, info->password);
         result = -RT_ERROR;
     }
@@ -894,7 +894,7 @@ static int esp8266_control(struct at_device *device, int cmd, void *arg)
     return result;
 }
 
-static const struct at_device_ops esp8266_device_ops = 
+static const struct at_device_ops esp8266_device_ops =
 {
     esp8266_init,
     esp8266_deinit,

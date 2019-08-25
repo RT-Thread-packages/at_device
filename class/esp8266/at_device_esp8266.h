@@ -37,7 +37,7 @@ extern "C" {
 #define AT_DEVICE_ESP8266_SOCKETS_NUM  5
 
 struct at_device_esp8266
-{     
+{
     char *device_name;
     char *client_name;
 

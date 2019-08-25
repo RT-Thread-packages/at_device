@@ -87,7 +87,7 @@ static int sim800c_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -98,7 +98,7 @@ static int sim800c_socket_close(struct at_socket *socket)
     /* clear socket close event */
     event = SET_EVENT(device_socket, SIM800C_EVNET_CLOSE_OK);
     sim800c_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
@@ -117,7 +117,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -167,7 +167,7 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-            if (at_obj_exec_cmd(device->client, RT_NULL, 
+            if (at_obj_exec_cmd(device->client, RT_NULL,
                     "AT+CIPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -176,7 +176,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_obj_exec_cmd(device->client, RT_NULL, 
+            if (at_obj_exec_cmd(device->client, RT_NULL,
                     "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -199,7 +199,7 @@ __retry:
         goto __exit;
     }
     /* waiting OK or failed result */
-    event_result = sim800c_socket_event_recv(device, 
+    event_result = sim800c_socket_event_recv(device,
             SIM800C_EVENT_CONN_OK | SIM800C_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
@@ -212,7 +212,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("sim800c device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", 
+            LOG_D("sim800c device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
                     device->name, device_socket);
             if (sim800c_socket_close(socket) < 0)
             {
@@ -232,7 +232,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -311,7 +311,7 @@ static int sim800c_socket_send(struct at_socket *socket, const char *buff, size_
             goto __exit;
         }
         /* waiting OK or failed result */
-        event_result = sim800c_socket_event_recv(device, 
+        event_result = sim800c_socket_event_recv(device,
                 SIM800C_EVENT_SEND_OK | SIM800C_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
@@ -611,7 +611,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 }
 
 /* sim800c device URC table for the socket data */
-static const struct at_urc urc_table[] = 
+static const struct at_urc urc_table[] =
 {
     {"",            ", CONNECT OK\r\n",     urc_connect_func},
     {"",            ", CONNECT FAIL\r\n",   urc_connect_func},
@@ -622,7 +622,7 @@ static const struct at_urc urc_table[] =
     {"+RECEIVE,",   "\r\n",                 urc_recv_func},
 };
 
-static const struct at_socket_ops sim800c_socket_ops = 
+static const struct at_socket_ops sim800c_socket_ops =
 {
     sim800c_socket_connect,
     sim800c_socket_close,

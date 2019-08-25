@@ -37,7 +37,7 @@ extern "C" {
 #define AT_DEVICE_SIM800C_SOCKETS_NUM      6
 
 struct at_device_sim800c
-{     
+{
     char *device_name;
     char *client_name;
 

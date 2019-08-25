@@ -99,7 +99,7 @@ static int rw007_socket_close(struct at_socket *socket)
     {
         at_delete_resp(resp);
     }
-    
+
     return result;
 }
 
@@ -142,7 +142,7 @@ __retry:
         {
         case AT_SOCKET_TCP:
             /* send AT commands to connect TCP server */
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,60", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -150,7 +150,7 @@ __retry:
             break;
 
         case AT_SOCKET_UDP:
-            if (at_obj_exec_cmd(device->client, resp, 
+            if (at_obj_exec_cmd(device->client, resp,
                     "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
@@ -166,7 +166,7 @@ __retry:
 
     if (result != RT_EOK && retryed == RT_FALSE)
     {
-        LOG_D("rw007 device(%s) socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.", 
+        LOG_D("rw007 device(%s) socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
                 device->name, socket);
         if (rw007_socket_close(socket) < 0)
         {
@@ -262,7 +262,7 @@ static int rw007_socket_send(struct at_socket *socket, const char *buff, size_t 
             goto __exit;
         }
         /* waiting OK or failed result */
-        event_result = rw007_socket_event_recv(device, RW007_EVENT_SEND_OK | RW007_EVENT_SEND_FAIL, 
+        event_result = rw007_socket_event_recv(device, RW007_EVENT_SEND_OK | RW007_EVENT_SEND_FAIL,
                             5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result  < 0)
         {
@@ -436,7 +436,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     int device_socket = 0;
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name; 
+    char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
 
@@ -466,7 +466,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     char *recv_buf = RT_NULL, temp[8] = {0};
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name; 
+    char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
 
@@ -525,7 +525,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 }
 
-static struct at_urc urc_table[] = 
+static struct at_urc urc_table[] =
 {
     {"SEND OK",          "\r\n",           urc_send_func},
     {"SEND FAIL",        "\r\n",           urc_send_func},
