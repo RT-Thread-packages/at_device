@@ -40,9 +40,14 @@
 
 /* =============================  esp8266 network interface operations ============================= */
 
+static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server);
+
 static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
 {
-#define AT_ADDR_LEN     32
+#define AT_ADDR_LEN          32
+#define AT_ERR_DNS_SERVER    "255.255.255.255"
+#define AT_DEF_DNS_SERVER    "114.114.114.114"
+
     at_response_t resp = RT_NULL;
     char ip[AT_ADDR_LEN] = {0}, mac[AT_ADDR_LEN] = {0};
     char gateway[AT_ADDR_LEN] = {0}, netmask[AT_ADDR_LEN] = {0};
@@ -125,13 +130,21 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    if (rt_strlen(dns_server1) > 0)
+    /* set primary DNS server address */
+    if (rt_strlen(dns_server1) > 0 &&
+            rt_strncmp(dns_server1, AT_ERR_DNS_SERVER, rt_strlen(AT_ERR_DNS_SERVER)) != 0)
     {
         inet_aton(dns_server1, &ip_addr);
         netdev_low_level_set_dns_server(netdev, 0, &ip_addr);
     }
+    else
+    {
+        inet_aton(AT_DEF_DNS_SERVER, &ip_addr);
+        esp8266_netdev_set_dns_server(netdev, 0, &ip_addr);
+    }
 
-    if (rt_strlen(dns_server2) > 0)
+    /* set secondary DNS server address */
+    if (rt_strlen(dns_server2) > 0 )
     {
         inet_aton(dns_server2, &ip_addr);
         netdev_low_level_set_dns_server(netdev, 1, &ip_addr);
