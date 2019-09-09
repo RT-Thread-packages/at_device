@@ -619,6 +619,7 @@ static void esp8266_init_thread_entry(void *parameter)
     at_response_t resp = RT_NULL;
     rt_err_t result = RT_EOK;
     rt_size_t i = 0, retry_num = INIT_RETRY;
+    rt_bool_t wifi_is_conn = RT_FALSE;
 
     LOG_D("esp8266 device(%s) initialize start.", device->name);
 
@@ -655,16 +656,6 @@ static void esp8266_init_thread_entry(void *parameter)
 
         AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
 
-        /* connect to WiFi AP */
-        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
-                    "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
-        {
-            LOG_E("AT device(%s) network initialize failed, check ssid(%s) and password(%s).",
-                    device->name, esp8266->wifi_ssid, esp8266->wifi_password);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
     __exit:
         if (result == RT_EOK)
         {
@@ -677,6 +668,19 @@ static void esp8266_init_thread_entry(void *parameter)
         }
     }
 
+    /* connect to WiFi AP */
+    if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
+                "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
+    {
+        LOG_W("AT device(%s) network initialize failed, check ssid(%s) and password(%s).",
+                device->name, esp8266->wifi_ssid, esp8266->wifi_password);
+    }
+    else
+    {
+        wifi_is_conn = RT_TRUE;
+    }
+
+    
     if (resp)
     {
         at_delete_resp(resp);
@@ -691,7 +695,10 @@ static void esp8266_init_thread_entry(void *parameter)
     {
         device->is_init = RT_TRUE;
         netdev_low_level_set_status(device->netdev, RT_TRUE);
-        netdev_low_level_set_link_status(device->netdev, RT_TRUE);
+        if (wifi_is_conn)
+        {
+            netdev_low_level_set_link_status(device->netdev, RT_TRUE);
+        } 
         esp8266_netdev_start_delay_work(device);
         LOG_I("esp8266 device(%s) network initialize successfully.", device->name);
     }
