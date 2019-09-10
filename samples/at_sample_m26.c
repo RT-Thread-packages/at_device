@@ -24,7 +24,7 @@
 
 #include <at_device_m26.h>
 
-#define LOG_TAG                        "at.sample"
+#define LOG_TAG                        "at.sample.m26"
 #include <at_log.h>
 
 #define M26_SAMPLE_DEIVCE_NAME        "m0"

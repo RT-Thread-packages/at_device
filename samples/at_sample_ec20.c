@@ -24,7 +24,7 @@
 
 #include <at_device_ec20.h>
 
-#define LOG_TAG                        "at.sample"
+#define LOG_TAG                        "at.sample.ec20"
 #include <at_log.h>
 
 #define EC20_SAMPLE_DEIVCE_NAME        "e0"

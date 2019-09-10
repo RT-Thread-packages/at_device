@@ -24,7 +24,7 @@
 
 #include <at_device_esp8266.h>
 
-#define LOG_TAG                        "at.sample"
+#define LOG_TAG                        "at.sample.esp"
 #include <at_log.h>
 
 #define ESP8266_SAMPLE_DEIVCE_NAME     "esp0"

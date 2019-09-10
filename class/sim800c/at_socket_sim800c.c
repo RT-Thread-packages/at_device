@@ -28,7 +28,7 @@
 
 #include <at_device_sim800c.h>
 
-#define LOG_TAG                        "at.skt"
+#define LOG_TAG                        "at.skt.sim800"
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_SIM800C) && defined(AT_USING_SOCKET)
@@ -91,7 +91,7 @@ static int sim800c_socket_close(struct at_socket *socket)
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -107,7 +107,7 @@ static int sim800c_socket_close(struct at_socket *socket)
 
     if (sim800c_socket_event_recv(device, event, rt_tick_from_millisecond(300*3), RT_EVENT_FLAG_AND) < 0)
     {
-        LOG_E("sim800c device(%s) socket(%d) close failed, wait close OK timeout.", device->name, device_socket);
+        LOG_E("%s device socket(%d) wait close OK timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -151,7 +151,7 @@ static int sim800c_socket_connect(struct at_socket *socket, char *ip, int32_t po
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -168,7 +168,7 @@ __retry:
         case AT_SOCKET_TCP:
             /* send AT commands(eg: AT+QIOPEN=0,"TCP","x.x.x.x", 1234) to connect TCP server */
             if (at_obj_exec_cmd(device->client, RT_NULL,
-                    "AT+CIPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
+                                "AT+CIPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -177,7 +177,7 @@ __retry:
 
         case AT_SOCKET_UDP:
             if (at_obj_exec_cmd(device->client, RT_NULL,
-                    "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
+                                "AT+CIPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -185,7 +185,7 @@ __retry:
             break;
 
         default:
-            LOG_E("sim800c device(%s) not supported connect type : %d.", device->name, type);
+            LOG_E("%s device not supported connect type : %d.", device->name, type);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -194,7 +194,7 @@ __retry:
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use */
     if (sim800c_socket_event_recv(device, SET_EVENT(device_socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
-        LOG_E("sim800c device(%s) socket(%d) connect failed, wait connect result timeout.",device->name, device_socket);
+        LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -203,7 +203,7 @@ __retry:
             SIM800C_EVENT_CONN_OK | SIM800C_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
-        LOG_E("sim800c device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, device_socket);
+        LOG_E("%s device socket(%d) wait connect OK|FAIL timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -212,7 +212,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("sim800c device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
+            LOG_D("%s device socket(%d) connect failed, the socket was not be closedand now will connect retry.",
                     device->name, device_socket);
             if (sim800c_socket_close(socket) < 0)
             {
@@ -222,7 +222,7 @@ __retry:
             retryed = RT_TRUE;
             goto __retry;
         }
-        LOG_E("sim800c device(%s) socket(%d) connect failed.", device->name, device_socket);
+        LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
         result = -RT_ERROR;
         goto __exit;
     }
@@ -264,7 +264,7 @@ static int sim800c_socket_send(struct at_socket *socket, const char *buff, size_
     resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -306,7 +306,7 @@ static int sim800c_socket_send(struct at_socket *socket, const char *buff, size_
         /* waiting result event from AT URC */
         if (sim800c_socket_event_recv(device, SET_EVENT(device_socket, 0), 15 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
-            LOG_E("sim800c device(%s) socket(%d) send failed, wait connect result timeout.", device->name, device_socket);
+            LOG_E("%s device socket(%d) wait send result timeout.", device->name, device_socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
@@ -315,14 +315,14 @@ static int sim800c_socket_send(struct at_socket *socket, const char *buff, size_
                 SIM800C_EVENT_SEND_OK | SIM800C_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
-            LOG_E("simm800c device(%s) socket(%d) send failed, wait connect OK|FAIL timeout.", device->name, device_socket);
+            LOG_E("%s device socket(%d) wait send connect OK|FAIL timeout.", device->name, device_socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* check result */
         if (event_result & SIM800C_EVENT_SEND_FAIL)
         {
-            LOG_E("simm800c device(%s) socket(%d) send failed.",device->name, device_socket);
+            LOG_E("%s device socket(%d) send failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -370,7 +370,7 @@ static int sim800c_domain_resolve(const char *name, char ip[16])
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
-        LOG_E("get first initialization sim800c device failed.");
+        LOG_E("get first init device failed.");
         return -RT_ERROR;
     }
 
@@ -378,7 +378,7 @@ static int sim800c_domain_resolve(const char *name, char ip[16])
     resp = at_create_resp(128, 4, 14 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -461,7 +461,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -489,7 +489,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -517,7 +517,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -568,14 +568,14 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
     recv_buf = (char *) rt_calloc(1, bfsz);
     if (recv_buf == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) URC receive buffer (%d).", device->name, bfsz);
+        LOG_E("no memory for receive buffer(%d).", bfsz);
         /* read and clean the coming data */
         while (temp_size < bfsz)
         {
@@ -595,7 +595,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
-        LOG_E("sim800c device(%s) receive size(%d) data failed.", device->name, bfsz);
+        LOG_E("%s device receive size(%d) data failed.", device->name, bfsz);
         rt_free(recv_buf);
         return;
     }

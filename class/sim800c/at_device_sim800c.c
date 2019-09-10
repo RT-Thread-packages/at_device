@@ -29,7 +29,7 @@
 
 #include <at_device_sim800c.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.sim800"
 #include <at_log.h>
 
 #ifdef AT_DEVICE_USING_SIM800C
@@ -108,16 +108,12 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.");
         return -RT_ERROR;
     }
 
@@ -129,7 +125,7 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
     resp = at_create_resp(SIM800C_IEMI_RESP_SIZE, 0, SIM800C_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim800c device(%s) set IP address failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -151,12 +147,12 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
         {
-            LOG_E("sim800c device(%s) prase \"AT+GSN\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("sim800c device(%s) IEMI number: %s", device->name, iemi);
+        LOG_D("%s device IEMI number: %s", device->name, iemi);
 
         netdev->hwaddr_len = SIM800C_NETDEV_HWADDR_LEN;
         /* get hardware address by IEMI */
@@ -189,12 +185,12 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args_by_kw(resp, ".", "%s", ipaddr) <= 0)
         {
-            LOG_E("sim800c device(%s) prase \"AT+CIFSR\" commands resposne data error!", device->name);
+            LOG_E("%s device prase \"AT+CIFSR\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("sim800c device(%s) IP address: %s", device->name, ipaddr);
+        LOG_D("%s device IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -218,13 +214,13 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
         if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
             at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
         {
-            LOG_E("Prase \"AT+CDNSCFG?\" commands resposne data error!");
+            LOG_E("%s device prase \"AT+CDNSCFG?\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("sim800c device(%s) primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("sim800c device(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
 
         inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
@@ -257,14 +253,14 @@ static void check_link_status_entry(void *parameter)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
     resp = at_create_resp(SIM800C_LINK_RESP_SIZE, 0, SIM800C_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim800c device(%s) set check link status failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -300,11 +296,7 @@ static int sim800c_netdev_check_link_status(struct netdev *netdev)
     rt_thread_t tid;
     char tname[RT_NAME_MAX] = {0};
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.\n");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
@@ -327,7 +319,7 @@ static int sim800c_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -337,7 +329,7 @@ static int sim800c_netdev_set_up(struct netdev *netdev)
         device->is_init = RT_TRUE;
 
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status.", netdev->name);
+        LOG_D("network interface device(%s) set up status.", netdev->name);
     }
 
     return RT_EOK;
@@ -350,7 +342,7 @@ static int sim800c_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -360,7 +352,7 @@ static int sim800c_netdev_set_down(struct netdev *netdev)
         device->is_init = RT_FALSE;
 
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status.", netdev->name);
+        LOG_D("network interface device(%s) set down status.", netdev->name);
     }
 
     return RT_EOK;
@@ -381,14 +373,14 @@ static int sim800c_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(SIM800C_DNS_RESP_LEN, 0, SIM800C_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_D("sim800c set dns server failed, no memory for response object.");
+        LOG_D("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -421,7 +413,7 @@ static int sim800c_ping_domain_resolve(struct at_device *device, const char *nam
     resp = at_create_resp(128, 4, 14 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -482,7 +474,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim800c device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -501,7 +493,7 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
     resp = at_create_resp(SIM800C_PING_RESP_SIZE, 0, SIM800C_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim800c device(%s) set dns server failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ERROR;
         goto __exit;
     }
@@ -555,13 +547,6 @@ static int sim800c_netdev_ping(struct netdev *netdev, const char *host,
 }
 #endif /* NETDEV_USING_PING */
 
-#ifdef NETDEV_USING_NETSTAT
-void sim800c_netdev_netstat(struct netdev *netdev)
-{
-    // TODO netstat support
-}
-#endif /* NETDEV_USING_NETSTAT */
-
 const struct netdev_ops sim800c_netdev_ops =
 {
     sim800c_netdev_set_up,
@@ -574,9 +559,7 @@ const struct netdev_ops sim800c_netdev_ops =
 #ifdef NETDEV_USING_PING
     sim800c_netdev_ping,
 #endif
-#ifdef NETDEV_USING_NETSTAT
-    sim800c_netdev_netstat,
-#endif
+    RT_NULL,
 };
 
 static struct netdev *sim800c_netdev_add(const char *netdev_name)
@@ -589,7 +572,7 @@ static struct netdev *sim800c_netdev_add(const char *netdev_name)
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) netdev structure.", netdev_name);
+        LOG_E("no memory for netdev create.");
         return RT_NULL;
     }
 
@@ -638,11 +621,11 @@ static void sim800c_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim800c device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
-    LOG_D("start initializing the sim800c device(%s)", device->name);
+    LOG_D("start init %s device", device->name);
 
     while (retry_num--)
     {
@@ -674,14 +657,14 @@ static void sim800c_init_thread_entry(void *parameter)
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_D("sim800c device(%s) SIM card detection success.", device->name);
+                LOG_D("%s device SIM card detection success.", device->name);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CPIN_RETRY)
         {
-            LOG_E("sim800c device(%s) SIM card detection failed.", device->name);
+            LOG_E("%s device SIM card detection failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -696,14 +679,14 @@ static void sim800c_init_thread_entry(void *parameter)
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                 !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("sim800c device(%s) GSM network is registered(%s),", device->name, parsed_data);
+                LOG_D("%s device GSM is registered(%s),", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CREG_RETRY)
         {
-            LOG_E("sim800c device(%s) GSM network is register failed(%s).", device->name, parsed_data);
+            LOG_E("%s device GSM is register failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -715,14 +698,14 @@ static void sim800c_init_thread_entry(void *parameter)
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                 !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("sim800c device(%s) GPRS network is registered(%s).", device->name, parsed_data);
+                LOG_D("%s device GPRS is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CGREG_RETRY)
         {
-            LOG_E("sim800c device(%s) GPRS network is register failed(%s).", device->name, parsed_data);
+            LOG_E("%s device GPRS is register failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -734,14 +717,14 @@ static void sim800c_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
             if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
             {
-                LOG_D("sim800c device(%s) signal strength: %s", device->name, parsed_data);
+                LOG_D("%s device signal strength: %s", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CSQ_RETRY)
         {
-            LOG_E("sim800c device(%s) signal strength check failed (%s)", device->name, parsed_data);
+            LOG_E("%s device signal strength check failed (%s)", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -762,20 +745,20 @@ static void sim800c_init_thread_entry(void *parameter)
         if (rt_strcmp(parsed_data, "CHINA MOBILE") == 0)
         {
             /* "CMCC" */
-            LOG_I("sim800c device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
         }
         else if (rt_strcmp(parsed_data, "CHN-UNICOM") == 0)
         {
             /* "UNICOM" */
-            LOG_I("sim800c device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_UNICOM);
         }
         else if (rt_strcmp(parsed_data, "CHN-CT") == 0)
         {
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_TELECOM);
             /* "CT" */
-            LOG_I("sim800c device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
         }
 
         /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
@@ -784,24 +767,23 @@ static void sim800c_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, 2, 300, "AT+CIFSR");
         if (at_resp_get_line_by_kw(resp, "ERROR") != RT_NULL)
         {
-            LOG_E("sim800c device(%s) get the local address failed.", device->name);
+            LOG_E("%s device get the local address failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
+
+        /* initialize successfully  */
         result = RT_EOK;
+        break;
 
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             /* power off the sim800c device */
             sim800c_power_off(device);
             rt_thread_mdelay(1000);
 
-            LOG_I("sim800c device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -816,12 +798,12 @@ static void sim800c_init_thread_entry(void *parameter)
         sim800c_netdev_set_info(device->netdev);
         sim800c_netdev_check_link_status(device->netdev);
 
-        LOG_I("sim800c device(%s) network initialize success!", device->name);
+        LOG_I("%s device network initialize success!", device->name);
 
     }
     else
     {
-        LOG_E("sim800c device(%s) network initialize failed(%d)!", device->name, result);
+        LOG_E("%s device network initialize failed(%d)!", device->name, result);
     }
 }
 
@@ -830,7 +812,7 @@ static int sim800c_net_init(struct at_device *device)
 #ifdef AT_DEVICE_SIM800C_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("sim800c_net_init", sim800c_init_thread_entry, (void *)device,
+    tid = rt_thread_create("sim800c_net", sim800c_init_thread_entry, (void *)device,
                 SIM800C_THREAD_STACK_SIZE, SIM800C_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -838,7 +820,7 @@ static int sim800c_net_init(struct at_device *device)
     }
     else
     {
-        LOG_E("create sim800c device(%s) initialization thread failed.", device->name);
+        LOG_E("create %s device init thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -871,7 +853,7 @@ static int sim800c_init(struct at_device *device)
     device->client = at_client_get(sim800c->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("sim800c device(%s) initialize failed, get AT client(%s) failed.", sim800c->device_name, sim800c->client_name);
+        LOG_E("get AT client(%s) failed.", sim800c->client_name);
         return -RT_ERROR;
     }
 
@@ -886,7 +868,7 @@ static int sim800c_init(struct at_device *device)
     device->netdev = sim800c_netdev_add(sim800c->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("sim800c device(%s) initialize failed, get network interface device failed.", sim800c->device_name);
+        LOG_E("get netdev(%s) failed.", sim800c->device_name);
         return -RT_ERROR;
     }
 
@@ -926,7 +908,7 @@ static int sim800c_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("sim800c not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     default:
         LOG_E("input error control command(%d).", cmd);
@@ -950,7 +932,7 @@ static int sim800c_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for sim800c device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

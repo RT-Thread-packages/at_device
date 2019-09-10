@@ -28,7 +28,7 @@
 
 #include <at_device_rw007.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.rw007"
 
 #include <at_log.h>
 
@@ -48,7 +48,7 @@ static struct netdev *rw007_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
-    netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
+    netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
         return RT_NULL;
@@ -108,7 +108,7 @@ static void rw007_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for rw007 device(%d) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -133,7 +133,7 @@ static void rw007_init_thread_entry(void *parameter)
         if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
                     "AT+CWJAP=\"%s\",\"%s\"", rw007->wifi_ssid, rw007->wifi_password) != RT_EOK)
         {
-            LOG_E("rw007 device(%s) network initialize failed, check ssid(%s) and password(%s).",
+            LOG_E("%s device wifi connect failed, check ssid(%s) and password(%s).",
                     device->name, rw007->wifi_ssid, rw007->wifi_password);
             result = -RT_ERROR;
             goto __exit;
@@ -141,15 +141,15 @@ static void rw007_init_thread_entry(void *parameter)
 
         AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
 
+        /* initialize successfully  */
+        result = RT_EOK;
+        break;
+
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             rt_thread_mdelay(1000);
-            LOG_I("rw007 device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -161,12 +161,12 @@ static void rw007_init_thread_entry(void *parameter)
     if (result != RT_EOK)
     {
         netdev_low_level_set_status(device->netdev, RT_FALSE);
-        LOG_E("rw007 device(%s) network initialize failed(%d).", device->name, result);
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
     }
     else
     {
         netdev_low_level_set_status(device->netdev, RT_TRUE);
-        LOG_I("rw007 device(%s) network initialize successfully.", device->name);
+        LOG_I("%s device network initialize success.", device->name);
     }
 }
 
@@ -175,15 +175,15 @@ int rw007_net_init(struct at_device *device)
 #ifdef AT_DEVICE_RW007_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("rw007_net_init", rw007_init_thread_entry,
-                (void *)device, RW007_THREAD_STACK_SIZE, RW007_THREAD_PRIORITY, 20);
+    tid = rt_thread_create("rw007_net", rw007_init_thread_entry,
+                           (void *)device, RW007_THREAD_STACK_SIZE, RW007_THREAD_PRIORITY, 20);
     if (tid)
     {
         rt_thread_startup(tid);
     }
     else
     {
-        LOG_E("create rw007 device(%s) initialization thread failed.", device->name);
+        LOG_E("create %s device initialization thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -195,12 +195,12 @@ int rw007_net_init(struct at_device *device)
 
 static void urc_busy_p_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    LOG_D("system is processing a commands and it cannot respond to the current commands.");
+    LOG_D("system is processing a commands...");
 }
 
 static void urc_busy_s_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    LOG_D("system is sending data and it cannot respond to the current commands.");
+    LOG_D("system is sending data...");
 }
 
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
@@ -213,17 +213,17 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get rw007 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
     if (rt_strstr(data, "WIFI CONNECTED"))
     {
-        LOG_I("rw007 device(%s) WIFI is connected.", device->name);
+        LOG_I("%s device wifi is connected.", device->name);
     }
     else if (rt_strstr(data, "WIFI DISCONNECT"))
     {
-        LOG_I("rw007 device(%s) WIFI is disconnect.", device->name);
+        LOG_I("%s device wifi is disconnect.", device->name);
     }
 }
 
@@ -244,8 +244,7 @@ static int rw007_init(struct at_device *device)
     device->client = at_client_get(rw007->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("rw007 device(%s) initialize failed, get AT client(%s) failed.",
-                rw007->device_name, rw007->client_name);
+        LOG_E("get AT client(%s) failed.", rw007->client_name);
         return -RT_ERROR;
     }
 
@@ -260,7 +259,7 @@ static int rw007_init(struct at_device *device)
     device->netdev = rw007_netdev_add(rw007->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("rw007 device(%s) initialize failed, get network interface device failed.", rw007->device_name);
+        LOG_E("get netdev(%s) failed.", rw007->device_name);
         return -RT_ERROR;
     }
 
@@ -308,21 +307,21 @@ static int rw007_wifi_info_set(struct at_device *device, struct at_device_ssid_p
 
     if (info->ssid == RT_NULL || info->password == RT_NULL)
     {
-        LOG_E("input rwoo7 wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
+        LOG_E("input wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
          return -RT_ERROR;
     }
 
     resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for rw007 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
     /* connect to input wifi ap */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWJAP=\"%s\",\"%s\"", info->ssid, info->password) != RT_EOK)
     {
-        LOG_E("rw007 device(%s) wifi connect failed, check ssid(%s) and password(%s).",
+        LOG_E("%s device wifi connect failed, check ssid(%s) and password(%s).",
                 device->name, info->ssid, info->password);
         result = -RT_ERROR;
     }
@@ -352,7 +351,7 @@ static int rw007_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("rw007 not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     case AT_DEVICE_CTRL_RESET:
         result = rw007_reset(device);
@@ -382,7 +381,7 @@ static int rw007_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for rw007 device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

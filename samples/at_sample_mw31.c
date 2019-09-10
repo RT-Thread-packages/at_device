@@ -24,7 +24,7 @@
 
 #include <at_device_mw31.h>
 
-#define LOG_TAG                        "at.sample"
+#define LOG_TAG                        "at.sample.mw31"
 #include <at_log.h>
 
 #define MW31_SAMPLE_DEIVCE_NAME     "mw0"
