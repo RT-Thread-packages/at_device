@@ -34,8 +34,250 @@
 #ifdef AT_DEVICE_USING_M26
 
 #define M26_WAIT_CONNECT_TIME          5000
-#define M26_THREAD_STACK_SIZE          2048
+#define M26_THREAD_STACK_SIZE          1024
 #define M26_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
+
+//从buf里面得到第cx个逗号所在的位置
+//返回值:0~0XFE,代表逗号所在位置的偏移.
+//       0XFF,代表不存在第cx个逗号							  
+static unsigned char NMEA_Comma_Pos(unsigned char *buf,unsigned char cx)
+{	 		    
+	unsigned char *p=buf;
+	while(cx)
+	{		 
+		if(*buf=='*'||*buf<' '||*buf>'z')return 0XFF;//遇到'*'或者非法字符,则不存在第cx个逗号
+		if(*buf==',')cx--;
+		buf++;
+	}
+	return buf-p;	 
+}
+
+//m^n函数
+//返回值:m^n次方.
+static uint32_t NMEA_Pow(uint8_t m,uint8_t n)
+{
+	uint32_t result=1;	 
+	while(n--)result*=m;    
+	return result;
+}
+
+//str转换为数字,以','或者'*'结束
+//buf:数字存储区
+//dx:小数点位数,返回给调用函数
+//返回值:转换后的数值
+static int NMEA_Str2num(uint8_t *buf,uint8_t*dx)
+{
+	uint8_t *p=buf;
+	uint32_t ires=0,fres=0;
+	uint8_t ilen=0,flen=0,i;
+	uint8_t mask=0;
+	int res;
+	while(1) //得到整数和小数的长度
+	{
+		if(*p=='-'){mask|=0X02;p++;}//是负数
+		if(*p==','||(*p=='*'))break;//遇到结束了
+		if(*p=='.'){mask|=0X01;p++;}//遇到小数点了
+		else if(*p>'9'||(*p<'0'))	//有非法字符
+		{	
+			ilen=0;
+			flen=0;
+			break;
+		}	
+		if(mask&0X01)flen++;
+		else ilen++;
+		p++;
+	}
+	if(mask&0X02)buf++;	//去掉负号
+	for(i=0;i<ilen;i++)	//得到整数部分数据
+	{  
+		ires+=NMEA_Pow(10,ilen-1-i)*(buf[i]-'0');
+	}
+	if(flen>5)flen=5;	//最多取5位小数
+	*dx=flen;	 		//小数点位数
+	for(i=0;i<flen;i++)	//得到小数部分数据
+	{  
+		fres+=NMEA_Pow(10,flen-1-i)*(buf[ilen+1+i]-'0');
+	} 
+	res=ires*NMEA_Pow(10,flen)+fres;
+	if(mask&0X02)res=-res;		   
+	return res;
+}	  							 
+
+//分析GPGSV信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_GPGSV_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p,*p1,dx;
+	uint8_t len,i,j,slx=0;
+	uint8_t posx;   	 
+	p=buf;
+	p1=(uint8_t*)strstr((const char *)p,"$GPGSV");
+	len=p1[7]-'0';								//得到GPGSV的条数
+	posx=NMEA_Comma_Pos(p1,3); 					//得到可见卫星总数
+	if(posx!=0XFF)gpsx->svnum=NMEA_Str2num(p1+posx,&dx);
+	for(i=0;i<len;i++)
+	{	 
+		p1=(uint8_t*)strstr((const char *)p,"$GPGSV");  
+		for(j=0;j<4;j++)
+		{	  
+			posx=NMEA_Comma_Pos(p1,4+j*4);
+			if(posx!=0XFF)gpsx->slmsg[slx].num=NMEA_Str2num(p1+posx,&dx);	//得到卫星编号
+			else break; 
+			posx=NMEA_Comma_Pos(p1,5+j*4);
+			if(posx!=0XFF)gpsx->slmsg[slx].eledeg=NMEA_Str2num(p1+posx,&dx);//得到卫星仰角 
+			else break;
+			posx=NMEA_Comma_Pos(p1,6+j*4);
+			if(posx!=0XFF)gpsx->slmsg[slx].azideg=NMEA_Str2num(p1+posx,&dx);//得到卫星方位角
+			else break; 
+			posx=NMEA_Comma_Pos(p1,7+j*4);
+			if(posx!=0XFF)gpsx->slmsg[slx].sn=NMEA_Str2num(p1+posx,&dx);	//得到卫星信噪比
+			else break;
+			slx++;	   
+		}   
+ 		p=p1+1;//切换到下一个GPGSV信息
+	}   
+}
+
+//分析GNVTG信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_GNVTG_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p1,dx;			 
+	uint8_t posx;    
+	p1=(uint8_t*)strstr((const char *)buf,"$GNVTG");							 
+	posx=NMEA_Comma_Pos(p1,7);								//得到地面速率
+	if(posx!=0XFF)
+	{
+		gpsx->speed=NMEA_Str2num(p1+posx,&dx);
+		if(dx<3)gpsx->speed*=NMEA_Pow(10,3-dx);	 	 		//确保扩大1000倍
+	}
+}
+
+//分析BDGSV信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_BDGSV_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p,*p1,dx;
+	uint8_t len,i,j,slx=0;
+	uint8_t posx;   	 
+	p=buf;
+	p1=(uint8_t*)strstr((const char *)p,"$BDGSV");
+	len=p1[7]-'0';								//得到BDGSV的条数
+	posx=NMEA_Comma_Pos(p1,3); 					//得到可见北斗卫星总数
+	if(posx!=0XFF)gpsx->beidou_svnum=NMEA_Str2num(p1+posx,&dx);
+	for(i=0;i<len;i++)
+	{	 
+		p1=(uint8_t*)strstr((const char *)p,"$BDGSV");  
+		for(j=0;j<4;j++)
+		{	  
+			posx=NMEA_Comma_Pos(p1,4+j*4);
+			if(posx!=0XFF)gpsx->beidou_slmsg[slx].beidou_num=NMEA_Str2num(p1+posx,&dx);	//得到卫星编号
+			else break; 
+			posx=NMEA_Comma_Pos(p1,5+j*4);
+			if(posx!=0XFF)gpsx->beidou_slmsg[slx].beidou_eledeg=NMEA_Str2num(p1+posx,&dx);//得到卫星仰角 
+			else break;
+			posx=NMEA_Comma_Pos(p1,6+j*4);
+			if(posx!=0XFF)gpsx->beidou_slmsg[slx].beidou_azideg=NMEA_Str2num(p1+posx,&dx);//得到卫星方位角
+			else break; 
+			posx=NMEA_Comma_Pos(p1,7+j*4);
+			if(posx!=0XFF)gpsx->beidou_slmsg[slx].beidou_sn=NMEA_Str2num(p1+posx,&dx);	//得到卫星信噪比
+			else break;
+			slx++;	   
+		}   
+ 		p=p1+1;//切换到下一个BDGSV信息
+	}   
+}
+//分析GNGGA信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_GNGGA_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p1,dx;			 
+	uint8_t posx;    
+	p1=(uint8_t*)strstr((const char *)buf,"$GNGGA");
+	posx=NMEA_Comma_Pos(p1,6);								//得到GPS状态
+	if(posx!=0XFF)gpsx->gpssta=NMEA_Str2num(p1+posx,&dx);	
+	posx=NMEA_Comma_Pos(p1,7);								//得到用于定位的卫星数
+	if(posx!=0XFF)gpsx->posslnum=NMEA_Str2num(p1+posx,&dx); 
+	posx=NMEA_Comma_Pos(p1,9);								//得到海拔高度
+	if(posx!=0XFF)gpsx->altitude=NMEA_Str2num(p1+posx,&dx);  
+}
+//分析GNGSA信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_GNGSA_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p1,dx;			 
+	uint8_t posx; 
+	uint8_t i;   
+	p1=(uint8_t*)strstr((const char *)buf,"$GNGSA");
+	posx=NMEA_Comma_Pos(p1,2);								//得到定位类型
+	if(posx!=0XFF)gpsx->fixmode=NMEA_Str2num(p1+posx,&dx);	
+	for(i=0;i<12;i++)										//得到定位卫星编号
+	{
+		posx=NMEA_Comma_Pos(p1,3+i);					 
+		if(posx!=0XFF)gpsx->possl[i]=NMEA_Str2num(p1+posx,&dx);
+		else break; 
+	}				  
+	posx=NMEA_Comma_Pos(p1,15);								//得到PDOP位置精度因子
+	if(posx!=0XFF)gpsx->pdop=NMEA_Str2num(p1+posx,&dx);  
+	posx=NMEA_Comma_Pos(p1,16);								//得到HDOP位置精度因子
+	if(posx!=0XFF)gpsx->hdop=NMEA_Str2num(p1+posx,&dx);  
+	posx=NMEA_Comma_Pos(p1,17);								//得到VDOP位置精度因子
+	if(posx!=0XFF)gpsx->vdop=NMEA_Str2num(p1+posx,&dx);  
+}
+
+
+//分析GNRMC信息
+//gpsx:nmea信息结构体
+//buf:接收到的GPS数据缓冲区首地址
+void NMEA_GNRMC_Analysis(nmea_msg *gpsx,uint8_t *buf)
+{
+	uint8_t *p1,dx;			 
+	uint8_t posx;     
+	uint32_t temp;	   
+	float rs;  
+	p1=(uint8_t*)strstr((const char *)buf,"$GNRMC");//"$GNRMC",经常有&和GNRMC分开的情况,故只判断GPRMC.
+	posx=NMEA_Comma_Pos(p1,1);								//得到UTC时间
+	if(posx!=0XFF)
+	{
+		temp=NMEA_Str2num(p1+posx,&dx)/NMEA_Pow(10,dx);	 	//得到UTC时间,去掉ms
+		gpsx->utc.hour=temp/10000;
+		gpsx->utc.min=(temp/100)%100;
+		gpsx->utc.sec=temp%100;	 	 
+	}	
+	posx=NMEA_Comma_Pos(p1,3);								//得到纬度
+	if(posx!=0XFF)
+	{
+		temp=NMEA_Str2num(p1+posx,&dx);		 	 
+		gpsx->latitude=temp/NMEA_Pow(10,dx+2);	//得到°
+		rs=temp%NMEA_Pow(10,dx+2);				//得到'		 
+		gpsx->latitude=gpsx->latitude*NMEA_Pow(10,5)+(rs*NMEA_Pow(10,5-dx))/60;//转换为° 
+	}
+	posx=NMEA_Comma_Pos(p1,4);								//南纬还是北纬 
+	if(posx!=0XFF)gpsx->nshemi=*(p1+posx);					 
+ 	posx=NMEA_Comma_Pos(p1,5);								//得到经度
+	if(posx!=0XFF)
+	{												  
+		temp=NMEA_Str2num(p1+posx,&dx);		 	 
+		gpsx->longitude=temp/NMEA_Pow(10,dx+2);	//得到°
+		rs=temp%NMEA_Pow(10,dx+2);				//得到'		 
+		gpsx->longitude=gpsx->longitude*NMEA_Pow(10,5)+(rs*NMEA_Pow(10,5-dx))/60;//转换为° 
+	}
+	posx=NMEA_Comma_Pos(p1,6);								//东经还是西经
+	if(posx!=0XFF)gpsx->ewhemi=*(p1+posx);		 
+	posx=NMEA_Comma_Pos(p1,9);								//得到UTC日期
+	if(posx!=0XFF)
+	{
+		temp=NMEA_Str2num(p1+posx,&dx);		 				//得到UTC日期
+		gpsx->utc.date=temp/10000;
+		gpsx->utc.month=(temp/100)%100;
+		gpsx->utc.year=2000+temp%100;	 	 
+	} 
+}
 
 static void m26_power_on(struct at_device *device)
 {
@@ -172,7 +414,7 @@ static int m26_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-
+        
         at_resp_set_info(resp, M26_IPADDR_RESP_SIZE, 2, M26_INFO_RESP_TIMO);
 
         /* send "AT+QILOCIP" commond to get IP address */
@@ -188,7 +430,7 @@ static int m26_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-
+        
         LOG_D("m26 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
@@ -233,7 +475,7 @@ __exit:
     {
         at_delete_resp(resp);
     }
-
+    
     return result;
 }
 
@@ -264,8 +506,8 @@ static void check_link_status_entry(void *parameter)
     }
 
    while (1)
-    {
-
+    { 
+        
         /* send "AT+QNSTATUS" commond  to check netweork interface device link status */
         if (at_obj_exec_cmd(device->client, resp, "AT+QNSTATUS") < 0)
         {
@@ -273,7 +515,7 @@ static void check_link_status_entry(void *parameter)
 
            continue;
         }
-
+        
         link_status = -1;
         at_resp_parse_line_args_by_kw(resp, "+QNSTATUS:", "+QNSTATUS: %d", &link_status);
 
@@ -290,7 +532,7 @@ static void check_link_status_entry(void *parameter)
 static int m26_netdev_check_link_status(struct netdev *netdev)
 {
 #define M26_LINK_THREAD_TICK           20
-#define M26_LINK_THREAD_STACK_SIZE     (1024 + 512)
+#define M26_LINK_THREAD_STACK_SIZE     512
 #define M26_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
@@ -304,7 +546,7 @@ static int m26_netdev_check_link_status(struct netdev *netdev)
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
-    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev, 
             M26_LINK_THREAD_STACK_SIZE, M26_LINK_THREAD_PRIORITY, M26_LINK_THREAD_TICK);
     if (tid)
     {
@@ -406,7 +648,7 @@ __exit:
 }
 
 #ifdef NETDEV_USING_PING
-static int m26_netdev_ping(struct netdev *netdev, const char *host,
+static int m26_netdev_ping(struct netdev *netdev, const char *host, 
             size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define M26_PING_RESP_SIZE       128
@@ -452,7 +694,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
         {
             result = -RT_ERROR;
             goto __exit;
-        }
+        }   
     }
 
     /* prase response number */
@@ -485,7 +727,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
 
 #ifdef NETDEV_USING_NETSTAT
 static void m26_netdev_netstat(struct netdev *netdev)
-{
+{ 
     // TODO netstat support
 }
 #endif /* NETDEV_USING_NETSTAT */
@@ -540,7 +782,7 @@ static struct netdev *m26_netdev_add(const char *netdev_name)
 
 #define AT_SEND_CMD(client, resp, resp_line, timeout, cmd)                                         \
     do {                                                                                           \
-        (resp) = at_resp_set_info((resp), 128, (resp_line), rt_tick_from_millisecond(timeout));    \
+        (resp) = at_resp_set_info((resp), 512, (resp_line), rt_tick_from_millisecond(timeout));    \
         if (at_obj_exec_cmd((client),(resp), (cmd)) < 0)                                           \
         {                                                                                          \
             result = -RT_ERROR;                                                                    \
@@ -586,7 +828,7 @@ static void m26_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-
+        
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, 300, "ATE0");
         /* get module version */
@@ -700,7 +942,17 @@ static void m26_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+QIACT");
 
         AT_SEND_CMD(client, resp, 2, 300, "AT+QILOCIP");
+				
+				AT_SEND_CMD(client, resp, 0, 300, "AT+QGNSSC?");
+
+        at_resp_parse_line_args_by_kw(resp, "+QGNSSC:", "+QGNSSC: %d", &qimode);
+        if (qimode == 0)
+        {
+            AT_SEND_CMD(client, resp, 0, 300, "AT+QGNSSC=1");
+        }
+				
         result = RT_EOK;
+
 
     __exit:
         if (result == RT_EOK)
@@ -714,7 +966,7 @@ static void m26_init_thread_entry(void *parameter)
             rt_thread_mdelay(1000);
 
             LOG_I("m26 device(%s) initialize retry...", device->name);
-        }
+        }    
     }
 
     if (resp)
@@ -740,7 +992,7 @@ static int m26_net_init(struct at_device *device)
 #ifdef AT_DEVICE_M26_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, (void *)device,
+    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, (void *)device, 
             M26_THREAD_STACK_SIZE, M26_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -754,7 +1006,7 @@ static int m26_net_init(struct at_device *device)
 #else
     m26_init_thread_entry(device);
 #endif /* AT_DEVICE_M26_INIT_ASYN */
-
+    
     return RT_EOK;
 }
 
@@ -785,10 +1037,10 @@ static int m26_init(struct at_device *device)
         LOG_E("m26 device(%s) initialize failed, get AT client(%s) failed.", m26->device_name, m26->client_name);
         return -RT_ERROR;
     }
-
+    
     /* register URC data execution function  */
     at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-
+    
 #ifdef AT_USING_SOCKET
     m26_socket_init(device);
 #endif
@@ -800,14 +1052,14 @@ static int m26_init(struct at_device *device)
         LOG_E("m26 device(%s) initialize failed, get network interface device failed.", m26->device_name);
         return -RT_ERROR;
     }
-
+    
     /* initialize m26 pin configuration */
     if (m26->power_pin != -1 && m26->power_status_pin != -1)
     {
         rt_pin_mode(m26->power_pin, PIN_MODE_OUTPUT);
         rt_pin_mode(m26->power_status_pin, PIN_MODE_INPUT);
     }
-
+    
     /* initialize m26 device network */
     return m26_netdev_set_up(device->netdev);
 }
@@ -816,6 +1068,188 @@ static int m26_deinit(struct at_device *device)
 {
     return m26_netdev_set_down(device->netdev);
 }
+
+
+///* read GPS info */
+static int m26_read_GPS(struct at_device *device, struct gps *info)
+{
+    int result = RT_EOK;
+    struct at_response *resp = RT_NULL;
+		nmea_msg gps;
+    resp = at_create_resp(256, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for m26 device(%s) response structure.", device->name);
+        return -RT_ENOMEM;
+    }
+		
+		AT_SEND_CMD(device->client, resp, 5, 300, "AT+QGNSSRD?");
+		
+    LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,1));
+		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,2));
+		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,3));
+		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,4));
+		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,5));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,6));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,7));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,8));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,9));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,10));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,11));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,12));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,13));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,14));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,15));
+//		LOG_D("device: %s data: %s\r\n", device->name, at_resp_get_line(resp,3));
+		
+		NMEA_GNRMC_Analysis(&gps,(uint8_t *)at_resp_get_line(resp,2));
+		NMEA_GNVTG_Analysis(&gps,(uint8_t *)at_resp_get_line(resp,3));	//GPVTG解析
+		NMEA_GNGGA_Analysis(&gps,(uint8_t *)at_resp_get_line(resp,4));	//GNGGA解析 
+		
+//		NMEA_GPGSV_Analysis(&gps,buf);	//GPGSV解析
+//		NMEA_BDGSV_Analysis(&gps,buf);	//BDGSV解析
+			
+//		NMEA_GNGSA_Analysis(&gps,buf);	//GPNSA解析
+//		NMEA_GNRMC_Analysis(&gps,buf);	//GPNMC解析
+		LOG_D("Longitude:%d",gps.longitude);
+		LOG_D("Latitude:%d",gps.latitude);
+		LOG_D("Speed:%d km/h",gps.speed);
+		LOG_D("GPS+BD Valid satellite:%02d",gps.posslnum);
+		LOG_D("GPS Visible satellite:%02d",gps.svnum%100);
+
+//    if (  != RT_EOK)
+//    {
+//        LOG_E("esp8266 device(%s) wifi connect failed, check ssid(%s) and password(%s).",  
+//                device->name, info->ssid, info->password);
+//        result = -RT_ERROR;
+//    }
+
+ __exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+/* read signl info */
+static int m26_get_signal(struct at_device *device, struct m26_info *info)
+{
+    int result = RT_EOK;
+    struct at_response *resp = RT_NULL;
+		int i = 0;
+	  char parsed_data[10];
+    resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for m26 device(%s) response structure.", device->name);
+        return -RT_ENOMEM;
+    }
+				 /* check signal strength */
+        for (i = 0; i < CSQ_RETRY; i++)
+        {
+            AT_SEND_CMD(device->client, resp, 0, 300, "AT+CSQ");
+            at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
+            if (rt_strncmp(parsed_data, "99,99", sizeof(parsed_data)))
+            {
+                LOG_D("m26 device(%s) signal strength: %s", device->name, parsed_data);
+                break;
+            }
+            rt_thread_mdelay(1000);
+        }
+        if (i == CSQ_RETRY)
+        {
+            LOG_E("m26 device(%s) signal strength check failed(%s).", device->name, parsed_data);
+            result = -RT_ERROR;
+            goto __exit;
+        }	
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+		
+    return result;
+}
+
+/* read sim info */
+static int m26_get_sim_info(struct at_device *device, struct m26_info *info)
+{
+    int result = RT_EOK;
+    struct at_response *resp = RT_NULL;
+
+    resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for m26 device(%s) response structure.", device->name);
+        return -RT_ENOMEM;
+    }
+    
+				#define M26_IEMI_LEN            15
+				#define M26_CCID_LEN            20
+				#define M26_IMSI_LEN            15
+
+        char iemi[M26_IEMI_LEN] = {0};
+				char ccid[M26_CCID_LEN] = {0};
+				char imsi[M26_IMSI_LEN] = {0};
+
+        /* send "AT+GSN" commond to get device IEMI */
+        if (at_obj_exec_cmd(device->client, resp, "AT+GSN") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
+        {
+            LOG_E("m26 device(%s) prase \"AT+GSN\" commands resposne data error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("m26 device(%s) IEMI number: %s", device->name, iemi);
+				
+				/* send "AT+QCCID" commond to get device CCID */
+        if (at_obj_exec_cmd(device->client, resp, "AT+QCCID") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", ccid) <= 0)
+        {
+            LOG_E("m26 device(%s) prase \"AT+QCCID\" commands resposne data error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("m26 device(%s) QCCID number: %s", device->name, ccid);
+				
+				/* send "AT+CIMI" commond to get device imsi */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CIMI") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", imsi) <= 0)
+        {
+            LOG_E("m26 device(%s) prase \"AT+QCIMI\" commands resposne data error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("m26 device(%s) IMSI number: %s", device->name, imsi);
+    		
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+		
+    return result;
+}
+
 
 static int m26_control(struct at_device *device, int cmd, void *arg)
 {
@@ -835,7 +1269,14 @@ static int m26_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_NET_DISCONN:
     case AT_DEVICE_CTRL_SET_WIFI_INFO:
     case AT_DEVICE_CTRL_GET_SIGNAL:
+				m26_get_signal(device,(struct m26_info *)arg);
+				break;
     case AT_DEVICE_CTRL_GET_GPS:
+				m26_read_GPS(device,(struct gps *)arg);
+				break;
+		case AT_DEVICE_CTRL_GET_SIM:
+				m26_get_sim_info(device,(struct m26_info *)arg);
+				break;
     case AT_DEVICE_CTRL_GET_VER:
         LOG_W("m26 not support the control command(%d).", cmd);
         break;
@@ -846,7 +1287,7 @@ static int m26_control(struct at_device *device, int cmd, void *arg)
 
     return result;
 }
-static const struct at_device_ops m26_device_ops =
+static const struct at_device_ops m26_device_ops = 
 {
     m26_init,
     m26_deinit,
