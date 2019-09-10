@@ -28,7 +28,7 @@
 
 #include <at_device_esp8266.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.esp"
 
 #include <at_log.h>
 
@@ -71,7 +71,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%d) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -83,14 +83,14 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
 
     if (at_resp_parse_line_args_by_kw(resp, "STAMAC", resp_expr, mac) <= 0)
     {
-        LOG_E("esp8266 device(%s) parse \"AT+CIFSR\" command response data error.", device->name);
+        LOG_E("%s device parse \"AT+CIFSR\" cmd error.", device->name);
         goto __exit;
     }
 
     /* send addr info query commond "AT+CIPSTA?" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+CIPSTA?") < 0)
     {
-        LOG_E("esp8266 device(%s) send \"AT+CIPSTA?\" commands error.", device->name);
+        LOG_E("%s device send \"AT+CIPSTA?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -98,7 +98,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
             at_resp_parse_line_args_by_kw(resp, "gateway", resp_expr, gateway) <= 0 ||
             at_resp_parse_line_args_by_kw(resp, "netmask", resp_expr, netmask) <= 0)
     {
-        LOG_E("esp8266 device(%s) prase \"AT+CIPSTA?\" command resposne data error.", device->name);
+        LOG_E("%s device prase \"AT+CIPSTA?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -119,14 +119,14 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     /* send dns server query commond "AT+CIPDNS_CUR?" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR?") < 0)
     {
-        LOG_W("please check and update device(%s) firmware to support the \"AT+CIPDNS_CUR?\" command.", device->name);
+        LOG_W("please check and update %s device firmware to support the \"AT+CIPDNS_CUR?\" cmd.", device->name);
         goto __exit;
     }
 
     if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
             at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
     {
-        LOG_E("esp8266 device(%d) prase \"AT+CIPDNS_CUR?\" commands resposne data error.", device->name);
+        LOG_E("%d device prase \"AT+CIPDNS_CUR?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -159,7 +159,7 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     /* parse response data, get the DHCP status */
     if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP_CUR:", "+CWDHCP_CUR:%d", &dhcp_stat) < 0)
     {
-        LOG_E("esp8266 device(%s) get DHCP status failed.", device->name);
+        LOG_E("%s device prase DHCP status error.", device->name);
         goto __exit;
     }
 
@@ -182,7 +182,7 @@ static int esp8266_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -190,7 +190,7 @@ static int esp8266_netdev_set_up(struct netdev *netdev)
     {
         esp8266_net_init(device);
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status", netdev->name);
+        LOG_D("network interface device(%s) set up status", netdev->name);
     }
 
     return RT_EOK;
@@ -203,7 +203,7 @@ static int esp8266_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device by netdev(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -211,7 +211,7 @@ static int esp8266_netdev_set_down(struct netdev *netdev)
     {
         device->is_init = RT_FALSE;
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status", netdev->name);
+        LOG_D("network interface device(%s) set down status", netdev->name);
     }
 
     return RT_EOK;
@@ -225,9 +225,9 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-    char esp8266_ip_addr[IPADDR_SIZE] = {0};
-    char esp8266_gw_addr[IPADDR_SIZE] = {0};
-    char esp8266_netmask_addr[IPADDR_SIZE] = {0};
+    char ip_str[IPADDR_SIZE] = {0};
+    char gw_str[IPADDR_SIZE] = {0};
+    char netmask_str[IPADDR_SIZE] = {0};
 
     RT_ASSERT(netdev);
     RT_ASSERT(ip_addr || netmask || gw);
@@ -235,39 +235,39 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(IPADDR_RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
 
     /* Convert numeric IP address into decimal dotted ASCII representation. */
     if (ip_addr)
-        rt_memcpy(esp8266_ip_addr, inet_ntoa(*ip_addr), IPADDR_SIZE);
+        rt_memcpy(ip_str, inet_ntoa(*ip_addr), IPADDR_SIZE);
     else
-        rt_memcpy(esp8266_ip_addr, inet_ntoa(netdev->ip_addr), IPADDR_SIZE);
+        rt_memcpy(ip_str, inet_ntoa(netdev->ip_addr), IPADDR_SIZE);
 
     if (gw)
-        rt_memcpy(esp8266_gw_addr, inet_ntoa(*gw), IPADDR_SIZE);
+        rt_memcpy(gw_str, inet_ntoa(*gw), IPADDR_SIZE);
     else
-        rt_memcpy(esp8266_gw_addr, inet_ntoa(netdev->gw), IPADDR_SIZE);
+        rt_memcpy(gw_str, inet_ntoa(netdev->gw), IPADDR_SIZE);
 
     if (netmask)
-        rt_memcpy(esp8266_netmask_addr, inet_ntoa(*netmask), IPADDR_SIZE);
+        rt_memcpy(netmask_str, inet_ntoa(*netmask), IPADDR_SIZE);
     else
-        rt_memcpy(esp8266_netmask_addr, inet_ntoa(netdev->netmask), IPADDR_SIZE);
+        rt_memcpy(netmask_str, inet_ntoa(netdev->netmask), IPADDR_SIZE);
 
     /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"",
-            esp8266_ip_addr, esp8266_gw_addr, esp8266_netmask_addr) < 0)
+                        ip_str, gw_str, netmask_str) < 0)
     {
-        LOG_E("esp8266 device(%s) set address information failed.", device->name);
+        LOG_E("%s device set address failed.", device->name);
         result = -RT_ERROR;
     }
     else
@@ -282,7 +282,7 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
         if (netmask)
             netdev_low_level_set_netmask(netdev, netmask);
 
-        LOG_D("esp8266 device(%s) set address information successfully.", device->name);
+        LOG_D("%s device set address success.", device->name);
     }
 
 __exit:
@@ -308,27 +308,27 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device by netdev(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(DNS_RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
     /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
-        LOG_E("esp8266 device(%s) set DNS server(%s) failed.", device->name, inet_ntoa(*dns_server));
+        LOG_E("%s device set DNS failed.", device->name);
         result = -RT_ERROR;
     }
     else
     {
         netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
-        LOG_D("esp8266 device(%s) set DNS server(%s) successfully.", device->name, inet_ntoa(*dns_server));
+        LOG_D("%s device set DNS(%s) success.", device->name, inet_ntoa(*dns_server));
     }
 
     if (resp)
@@ -353,28 +353,28 @@ static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get AT device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device by netdev(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.",device->name);
+        LOG_E("no memory for resp struct.");
         return -RT_ENOMEM;
     }
 
     /* send dhcp set commond "AT+CWDHCP_CUR=<mode>,<en>" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP_CUR=%d,%d", ESP8266_STATION, is_enabled) < 0)
     {
-        LOG_E("esp8266 device(%s) set DHCP status(%d) failed.", device->name, is_enabled);
+        LOG_E("%s device set DHCP status(%d) failed.", device->name, is_enabled);
         result = -RT_ERROR;
         goto __exit;
     }
     else
     {
         netdev_low_level_set_dhcp_status(netdev, is_enabled);
-        LOG_D("esp8266 device(%d) set DHCP status(%d) successfully.", device->name, is_enabled);
+        LOG_D("%s device set DHCP status(%d) ok.", device->name, is_enabled);
     }
 
 __exit:
@@ -405,14 +405,14 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(64, 0, timeout);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -478,7 +478,7 @@ void esp8266_netdev_netstat(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
@@ -486,14 +486,14 @@ void esp8266_netdev_netstat(struct netdev *netdev)
     ipaddr = (char *) rt_calloc(1, ESP8266_NETSTAT_IPADDR_SIZE);
     if ((type && ipaddr) == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for ipaddr create.");
         goto __exit;
     }
 
     resp = at_create_resp(ESP8266_NETSTAT_RESP_SIZE, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.", device->name);
         goto __exit;
     }
 
@@ -565,7 +565,7 @@ static struct netdev *esp8266_netdev_add(const char *netdev_name)
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) netdev structure.", netdev_name);
+        LOG_E("no memory for netdev create.");
         return RT_NULL;
     }
 
@@ -619,8 +619,9 @@ static void esp8266_init_thread_entry(void *parameter)
     at_response_t resp = RT_NULL;
     rt_err_t result = RT_EOK;
     rt_size_t i = 0, retry_num = INIT_RETRY;
+    rt_bool_t wifi_is_conn = RT_FALSE;
 
-    LOG_D("esp8266 device(%s) initialize start.", device->name);
+    LOG_D("%s device initialize start.", device->name);
 
     /* wait esp8266 device startup finish */
     if (at_client_obj_wait_connect(client, ESP8266_WAIT_CONNECT_TIME))
@@ -631,7 +632,7 @@ static void esp8266_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%d) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -655,26 +656,28 @@ static void esp8266_init_thread_entry(void *parameter)
 
         AT_SEND_CMD(client, resp, "AT+CIPMUX=1");
 
-        /* connect to WiFi AP */
-        if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
-                    "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
-        {
-            LOG_E("AT device(%s) network initialize failed, check ssid(%s) and password(%s).",
-                    device->name, esp8266->wifi_ssid, esp8266->wifi_password);
-            result = -RT_ERROR;
-            goto __exit;
-        }
+        /* initialize successfully  */
+        result = RT_EOK;
+        break;
 
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             rt_thread_mdelay(1000);
-            LOG_I("esp8266 device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
+    }
+
+    /* connect to WiFi AP */
+    if (at_obj_exec_cmd(client, at_resp_set_info(resp, 128, 0, 20 * RT_TICK_PER_SECOND),
+                        "AT+CWJAP=\"%s\",\"%s\"", esp8266->wifi_ssid, esp8266->wifi_password) != RT_EOK)
+    {
+        LOG_W("%s device wifi connect failed, check ssid(%s) and password(%s).",
+              device->name, esp8266->wifi_ssid, esp8266->wifi_password);
+    }
+    else
+    {
+        wifi_is_conn = RT_TRUE;
     }
 
     if (resp)
@@ -685,15 +688,18 @@ static void esp8266_init_thread_entry(void *parameter)
     if (result != RT_EOK)
     {
         netdev_low_level_set_status(device->netdev, RT_FALSE);
-        LOG_E("esp8266 device(%s) network initialize failed(%d).", device->name, result);
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
     }
     else
     {
         device->is_init = RT_TRUE;
         netdev_low_level_set_status(device->netdev, RT_TRUE);
-        netdev_low_level_set_link_status(device->netdev, RT_TRUE);
+        if (wifi_is_conn)
+        {
+            netdev_low_level_set_link_status(device->netdev, RT_TRUE);
+        }
         esp8266_netdev_start_delay_work(device);
-        LOG_I("esp8266 device(%s) network initialize successfully.", device->name);
+        LOG_I("%s device network initialize successfully.", device->name);
     }
 }
 
@@ -702,7 +708,7 @@ static int esp8266_net_init(struct at_device *device)
 #ifdef AT_DEVICE_ESP8266_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("esp8266_net_init", esp8266_init_thread_entry, (void *) device,
+    tid = rt_thread_create("esp_net", esp8266_init_thread_entry, (void *) device,
             ESP8266_THREAD_STACK_SIZE, ESP8266_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -710,7 +716,7 @@ static int esp8266_net_init(struct at_device *device)
     }
     else
     {
-        LOG_E("create esp8266 device(%s) initialize thread failed.", device->name);
+        LOG_E("create %s device init thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -722,12 +728,12 @@ static int esp8266_net_init(struct at_device *device)
 
 static void urc_busy_p_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    LOG_D("system is processing a commands and it cannot respond to the current commands.");
+    LOG_D("system is processing a commands...");
 }
 
 static void urc_busy_s_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    LOG_D("system is sending data and it cannot respond to the current commands.");
+    LOG_D("system is sending data...");
 }
 
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
@@ -740,13 +746,13 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get esp8266 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
     if (rt_strstr(data, "WIFI CONNECTED"))
     {
-        LOG_I("esp8266 device(%s) WIFI is connected.", device->name);
+        LOG_I("%s device wifi is connected.", device->name);
 
         if (device->is_init)
         {
@@ -757,7 +763,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     }
     else if (rt_strstr(data, "WIFI DISCONNECT"))
     {
-        LOG_I("esp8266 device(%s) WIFI is disconnect.", device->name);
+        LOG_I("%s device wifi is disconnect.", device->name);
 
         if (device->is_init)
         {
@@ -784,8 +790,7 @@ static int esp8266_init(struct at_device *device)
     device->client = at_client_get(esp8266->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("esp8266 device(%s) initialize failed, get AT client(%s) failed.",
-                esp8266->device_name, esp8266->client_name);
+        LOG_E("get AT client(%s) failed.", esp8266->client_name);
         return -RT_ERROR;
     }
 
@@ -800,7 +805,7 @@ static int esp8266_init(struct at_device *device)
     device->netdev = esp8266_netdev_add(esp8266->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("esp8266 device(%s) initialize failed, get network interface device failed.", esp8266->device_name);
+        LOG_E("add netdev(%s) failed.", esp8266->device_name);
         return -RT_ERROR;
     }
 
@@ -846,22 +851,22 @@ static int esp8266_wifi_info_set(struct at_device *device, struct at_device_ssid
 
     if (info->ssid == RT_NULL || info->password == RT_NULL)
     {
-        LOG_E("input esp8266 wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
-         return -RT_ERROR;
+        LOG_E("input wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
+        return -RT_ERROR;
     }
 
     resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
     /* connect to input wifi ap */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWJAP=\"%s\",\"%s\"", info->ssid, info->password) != RT_EOK)
     {
-        LOG_E("esp8266 device(%s) wifi connect failed, check ssid(%s) and password(%s).",
-                device->name, info->ssid, info->password);
+        LOG_E("%s device wifi connect failed, check ssid(%s) and password(%s).",
+              device->name, info->ssid, info->password);
         result = -RT_ERROR;
     }
 
@@ -891,7 +896,7 @@ static int esp8266_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("esp8266 not support the control command(%d).", cmd);
+        LOG_W("not support the control cmd(%d).", cmd);
         break;
     case AT_DEVICE_CTRL_RESET:
         result = esp8266_reset(device);
@@ -900,7 +905,7 @@ static int esp8266_control(struct at_device *device, int cmd, void *arg)
         result = esp8266_wifi_info_set(device, (struct at_device_ssid_pwd *) arg);
         break;
     default:
-        LOG_E("input error control command(%d).", cmd);
+        LOG_E("input error control cmd(%d).", cmd);
         break;
     }
 
@@ -921,7 +926,7 @@ static int esp8266_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for esp8266 device class create.");
+        LOG_E("no memory for class create.");
         return -RT_ENOMEM;
     }
 

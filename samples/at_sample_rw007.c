@@ -24,7 +24,7 @@
 
 #include <at_device_rw007.h>
 
-#define LOG_TAG                        "at.sample"
+#define LOG_TAG                        "at.sample.rw007"
 #include <at_log.h>
 
 #define RW007_SAMPLE_DEIVCE_NAME       "r0"

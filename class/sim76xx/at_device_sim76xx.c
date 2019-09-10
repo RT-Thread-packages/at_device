@@ -31,7 +31,7 @@
 
 #include <at_device_sim76xx.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.sim76"
 #include <at_log.h>
 
 #ifdef AT_DEVICE_USING_SIM76XX
@@ -107,16 +107,12 @@ static int sim76xx_netdev_set_info(struct netdev *netdev)
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -128,7 +124,7 @@ static int sim76xx_netdev_set_info(struct netdev *netdev)
     resp = at_create_resp(SIM76XX_IEMI_RESP_SIZE, 0, SIM76XX_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim76xx device(%s) set IP address failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -150,12 +146,12 @@ static int sim76xx_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args_by_kw(resp, "IMEI:", "IMEI: %s", iemi) <= 0)
         {
-            LOG_E("sim76xx device(%s) prase \"ATI\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"ATI\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("sim76xx device(%s) IEMI number: %s", device->name, iemi);
+        LOG_D("%s device IEMI number: %s", device->name, iemi);
 
         netdev->hwaddr_len = SIM76XX_NETDEV_HWADDR_LEN;
         /* get hardware address by IEMI */
@@ -188,12 +184,12 @@ static int sim76xx_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args_by_kw(resp, "+IPADDR:", "+IPADDR: %s", ipaddr) <= 0)
         {
-            LOG_E("sim76xx device(%s) prase \"AT+IPADDR\" commands resposne data error!", device->name);
+            LOG_E("%s device prase \"AT+IPADDR\" cmd error!", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("sim76xx device(%s) IP address: %s", device->name, ipaddr);
+        LOG_D("%s device IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -236,14 +232,14 @@ static void check_link_status_entry(void *parameter)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
     resp = at_create_resp(SIM76XX_LINK_RESP_SIZE, 0, SIM76XX_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim76xx device(%s) set check link status failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -279,16 +275,12 @@ static int sim76xx_netdev_check_link_status(struct netdev *netdev)
     rt_thread_t tid;
     char tname[RT_NAME_MAX] = {0};
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.\n");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
-    tid = rt_thread_create(tname, check_link_status_entry, (void *) netdev,
-            SIM76XX_LINK_THREAD_STACK_SIZE, SIM76XX_LINK_THREAD_PRIORITY, SIM76XX_LINK_THREAD_TICK);
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
+                           SIM76XX_LINK_THREAD_STACK_SIZE, SIM76XX_LINK_THREAD_PRIORITY, SIM76XX_LINK_THREAD_TICK);
     if (tid)
     {
         rt_thread_startup(tid);
@@ -307,7 +299,7 @@ static int sim76xx_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -317,7 +309,7 @@ static int sim76xx_netdev_set_up(struct netdev *netdev)
         device->is_init = RT_TRUE;
 
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network intterface device(%s) set up status.", netdev->name);
+        LOG_D("network intterface device(%s) set up status.", netdev->name);
     }
 
     return RT_EOK;
@@ -331,7 +323,7 @@ static int sim76xx_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -341,7 +333,7 @@ static int sim76xx_netdev_set_down(struct netdev *netdev)
         device->is_init = RT_FALSE;
 
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status.", netdev->name);
+        LOG_D("network interface device(%s) set down status.", netdev->name);
     }
 
     return RT_EOK;
@@ -369,14 +361,14 @@ static int sim76xx_netdev_ping(struct netdev *netdev, const char *host,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get sim76xx device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(SIM76XX_PING_RESP_SIZE, 6, SIM76XX_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("sim76xx device(%s) set dns server failed, no memory for response object.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ERROR;
         goto __exit;
     }
@@ -447,7 +439,7 @@ static struct netdev *sim76xx_netdev_add(const char *netdev_name)
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for sim76xx device(%s) netdev structure.", netdev_name);
+        LOG_E("no memory for netdev create.");
         return RT_NULL;
     }
 
@@ -500,11 +492,11 @@ static void sim76xx_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for sim76xx device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
-    LOG_D("start initializing the sim76xx device(%s).", device->name);
+    LOG_D("start init %s device.", device->name);
 
     while (retry_num--)
     {
@@ -537,7 +529,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_obj_exec_cmd(client, resp, "AT+CPIN?");
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_D("sim76xx device(%s) SIM card detection failed.", device->name);
+                LOG_D("%s device SIM card detection failed.", device->name);
                 break;
             }
             LOG_I("\"AT+CPIN\" commands send retry...");
@@ -559,7 +551,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &qi_arg[0], &qi_arg[1]);
             if (qi_arg[0] != 99)
             {
-                LOG_D("sim76xx device(%s) signal strength: %d  Channel bit error rate: %d", device->name, qi_arg[0], qi_arg[1]);
+                LOG_D("%s device signal strength: %d  Channel bit error rate: %d", device->name, qi_arg[0], qi_arg[1]);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -567,7 +559,7 @@ static void sim76xx_init_thread_entry(void *parameter)
 
         if (i == CSQ_RETRY)
         {
-            LOG_E("sim76xx device(%s) signal strength check failed (%s).", device->name, parsed_data);
+            LOG_E("%s device signal strength check failed (%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -582,14 +574,14 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("sim76xx device(%s) GSM network is registered(%s).", device->name, parsed_data);
+                LOG_D("%s device GSM is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CREG_RETRY)
         {
-            LOG_E("sim76xx device(%s) GSM network is register failed(%s).", device->name, parsed_data);
+            LOG_E("%s device GSM is register failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -601,7 +593,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %s", &parsed_data);
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) || !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("sim76xx device(%s) GPRS network is registered(%s).", device->name, parsed_data);
+                LOG_D("%s device GPRS is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -609,7 +601,7 @@ static void sim76xx_init_thread_entry(void *parameter)
 
         if (i == CGREG_RETRY)
         {
-            LOG_E("sim76xx device(%s) GPRS network is register failed(%s).", device->name, parsed_data);
+            LOG_E("%s device GPRS is register failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -621,7 +613,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT: %s", &parsed_data);
             if (!strncmp(parsed_data, "1", 1))
             {
-                LOG_D("sim76xx device(%s) Packet domain attach.", device->name);
+                LOG_D("%s device Packet domain attach.", device->name);
                 break;
             }
 
@@ -630,7 +622,7 @@ static void sim76xx_init_thread_entry(void *parameter)
 
         if (i == CGATT_RETRY)
         {
-            LOG_E("sim76xx device(%s) GPRS network attach failed.", device->name);
+            LOG_E("%s device GPRS attach failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -667,7 +659,8 @@ static void sim76xx_init_thread_entry(void *parameter)
             }
 
             /* +CCLK: "18/12/22,18:33:12+32" */
-            if (at_resp_parse_line_args_by_kw(resp, "+CCLK:", "+CCLK: \"%d/%d/%d,%d:%d:%d", &year, &month, &day, &hour, &min, &sec) < 0)
+            if (at_resp_parse_line_args_by_kw(resp, "+CCLK:", "+CCLK: \"%d/%d/%d,%d:%d:%d",
+                                              &year, &month, &day, &hour, &min, &sec) < 0)
             {
                 rt_thread_mdelay(500);
                 continue;
@@ -681,7 +674,7 @@ static void sim76xx_init_thread_entry(void *parameter)
 
         if (i == CCLK_RETRY)
         {
-            LOG_E("sim76xx device(%s) GPRS network attach failed.", device->name);
+            LOG_E("%s device GPRS attach failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -698,7 +691,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             sim76xx_power_off(device);
             rt_thread_mdelay(1000);
 
-            LOG_I("sim76xx device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -713,11 +706,11 @@ static void sim76xx_init_thread_entry(void *parameter)
         sim76xx_netdev_set_info(device->netdev);
         sim76xx_netdev_check_link_status(device->netdev);
 
-        LOG_I("sim76xx devuce(%s) network initialize success!", device->name);
+        LOG_I("%s device network initialize success!", device->name);
     }
     else
     {
-        LOG_E("sim76xx device(%s) network initialize failed(%d)!", device->name, result);
+        LOG_E("%s device network initialize failed(%d)!", device->name, result);
     }
 }
 
@@ -726,7 +719,7 @@ int sim76xx_net_init(struct at_device *device)
 #ifdef AT_DEVICE_SIM76XX_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("sim76xx_net_init", sim76xx_init_thread_entry, (void *)device,
+    tid = rt_thread_create("sim76_net", sim76xx_init_thread_entry, (void *)device,
                            SIM76XX_THREAD_STACK_SIZE, SIM76XX_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -734,7 +727,7 @@ int sim76xx_net_init(struct at_device *device)
     }
     else
     {
-        LOG_E("create sim76xx device(%s) initialization thread failed.", device->name);
+        LOG_E("create %s device init thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -760,7 +753,7 @@ static int sim76xx_init(struct at_device *device)
     device->client = at_client_get(sim76xx->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("sim76xx device(%s) initialize failed, get AT client(%s) failed.", sim76xx->device_name, sim76xx->client_name);
+        LOG_E("get AT client(%s) failed.", sim76xx->client_name);
         return -RT_ERROR;
     }
 
@@ -772,7 +765,7 @@ static int sim76xx_init(struct at_device *device)
     device->netdev = sim76xx_netdev_add(sim76xx->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("sim76xx device(%s) initialize failed, get network interface device failed.", sim76xx->device_name);
+        LOG_E("get netdev(%s) failed.", sim76xx->device_name);
         return -RT_ERROR;
     }
 
@@ -814,7 +807,7 @@ static int sim76xx_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("sim76xx not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     default:
         LOG_E("input error control command(%d).", cmd);
@@ -839,7 +832,7 @@ static int sim76xx_device_class_register(void)
     class = (struct at_device_class *)rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for sim76xx device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

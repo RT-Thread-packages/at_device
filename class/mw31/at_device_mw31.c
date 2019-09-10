@@ -27,7 +27,7 @@
 
 #include <at_device_mw31.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.mw31"
 
 #include <at_log.h>
 
@@ -70,7 +70,7 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
     resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%d) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -82,20 +82,21 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
 
     if (at_resp_parse_line_args_by_kw(resp, "+WMAC:", "+WMAC:%s", mac) <= 0)
     {
-        LOG_E("mw31 device(%s) parse \"AT+WMAC\" command response data error.", device->name);
+        LOG_E("%s device parse \"AT+WMAC\" cmd error.", device->name);
         goto __exit;
     }
 
     /* send addr info query commond "AT+CIPSTA?" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+WJAPIP?") < 0)
     {
-        LOG_E("mw31 device(%s) send \"AT+WJAPIP?\" commands error.", device->name);
+        LOG_E("%s device send \"AT+WJAPIP?\" cmd error.", device->name);
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+WJAPIP?:", "+WJAPIP?:%[^,],%[^,],%[^,],%s", mw31_ip_addr, mw31_netmask_addr, mw31_gw_addr, dns_server1) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+WJAPIP?:", "+WJAPIP?:%[^,],%[^,],%[^,],%s",
+                                      mw31_ip_addr, mw31_netmask_addr, mw31_gw_addr, dns_server1) < 0)
     {
-        LOG_E("mw31 device(%s) prase \"AT+WJAPIP?\" command resposne data error.", device->name);
+        LOG_E("%s device prase \"AT+WJAPIP?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -129,7 +130,7 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
     /* parse response data, get the DHCP status */
     if (at_resp_parse_line_args_by_kw(resp, "+WDHCP:", "+WDHCP:%s", dhcp_stat_buf) < 0)
     {
-        LOG_E("mw31 device(%s) get DHCP status failed.", device->name);
+        LOG_E("%s device get DHCP status failed.", device->name);
         goto __exit;
     }
 
@@ -156,7 +157,7 @@ static int mw31_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -164,7 +165,7 @@ static int mw31_netdev_set_up(struct netdev *netdev)
     {
         mw31_net_init(device);
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status", netdev->name);
+        LOG_D("network interface device(%s) set up status", netdev->name);
     }
 
     return RT_EOK;
@@ -177,7 +178,7 @@ static int mw31_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -185,7 +186,7 @@ static int mw31_netdev_set_down(struct netdev *netdev)
     {
         device->is_init = RT_FALSE;
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status", netdev->name);
+        LOG_D("network interface device(%s) set down status", netdev->name);
     }
 
     return RT_EOK;
@@ -203,14 +204,14 @@ static int mw31_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(IPADDR_RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -235,7 +236,7 @@ static int mw31_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, 
     if (at_obj_exec_cmd(device->client, resp, "AT+WJAPIP=%s,%s,%s",
                         mw31_ip_addr, mw31_netmask_addr, mw31_gw_addr) < 0)
     {
-        LOG_E("mw31 device(%s) set address information failed.", device->name);
+        LOG_E("%s device set address failed.", device->name);
         result = -RT_ERROR;
     }
     else
@@ -250,7 +251,7 @@ static int mw31_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr, 
         if (netmask)
             netdev_low_level_set_netmask(netdev, netmask);
 
-        LOG_D("mw31 device(%s) set address information successfully.", device->name);
+        LOG_D("%s device set address success.", device->name);
     }
 
 __exit:
@@ -276,14 +277,14 @@ static int mw31_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.");
         return -RT_ERROR;
     }
 
     resp = at_create_resp(DNS_RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -291,13 +292,13 @@ static int mw31_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     if (at_obj_exec_cmd(device->client, resp, "AT+WJAPIP=%s,%s,%s,%s",
                         mw31_ip_addr, mw31_netmask_addr, mw31_gw_addr, inet_ntoa(*dns_server)) < 0)
     {
-        LOG_E("mw31 device(%s) set DNS server(%s) failed.", device->name, inet_ntoa(*dns_server));
+        LOG_E("%s device set DNS(%s) failed.", device->name, inet_ntoa(*dns_server));
         result = -RT_ERROR;
     }
     else
     {
         netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
-        LOG_D("mw31 device(%s) set DNS server(%s) successfully.", device->name, inet_ntoa(*dns_server));
+        LOG_D("%s device set DNS(%s) success.", device->name, inet_ntoa(*dns_server));
     }
 
     if (resp)
@@ -323,14 +324,14 @@ static int mw31_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get AT device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.");
         return -RT_ERROR;
     }
 
     resp = at_create_resp(RESP_SIZE, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -345,14 +346,14 @@ static int mw31_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
     /* send dhcp set commond "AT+WDHCP=" and wait response */
     if (at_obj_exec_cmd(device->client, resp, send_buf) < 0)
     {
-        LOG_E("mw31 device(%s) set DHCP status(%d) failed.", device->name, is_enabled);
+        LOG_E("%s device set DHCP status(%d) failed.", device->name, is_enabled);
         result = -RT_ERROR;
         goto __exit;
     }
     else
     {
         netdev_low_level_set_dhcp_status(netdev, is_enabled);
-        LOG_D("mw31 device(%d) set DHCP status(%d) successfully.", device->name, is_enabled);
+        LOG_D("%s device set DHCP status(%d) success.", device->name, is_enabled);
     }
 
 __exit:
@@ -392,7 +393,7 @@ static struct netdev *mw31_netdev_add(const char *netdev_name)
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) netdev structure.", netdev_name);
+        LOG_E("no memory for resp create.");
         return RT_NULL;
     }
 
@@ -447,7 +448,7 @@ static void mw31_init_thread_entry(void *parameter)
     rt_err_t result = RT_EOK;
     rt_size_t i = 0, retry_num = INIT_RETRY;
 
-    LOG_D("mw31 device(%s) initialize start.", device->name);
+    LOG_D("%s device initialize start.", device->name);
 
     /* wait mw31 device startup finish */
     if (at_client_obj_wait_connect(client, MW31_WAIT_CONNECT_TIME))
@@ -458,7 +459,7 @@ static void mw31_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%d) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -488,15 +489,15 @@ static void mw31_init_thread_entry(void *parameter)
             goto __exit;
         }
 
+        /* initialize successfully  */
+        result = RT_EOK;
+        break;
+
 __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             rt_thread_mdelay(1000);
-            LOG_I("mw31 device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -508,7 +509,7 @@ __exit:
     if (result != RT_EOK)
     {
         netdev_low_level_set_status(device->netdev, RT_FALSE);
-        LOG_E("mw31 device(%s) network initialize failed(%d).", device->name, result);
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
     }
     else
     {
@@ -516,7 +517,7 @@ __exit:
         netdev_low_level_set_status(device->netdev, RT_TRUE);
         netdev_low_level_set_link_status(device->netdev, RT_TRUE);
 
-        LOG_I("mw31 device(%s) network initialize successfully.", device->name);
+        LOG_I("%s device network initialize successfully.", device->name);
     }
 }
 
@@ -533,7 +534,7 @@ static int mw31_net_init(struct at_device *device)
     }
     else
     {
-        LOG_E("create mw31 device(%s) initialize thread failed.", device->name);
+        LOG_E("create %s device initialize thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -553,13 +554,13 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
     if (rt_strstr(data, "STATION_UP"))
     {
-        LOG_I("mw31 device(%s) WIFI is connected.", device->name);
+        LOG_I("%s device wifi is connected.", device->name);
 
         if (device->is_init)
         {
@@ -570,7 +571,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     }
     else if (rt_strstr(data, "STATION_DOWN"))
     {
-        LOG_I("mw31 device(%s) WIFI is disconnect.", device->name);
+        LOG_I("%s device wifi is disconnect.", device->name);
 
         if (device->is_init)
         {
@@ -594,8 +595,7 @@ static int mw31_init(struct at_device *device)
     device->client = at_client_get(mw31->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("mw31 device(%s) initialize failed, get AT client(%s) failed.",
-              mw31->device_name, mw31->client_name);
+        LOG_E("get AT client(%s) failed.", mw31->client_name);
         return -RT_ERROR;
     }
 
@@ -610,7 +610,7 @@ static int mw31_init(struct at_device *device)
     device->netdev = mw31_netdev_add(mw31->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("mw31 device(%s) initialize failed, get network interface device failed.", mw31->device_name);
+        LOG_E("get netdev(%s) failed.", mw31->device_name);
         return -RT_ERROR;
     }
 
@@ -656,21 +656,21 @@ static int mw31_wifi_info_set(struct at_device *device, struct at_device_ssid_pw
 
     if (info->ssid == RT_NULL || info->password == RT_NULL)
     {
-        LOG_E("input mw31 wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
+        LOG_E("input wifi ssid(%s) and password(%s) error.", info->ssid, info->password);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
     /* connect to input wifi ap */
     if (at_obj_exec_cmd(device->client, resp, "AT+CWJAP=\"%s\",\"%s\"", info->ssid, info->password) != RT_EOK)
     {
-        LOG_E("mw31 device(%s) wifi connect failed, check ssid(%s) and password(%s).",
+        LOG_E("wifi connect failed, check ssid(%s) and password(%s).",
               device->name, info->ssid, info->password);
         result = -RT_ERROR;
     }
@@ -701,7 +701,7 @@ static int mw31_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("mw31 not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     case AT_DEVICE_CTRL_RESET:
         result = mw31_reset(device);
@@ -731,7 +731,7 @@ static int mw31_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for mw31 device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

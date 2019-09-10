@@ -32,9 +32,9 @@
 #include <rtdbg.h>
 
 /* The global list of at device */
-static struct at_device *at_device_list = RT_NULL;
+static rt_slist_t at_device_list = RT_SLIST_OBJECT_INIT(at_device_list);
 /* The global list of at device class */
-static struct at_device_class *at_device_class_list = RT_NULL;
+static rt_slist_t at_device_class_list = RT_SLIST_OBJECT_INIT(at_device_class_list);
 
 /**
  * This function will get the first initialized AT device.
@@ -49,7 +49,7 @@ struct at_device *at_device_get_first_initialized(void)
 
     level = rt_hw_interrupt_disable();
 
-    for (node = &(at_device_list->list); node; node = rt_slist_next(node))
+    rt_slist_for_each(node, &at_device_list)
     {
         device = rt_slist_entry(node, struct at_device, list);
         if (device && device->is_init == RT_TRUE)
@@ -82,7 +82,7 @@ struct at_device *at_device_get_by_name(int type, const char *name)
 
     level = rt_hw_interrupt_disable();
 
-    for (node = &(at_device_list->list); node; node = rt_slist_next(node))
+    rt_slist_for_each(node, &at_device_list)
     {
         device = rt_slist_entry(node, struct at_device, list);
         if (device)
@@ -124,7 +124,7 @@ struct at_device *at_device_get_by_ipaddr(ip_addr_t *ip_addr)
 
     level = rt_hw_interrupt_disable();
 
-    for (node = &(at_device_list->list); node; node = rt_slist_next(node))
+    rt_slist_for_each(node, &at_device_list)
     {
         device = rt_slist_entry(node, struct at_device, list);
         if (device && ip_addr_cmp(ip_addr, &(device->netdev->ip_addr)))
@@ -188,15 +188,7 @@ int at_device_class_register(struct at_device_class *class, uint16_t class_id)
     level = rt_hw_interrupt_disable();
 
     /* Add current AT device class to list */
-    if (at_device_class_list == RT_NULL)
-    {
-        at_device_class_list = class;
-    }
-    else
-    {
-        /* Tail insertion */
-        rt_slist_append(&(at_device_class_list->list), &(class->list));
-    }
+    rt_slist_append(&at_device_class_list, &(class->list));
 
     rt_hw_interrupt_enable(level);
 
@@ -210,15 +202,10 @@ static struct at_device_class *at_device_class_get(uint16_t class_id)
     rt_slist_t *node = RT_NULL;
     struct at_device_class *class = RT_NULL;
 
-    if (at_device_class_list == RT_NULL)
-    {
-        return RT_NULL;
-    }
-
     level = rt_hw_interrupt_disable();
 
     /* Get AT device class by class ID */
-    for (node = (&at_device_class_list->list); node; node = rt_slist_next(node))
+    rt_slist_for_each(node, &at_device_class_list)
     {
         class = rt_slist_entry(node, struct at_device_class, list);
         if (class && class->class_id == class_id)
@@ -297,15 +284,7 @@ int at_device_register(struct at_device *device, const char *device_name,
     level = rt_hw_interrupt_disable();
 
     /* Add current AT device to device list */
-    if (at_device_list == RT_NULL)
-    {
-        at_device_list = device;
-    }
-    else
-    {
-        /* Tail insertion */
-        rt_slist_append(&(at_device_list->list), &(device->list));
-    }
+    rt_slist_append(&at_device_list, &(device->list));
 
     rt_hw_interrupt_enable(level);
 

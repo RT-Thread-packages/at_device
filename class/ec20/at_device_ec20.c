@@ -29,7 +29,7 @@
 
 #include <at_device_ec20.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.ec20"
 #include <at_log.h>
 
 #ifdef AT_DEVICE_USING_EC20
@@ -43,6 +43,7 @@ static char *QICSGP_CHINA_MOBILE = "AT+QICSGP=1,1,\"CMNET\",\"\",\"\",0";
 static char *QICSGP_CHINA_UNICOM = "AT+QICSGP=1,1,\"UNINET\",\"\",\"\",0";
 static char *QICSGP_CHINA_TELECOM = "AT+QICSGP=1,1,\"CTNET\",\"\",\"\",0";
 
+#ifdef EC20_USING_CME
 static void at_cme_errcode_parse(int result)
 {
     switch(result)
@@ -129,7 +130,9 @@ static void at_cms_errcode_parse(int result)
     default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
+#endif /* EC20_USING_CME */
 
+#ifdef EC20_USING_MMS
 static void at_mms_errcode_parse(int result)//MMS
 {
     switch(result)
@@ -164,6 +167,7 @@ static void at_mms_errcode_parse(int result)//MMS
     default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
+#endif /* EC20_USING_MMS */
 
 static void ec20_power_on(struct at_device *device)
 {
@@ -230,16 +234,12 @@ static int ec20_netdev_set_info(struct netdev *netdev)
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -251,7 +251,7 @@ static int ec20_netdev_set_info(struct netdev *netdev)
     resp = at_create_resp(EC20_IEMI_RESP_SIZE, 0, EC20_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -273,12 +273,12 @@ static int ec20_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
         {
-            LOG_E("ec20 device(%s) prase \"AT+GSN\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("ec20 deevice(%s) IEMI number: %s", device->name, iemi);
+        LOG_D("%s device IEMI number: %s", device->name, iemi);
 
         netdev->hwaddr_len = EC20_NETDEV_HWADDR_LEN;
         /* get hardware address by IEMI */
@@ -312,12 +312,12 @@ static int ec20_netdev_set_info(struct netdev *netdev)
         /* parse response data "+QIACT: 1,<context_state>,<context_type>[,<IP_address>]" */
         if (at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", ipaddr) <= 0)
         {
-            LOG_E("Prase \"AT+QIACT?\" commands resposne data error!");
+            LOG_E("%s device \"AT+QIACT?\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("ec20 device(%s) IP address: %s", device->name, ipaddr);
+        LOG_D("%s device IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -342,13 +342,13 @@ static int ec20_netdev_set_info(struct netdev *netdev)
         if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"",
                 dns_server1, dns_server2) <= 0)
         {
-            LOG_E("ec20 device(%s) prase \"AT+QIDNSCFG=1\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"AT+QIDNSCFG=1\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("ec20 device(%s) primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("ec20 devcie(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
 
         inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
@@ -380,14 +380,14 @@ static void ec20_check_link_status_entry(void *parameter)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
     resp = at_create_resp(EC20_LINK_RESP_SIZE, 0, EC20_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp ceate.");
         return;
     }
 
@@ -437,15 +437,11 @@ static int ec20_netdev_check_link_status(struct netdev *netdev)
 
     rt_thread_t tid;
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.\n");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     /* create ec20 link status polling thread  */
-    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *) netdev,
-            EC20_LINK_THREAD_STACK_SIZE, EC20_LINK_THREAD_PRIORITY, EC20_LINK_THREAD_TICK);
+    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *)netdev,
+                           EC20_LINK_THREAD_STACK_SIZE, EC20_LINK_THREAD_PRIORITY, EC20_LINK_THREAD_TICK);
     if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
@@ -463,7 +459,7 @@ static int ec20_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -473,7 +469,7 @@ static int ec20_netdev_set_up(struct netdev *netdev)
         device->is_init = RT_TRUE;
 
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status.", netdev->name);
+        LOG_D("network interface device(%s) set up status.", netdev->name);
     }
 
     return RT_EOK;
@@ -486,7 +482,7 @@ static int ec20_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -496,7 +492,7 @@ static int ec20_netdev_set_down(struct netdev *netdev)
         device->is_init = RT_FALSE;
 
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status.", netdev->name);
+        LOG_D("network interface device(%s) set down status.", netdev->name);
     }
 
     return RT_EOK;
@@ -517,14 +513,14 @@ static int ec20_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(EC20_DNS_RESP_LEN, 0, EC20_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_D("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_D("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -568,14 +564,14 @@ static int ec20_netdev_ping(struct netdev *netdev, const char *host,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
     resp = at_create_resp(EC20_PING_RESP_SIZE, 4, EC20_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create");
         return -RT_ENOMEM;
     }
 
@@ -591,7 +587,7 @@ static int ec20_netdev_ping(struct netdev *netdev, const char *host,
     if (response == 0)
     {
         if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,\"%[^\"]\",%d,%d,%d",
-                    &response, ip_addr, &recv_data_len, &ping_time, &ttl) <= 0)
+                                          &response, ip_addr, &recv_data_len, &ping_time, &ttl) <= 0)
         {
             result = -RT_ERROR;
             goto __exit;
@@ -626,12 +622,7 @@ __exit:
 }
 #endif /* NETDEV_USING_PING */
 
-#ifdef NETDEV_USING_NETSTAT
-static void ec20_netdev_netstat(struct netdev *netdev)
-{
-    // TODO
-}
-#endif /* NETDEV_USING_NETSTAT */
+
 
 const struct netdev_ops ec20_netdev_ops =
 {
@@ -645,9 +636,7 @@ const struct netdev_ops ec20_netdev_ops =
 #ifdef NETDEV_USING_PING
     ec20_netdev_ping,
 #endif
-#ifdef NETDEV_USING_NETSTAT
-    ec20_netdev_netstat,
-#endif
+    RT_NULL,
 };
 
 static struct netdev *ec20_netdev_add(const char *netdev_name)
@@ -659,7 +648,7 @@ static struct netdev *ec20_netdev_add(const char *netdev_name)
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) netdev structure.", netdev->name);
+        LOG_E("no memory for netdev create.");
         return RT_NULL;
     }
 
@@ -710,11 +699,11 @@ static void ec20_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
-    LOG_D("start initializing the ec20 device(%s).", device->name);
+    LOG_D("start init %s device.", device->name);
 
     while (retry_num--)
     {
@@ -738,7 +727,7 @@ static void ec20_init_thread_entry(void *parameter)
         /* Get the baudrate */
         AT_SEND_CMD(client, resp, 0, 300, "AT+IPR?");
         at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
-        LOG_D("ec20 device(%s) baudrate %d", device->name, i);
+        LOG_D("%s device baudrate %d", device->name, i);
         /* get module version */
         AT_SEND_CMD(client, resp, 0, 300, "ATI");
         /* show module version */
@@ -753,7 +742,7 @@ static void ec20_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, 2, 5 * 1000, "AT+CPIN?");
         if (!at_resp_get_line_by_kw(resp, "READY"))
         {
-            LOG_E("ec20 device(%s) SIM card detection failed.", device->name);
+            LOG_E("%s device SIM card detection failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -770,7 +759,7 @@ static void ec20_init_thread_entry(void *parameter)
             i++;
             if(i > CIMI_RETRY)
             {
-                LOG_E("ec20 device(%s) read CIMI failed.", device->name);
+                LOG_E("%s device read CIMI failed.", device->name);
                 result = -RT_ERROR;
                 goto __exit;
             }
@@ -786,7 +775,7 @@ static void ec20_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &qi_arg[0], &qi_arg[1]);
             if (qi_arg[0] != 99)
             {
-                LOG_D("ec20 device(%s) signal strength: %d, channel bit error rate: %d",
+                LOG_D("%s device signal strength: %d, channel bit error rate: %d",
                         device->name, qi_arg[0], qi_arg[1]);
                 break;
             }
@@ -794,7 +783,7 @@ static void ec20_init_thread_entry(void *parameter)
         }
         if (i == CSQ_RETRY)
         {
-            LOG_E("ec20 device(%s) signal strength check failed (%s)", device->name, parsed_data);
+            LOG_E("%s device signal strength check failed (%s)", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -806,14 +795,14 @@ static void ec20_init_thread_entry(void *parameter)
             if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("ec20 device(%s) GSM network is registered(%s)", device->name, parsed_data);
+                LOG_D("%s device GSM is registered(%s)", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CREG_RETRY)
         {
-            LOG_E("ec20 device(%s) GSM network is register failed (%s)", device->name, parsed_data);
+            LOG_E("%s device GSM is register failed (%s)", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -825,14 +814,14 @@ static void ec20_init_thread_entry(void *parameter)
             if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("ec20 device(%s) GPRS network is registered(%s)", device->name, parsed_data);
+                LOG_D("%s device GPRS is registered(%s)", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CGREG_RETRY)
         {
-            LOG_E("ec20 device(%s) GPRS network is register failed (%s)", device->name, parsed_data);
+            LOG_E("%s device GPRS is register failed (%s)", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -844,19 +833,19 @@ static void ec20_init_thread_entry(void *parameter)
         if(rt_strcmp(parsed_data,"CHINA MOBILE") == 0)
         {
             /* "CMCC" */
-            LOG_I("ec20 device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, QICSGP_CHINA_MOBILE);
         }
         else if(strcmp(parsed_data,"CHN-UNICOM") == 0)
         {
             /* "UNICOM" */
-            LOG_I("ec20 device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, QICSGP_CHINA_UNICOM);
         }
         else if(rt_strcmp(parsed_data,"CHN-CT") == 0)
         {
             /* "CT" */
-            LOG_I("ec20 device(%s) network operator: %s", device->name, parsed_data);
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, QICSGP_CHINA_TELECOM);
         }
         /* Enable automatic time zone update via NITZ and update LOCAL time to RTC */
@@ -871,21 +860,20 @@ static void ec20_init_thread_entry(void *parameter)
         /* Query the status of the context profile */
         AT_SEND_CMD(client, resp, 0, 150 * 1000, "AT+QIACT?");
         at_resp_parse_line_args_by_kw(resp, "+QIACT:", "+QIACT: %*[^\"]\"%[^\"]", &parsed_data);
-        LOG_I("ec20 device(%s) IP address: %s", device->name, parsed_data);
+        LOG_I("%s device IP address: %s", device->name, parsed_data);
+
+        /* initialize successfully  */
         result = RT_EOK;
+        break;
 
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             /* power off the ec20 device */
             ec20_power_off(device);
             rt_thread_mdelay(1000);
 
-            LOG_I("ec20 device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -900,11 +888,11 @@ static void ec20_init_thread_entry(void *parameter)
         ec20_netdev_set_info(device->netdev);
         ec20_netdev_check_link_status(device->netdev);
 
-        LOG_I("ec20 device(%s) network initialize success.", device->name);
+        LOG_I("%s device network initialize success.", device->name);
     }
     else
     {
-        LOG_E("ec20 device(%s) network initialize failed(%d).", device->name, result);
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
     }
 
 }
@@ -914,15 +902,16 @@ static int ec20_net_init(struct at_device *device)
 {
 #ifdef AT_DEVICE_EC20_INIT_ASYN
     rt_thread_t tid;
-    tid = rt_thread_create("ec20_net_init", ec20_init_thread_entry, (void *) device,
-            EC20_THREAD_STACK_SIZE, EC20_THREAD_PRIORITY, 20);
+
+    tid = rt_thread_create("ec20_net", ec20_init_thread_entry, (void *)device,
+                           EC20_THREAD_STACK_SIZE, EC20_THREAD_PRIORITY, 20);
     if (tid)
     {
         rt_thread_startup(tid);
     }
     else
     {
-        LOG_E("create ec20 device(%s) initialization thread failed.", device->name);
+        LOG_E("create %s device init thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -942,7 +931,7 @@ static int ec20_init(struct at_device *device)
     device->client = at_client_get(ec20->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("ec20 device(%s) initialize failed, get AT client(%s) failed.", ec20->device_name, ec20->client_name);
+        LOG_E("get AT client(%s) failed.", ec20->client_name);
         return -RT_ERROR;
     }
 
@@ -955,7 +944,7 @@ static int ec20_init(struct at_device *device)
     device->netdev = ec20_netdev_add(ec20->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("ec20 device(%s) initialize failed, get network interface device failed.", ec20->device_name);
+        LOG_E("add netdev(%s) failed.", ec20->device_name);
         return -RT_ERROR;
     }
 
@@ -995,7 +984,7 @@ static int ec20_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("ec20 not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     default:
         LOG_E("input error control command(%d).", cmd);
@@ -1019,7 +1008,7 @@ static int ec20_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for ec20 device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

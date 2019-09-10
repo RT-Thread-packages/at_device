@@ -27,7 +27,7 @@
 
 #include <at_device_mw31.h>
 
-#define LOG_TAG                       "at.skt"
+#define LOG_TAG                       "at.skt.mw31"
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_MW31) && defined(AT_USING_SOCKET)
@@ -72,7 +72,7 @@ static int mw31_socket_close(struct at_socket *socket)
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -127,7 +127,7 @@ static int mw31_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -154,7 +154,7 @@ __retry:
             break;
 
         default:
-            LOG_E("mw31 device(%s) not supported connect type %d.", device->name, type);
+            LOG_E("not supported connect type %d.", type);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -162,7 +162,7 @@ __retry:
 
     if (result != RT_EOK && retryed == RT_FALSE)
     {
-        LOG_D("mw31 device(%s) socket (%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
+        LOG_D("%s device socket (%d) connect failed, the socket was not be closed and now will connect retry.",
               device->name, device_socket);
         if (mw31_socket_close(socket) < 0)
         {
@@ -212,7 +212,7 @@ static int mw31_socket_send(struct at_socket *socket, const char *buff, size_t b
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -292,14 +292,14 @@ static int mw31_domain_resolve(const char *name, char ip[16])
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
-        LOG_E("get first initialization mw31 device failed.");
+        LOG_E("get first init device failed.");
         return -RT_ERROR;
     }
 
     resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -384,7 +384,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get mw31 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -399,7 +399,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
     sscanf(temp, "%ld,", &bfsz);
 
-    LOG_D("socket:%d,size:%ld\n", device_socket, bfsz);
+    LOG_D("socket:%d, size:%ld\n", device_socket, bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz;
 
@@ -409,7 +409,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     recv_buf = (char *) rt_calloc(1, bfsz);
     if (recv_buf == RT_NULL)
     {
-        LOG_E("no memory for mw31 device(%s) URC receive buffer(%d).", device->name, bfsz);
+        LOG_E("no memory for receive buffer(%d).", bfsz);
         /* read and clean the coming data */
         while (temp_size < bfsz)
         {
@@ -429,7 +429,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
-        LOG_E("mw31 device(%s) receive size(%d) data failed.", device->name, bfsz);
+        LOG_E("%s device receive size(%d) data failed.", device->name, bfsz);
         rt_free(recv_buf);
         return;
     }

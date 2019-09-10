@@ -28,7 +28,7 @@
 
 #include <at_device_m26.h>
 
-#define LOG_TAG                        "at.dev"
+#define LOG_TAG                        "at.dev.m26"
 #include <at_log.h>
 
 #ifdef AT_DEVICE_USING_M26
@@ -103,16 +103,12 @@ static int m26_netdev_set_info(struct netdev *netdev)
     struct at_device *device = RT_NULL;
     struct at_client *client = RT_NULL;
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 deivce by netdev name failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
     client = device->client;
@@ -124,7 +120,7 @@ static int m26_netdev_set_info(struct netdev *netdev)
     resp = at_create_resp(M26_IEMI_RESP_SIZE, 0, M26_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) response structure.", netdev->name);
+        LOG_E("no memory for resp create.");
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -146,12 +142,12 @@ static int m26_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
         {
-            LOG_E("m26 device(%s) prase \"AT+GSN\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("m26 device(%s) IEMI number: %s", device->name, iemi);
+        LOG_D("%s device IEMI number: %s", device->name, iemi);
 
         netdev->hwaddr_len = M26_NETDEV_HWADDR_LEN;
         /* get hardware address by IEMI */
@@ -184,12 +180,12 @@ static int m26_netdev_set_info(struct netdev *netdev)
 
         if (at_resp_parse_line_args_by_kw(resp, ".", "%s", ipaddr) <= 0)
         {
-            LOG_E("m26 device(%s) prase \"AT+QILOCIP\" commands resposne data error.", device->name);
+            LOG_E("%s device prase \"AT+QILOCIP\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("m26 device(%s) IP address: %s", device->name, ipaddr);
+        LOG_D("%s device IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -213,13 +209,13 @@ static int m26_netdev_set_info(struct netdev *netdev)
         if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
                 at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
         {
-            LOG_E("Prase \"AT+QIDNSCFG?\" commands resposne data error!");
+            LOG_E("%s device prase \"AT+QIDNSCFG?\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("m26 device(%s) primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("m26 device(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
 
         inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
@@ -252,14 +248,14 @@ static void check_link_status_entry(void *parameter)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 deivce by netdev name failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
     resp = at_create_resp(M26_LINK_RESP_SIZE, 0, M26_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) response object.", netdev->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
@@ -296,16 +292,12 @@ static int m26_netdev_check_link_status(struct netdev *netdev)
     rt_thread_t tid;
     char tname[RT_NAME_MAX] = {0};
 
-    if (netdev == RT_NULL)
-    {
-        LOG_E("input network interface device is NULL.");
-        return -RT_ERROR;
-    }
+    RT_ASSERT(netdev);
 
     rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
 
     tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
-            M26_LINK_THREAD_STACK_SIZE, M26_LINK_THREAD_PRIORITY, M26_LINK_THREAD_TICK);
+                           M26_LINK_THREAD_STACK_SIZE, M26_LINK_THREAD_PRIORITY, M26_LINK_THREAD_TICK);
     if (tid)
     {
         rt_thread_startup(tid);
@@ -323,7 +315,7 @@ static int m26_netdev_set_up(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -333,7 +325,7 @@ static int m26_netdev_set_up(struct netdev *netdev)
         device->is_init = RT_TRUE;
 
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status.", netdev->name);
+        LOG_D("network interface device(%s) set up status.", netdev->name);
     }
 
     return RT_EOK;
@@ -346,7 +338,7 @@ static int m26_netdev_set_down(struct netdev *netdev)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
 
@@ -356,7 +348,7 @@ static int m26_netdev_set_down(struct netdev *netdev)
         device->is_init = RT_FALSE;
 
         netdev_low_level_set_status(netdev, RT_FALSE);
-        LOG_D("the network interface device(%s) set down status.", netdev->name);
+        LOG_D("network interface device(%s) set down status.", netdev->name);
     }
 
     return RT_EOK;
@@ -377,14 +369,14 @@ static int m26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 deivce by netdev name failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return - RT_ERROR;
     }
 
     resp = at_create_resp(M26_DNS_RESP_LEN, 0, M26_DNS_RESP_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) response object.", netdev->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -426,14 +418,14 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get m26 deivce by netdev name failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return - RT_ERROR;
     }
 
     resp = at_create_resp(M26_PING_RESP_SIZE, 5, M26_PING_TIMEO);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) response object.", netdev->name);
+        LOG_E("no memory for resp create.");
         return  -RT_ENOMEM;
     }
     /* send "AT+QPING="<host>"[,[<timeout>][,<pingnum>]]" commond to send ping request */
@@ -448,7 +440,7 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
     if (response == 0)
     {
         if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,%[^,],%d,%d,%d",
-                &response, ip_addr, &recv_data_len, &time, &ttl) <= 0)
+                                          &response, ip_addr, &recv_data_len, &time, &ttl) <= 0)
         {
             result = -RT_ERROR;
             goto __exit;
@@ -483,13 +475,6 @@ static int m26_netdev_ping(struct netdev *netdev, const char *host,
 }
 #endif /* NETDEV_USING_PING */
 
-#ifdef NETDEV_USING_NETSTAT
-static void m26_netdev_netstat(struct netdev *netdev)
-{
-    // TODO netstat support
-}
-#endif /* NETDEV_USING_NETSTAT */
-
 const struct netdev_ops m26_netdev_ops =
 {
     m26_netdev_set_up,
@@ -502,9 +487,7 @@ const struct netdev_ops m26_netdev_ops =
 #ifdef NETDEV_USING_PING
     m26_netdev_ping,
 #endif
-#ifdef NETDEV_USING_NETSTAT
-    m26_netdev_netstat,
-#endif
+    RT_NULL,
 };
 
 static struct netdev *m26_netdev_add(const char *netdev_name)
@@ -518,7 +501,7 @@ static struct netdev *m26_netdev_add(const char *netdev_name)
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) netdev structure.", netdev_name);
+        LOG_E("no memory for netdev ceate.");
         return RT_NULL;
     }
 
@@ -568,11 +551,11 @@ static void m26_init_thread_entry(void *parameter)
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for m26 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return;
     }
 
-    LOG_D("start initializing the m26/mc20 device(%s)", device->name);
+    LOG_D("start init m26/mc20 device(%s)", device->name);
 
     while (retry_num--)
     {
@@ -603,7 +586,7 @@ static void m26_init_thread_entry(void *parameter)
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_D("m26 device(%s) SIM card detection success.", device->name);
+                LOG_D("%s device SIM card detection success.", device->name);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -623,14 +606,14 @@ static void m26_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
             if (rt_strncmp(parsed_data, "99,99", sizeof(parsed_data)))
             {
-                LOG_D("m26 device(%s) signal strength: %s", device->name, parsed_data);
+                LOG_D("%s device signal strength: %s", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CSQ_RETRY)
         {
-            LOG_E("m26 device(%s) signal strength check failed(%s).", device->name, parsed_data);
+            LOG_E("%s device signal strength check failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -642,14 +625,14 @@ static void m26_init_thread_entry(void *parameter)
             if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("m26 device(%s) GSM network is registered(%s).", device->name, parsed_data);
+                LOG_D("%s device GSM is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CREG_RETRY)
         {
-            LOG_E("m26 device(%s) GSM network is register failed(%s)", device->name, parsed_data);
+            LOG_E("%s device GSM is register failed(%s)", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -661,14 +644,14 @@ static void m26_init_thread_entry(void *parameter)
             if (!rt_strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                     !rt_strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_D("m26 device(%s) GPRS network is registered(%s).", device->name, parsed_data);
+                LOG_D("%s device GPRS is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
         }
         if (i == CGREG_RETRY)
         {
-            LOG_E("m26 device(%s) GPRS network is register failed(%s).", device->name, parsed_data);
+            LOG_E("%s device GPRS is register failed(%s).", device->name, parsed_data);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -700,20 +683,19 @@ static void m26_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+QIACT");
 
         AT_SEND_CMD(client, resp, 2, 300, "AT+QILOCIP");
+
+        /* initialize successfully  */
         result = RT_EOK;
+        break;
 
     __exit:
-        if (result == RT_EOK)
-        {
-            break;
-        }
-        else
+        if (result != RT_EOK)
         {
             /* power off the m26 device */
             m26_power_off(device);
             rt_thread_mdelay(1000);
 
-            LOG_I("m26 device(%s) initialize retry...", device->name);
+            LOG_I("%s device initialize retry...", device->name);
         }
     }
 
@@ -727,11 +709,11 @@ static void m26_init_thread_entry(void *parameter)
         m26_netdev_set_info(device->netdev);
         m26_netdev_check_link_status(device->netdev);
 
-        LOG_I("m26 device(%s) network initialize successfully.", device->name);
+        LOG_I("%s device network initialize success.", device->name);
     }
     else
     {
-        LOG_E("m26 device(%s) network initialize failed(%d).", device->name, result);
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
     }
 }
 
@@ -740,7 +722,7 @@ static int m26_net_init(struct at_device *device)
 #ifdef AT_DEVICE_M26_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("m26_net_init", m26_init_thread_entry, (void *)device,
+    tid = rt_thread_create("m26_net", m26_init_thread_entry, (void *)device,
             M26_THREAD_STACK_SIZE, M26_THREAD_PRIORITY, 20);
     if (tid)
     {
@@ -748,7 +730,7 @@ static int m26_net_init(struct at_device *device)
     }
     else
     {
-        LOG_E("create m26 device(%s) initialization thread failed.", device->name);
+        LOG_E("create %s device init thread failed.", device->name);
         return -RT_ERROR;
     }
 #else
@@ -782,7 +764,7 @@ static int m26_init(struct at_device *device)
     device->client = at_client_get(m26->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("m26 device(%s) initialize failed, get AT client(%s) failed.", m26->device_name, m26->client_name);
+        LOG_E("get AT client(%s) failed.", m26->client_name);
         return -RT_ERROR;
     }
 
@@ -797,7 +779,7 @@ static int m26_init(struct at_device *device)
     device->netdev = m26_netdev_add(m26->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("m26 device(%s) initialize failed, get network interface device failed.", m26->device_name);
+        LOG_E("get netdev(%s) failed.", m26->device_name);
         return -RT_ERROR;
     }
 
@@ -837,7 +819,7 @@ static int m26_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_GET_SIGNAL:
     case AT_DEVICE_CTRL_GET_GPS:
     case AT_DEVICE_CTRL_GET_VER:
-        LOG_W("m26 not support the control command(%d).", cmd);
+        LOG_W("not support the control command(%d).", cmd);
         break;
     default:
         LOG_E("input error control command(%d).", cmd);
@@ -860,7 +842,7 @@ static int m26_device_class_register(void)
     class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
-        LOG_E("no memory for m26 device class create.");
+        LOG_E("no memory for device class create.");
         return -RT_ENOMEM;
     }
 

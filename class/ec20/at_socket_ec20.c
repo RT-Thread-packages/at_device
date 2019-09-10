@@ -29,7 +29,7 @@
 
 #include <at_device_ec20.h>
 
-#define LOG_TAG                        "at.skt"
+#define LOG_TAG                        "at.skt.ec20"
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_EC20) && defined(AT_USING_SOCKET)
@@ -88,6 +88,7 @@ static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
     }
 }
 
+#ifdef EC20_USING_HTTP
 static void at_http_errcode_parse(int result)//HTTP
 {
     switch(result)
@@ -142,7 +143,9 @@ static void at_http_rsponsecode_parse(int result)//HTTP
     default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
+#endif /* EC20_USING_HTTP */
 
+#ifdef EC20_USING_FTP
 static void at_ftp_errcode_parse(int result)//FTP
 {
     switch(result)
@@ -207,7 +210,9 @@ static void at_ftp_protocol_errcode_parse(int result)//FTP_Protocol
     default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
+#endif /* EC20_USING_FTP */
 
+#ifdef EC20_USING_SMTP
 static void at_smtp_errcode_parse(int result)//Email
 {
     switch(result)
@@ -272,6 +277,7 @@ static void at_smtp_protocol_errcode_parse(int result)//Email_Protocol
     default  : LOG_E("%d : Unknown err code",             result); break;
     }
 }
+#endif /* EC20_USING_SMTP */
 
 static int ec20_socket_event_send(struct at_device *device, uint32_t event)
 {
@@ -312,7 +318,7 @@ static int ec20_socket_close(struct at_socket *socket)
     resp = at_create_resp(64, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -357,7 +363,7 @@ static int ec20_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -377,7 +383,7 @@ __retry:
             /* local_port  = 0 : local port assigned automatically */
             /* access_mode = 1 : Direct push mode */
             if (at_obj_exec_cmd(device->client, resp,
-                    "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
+                                "AT+QIOPEN=1,%d,\"TCP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -386,7 +392,7 @@ __retry:
 
         case AT_SOCKET_UDP:
             if (at_obj_exec_cmd(device->client, resp,
-                    "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
+                                "AT+QIOPEN=1,%d,\"UDP\",\"%s\",%d,0,1", device_socket, ip, port) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -394,7 +400,7 @@ __retry:
             break;
 
         default:
-            LOG_E("ec20 device(%s) not supported connect type : %d.", device->name, type);
+            LOG_E("not supported connect type : %d.", type);
             return -RT_ERROR;
         }
     }
@@ -402,7 +408,7 @@ __retry:
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
     if (ec20_socket_event_recv(device, SET_EVENT(device_socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
-        LOG_E("ec20 device(%s) socket(%d) connect failed, wait connect result timeout.", device->name, device_socket);
+        LOG_E("%s device socket(%d) wait connect URC timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -411,7 +417,7 @@ __retry:
         EC20_EVENT_CONN_OK | EC20_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
-        LOG_E("ec20 device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, device_socket);
+        LOG_E("%s device socket(%d) wait connect OK|FAIL timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
@@ -420,7 +426,7 @@ __retry:
     {
         if (retryed == RT_FALSE)
         {
-            LOG_D("ec20 device(%s) socket(%d) connect failed, maybe the socket was not be closed at the last time and now will retry.",
+            LOG_D("%s device socket(%d) connect failed, the socket was not be closed and now will connect retey.",
                     device->name, device_socket);
             /* default connection timeout is 10 seconds, but it set to 1 seconds is convenient to use.*/
             if (ec20_socket_close(socket) < 0)
@@ -431,7 +437,7 @@ __retry:
             retryed = RT_TRUE;
             goto __retry;
         }
-        LOG_E("ec20 device(%s) socket(%d) connect failed.", device->name, device_socket);
+        LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
         result = -RT_ERROR;
         goto __exit;
     }
@@ -455,7 +461,7 @@ static int at_get_send_size(struct at_socket *socket, size_t *size, size_t *acke
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.", device->name);
         result = -RT_ENOMEM;
         goto __exit;
     }
@@ -530,7 +536,7 @@ static int ec20_socket_send(struct at_socket *socket, const char *buff, size_t b
     resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -583,14 +589,14 @@ static int ec20_socket_send(struct at_socket *socket, const char *buff, size_t b
             EC20_EVENT_SEND_OK | EC20_EVENT_SEND_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
-            LOG_E("ec20 device(%s) socket (%d) send failed, wait connect OK|FAIL timeout.", device->name, device_socket);
+            LOG_E("%s device socket(%d) wait sned OK|FAIL timeout.", device->name, device_socket);
             result = -RT_ETIMEOUT;
             goto __exit;
         }
         /* check result */
         if (event_result & EC20_EVENT_SEND_FAIL)
         {
-            LOG_E("ec20 device(%s) socket (%d) send failed.", device->name, device_socket);
+            LOG_E("%s device socket(%d) send failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -643,7 +649,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
-        LOG_E("get first initialization ec20 device failed.");
+        LOG_E("get first init device failed.");
         return -RT_ERROR;
     }
 
@@ -651,7 +657,7 @@ static int ec20_domain_resolve(const char *name, char ip[16])
     resp = at_create_resp(128, 0, 10 * RT_TICK_PER_SECOND);
     if (!resp)
     {
-        LOG_E("no memory for ec20 device(%s) response structure.", device->name);
+        LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
 
@@ -737,7 +743,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -766,7 +772,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
     ec20 = (struct at_device_ec20 *) device->user_data;
@@ -794,7 +800,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -824,7 +830,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
 
@@ -841,7 +847,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     recv_buf = (char *) rt_calloc(1, bfsz);
     if (recv_buf == RT_NULL)
     {
-        LOG_E("no memory for ec20 device(%s) URC receive buffer (%d).", device->name, bfsz);
+        LOG_E("no memory for URC receive buffer(%d).", bfsz);
         /* read and clean the coming data */
         while (temp_size < bfsz)
         {
@@ -861,7 +867,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
-        LOG_E("ec20 device(%s) receive size(%d) data failed.", device->name, bfsz);
+        LOG_E("%s device receive size(%d) data failed.", device->name, bfsz);
         rt_free(recv_buf);
         return;
     }
@@ -901,7 +907,7 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
-        LOG_E("get ec20 device by client name(%s) failed.", client_name);
+        LOG_E("get device(%s) failed.", client_name);
         return;
     }
     ec20 = (struct at_device_ec20 *) device->user_data;
