@@ -400,8 +400,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     sscanf(temp, "%ld,", &bfsz);
 
     LOG_D("socket:%d, size:%ld\n", device_socket, bfsz);
-    /* get receive timeout by receive buffer length */
-    timeout = bfsz;
+    /* set receive timeout by receive buffer length, not less than 10 ms */
+    timeout = bfsz > 10 ? bfsz : 10;
 
     if (device_socket < 0 || bfsz == 0)
         return;
