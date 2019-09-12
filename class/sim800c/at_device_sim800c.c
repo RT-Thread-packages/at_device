@@ -98,7 +98,7 @@ static void sim800c_power_off(struct at_device *device)
 /* set sim800c network interface device status and address information */
 static int sim800c_netdev_set_info(struct netdev *netdev)
 {
-#define SIM800C_IEMI_RESP_SIZE      32
+#define SIM800C_IMEI_RESP_SIZE      32
 #define SIM800C_IPADDR_RESP_SIZE    32
 #define SIM800C_DNS_RESP_SIZE       96
 #define SIM800C_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
@@ -122,7 +122,7 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
     netdev_low_level_set_link_status(netdev, RT_TRUE);
     netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
 
-    resp = at_create_resp(SIM800C_IEMI_RESP_SIZE, 0, SIM800C_INFO_RESP_TIMO);
+    resp = at_create_resp(SIM800C_IMEI_RESP_SIZE, 0, SIM800C_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -130,41 +130,41 @@ static int sim800c_netdev_set_info(struct netdev *netdev)
         goto __exit;
     }
 
-    /* set network interface device hardware address(IEMI) */
+    /* set network interface device hardware address(IMEI) */
     {
         #define SIM800C_NETDEV_HWADDR_LEN   8
-        #define SIM800C_IEMI_LEN            15
+        #define SIM800C_IMEI_LEN            15
 
-        char iemi[SIM800C_IEMI_LEN] = {0};
+        char imei[SIM800C_IMEI_LEN] = {0};
         int i = 0, j = 0;
 
-        /* send "AT+GSN" commond to get device IEMI */
+        /* send "AT+GSN" commond to get device IMEI */
         if (at_obj_exec_cmd(device->client, resp, "AT+GSN") < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
-        if (at_resp_parse_line_args(resp, 2, "%s", iemi) <= 0)
+        if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("%s device IEMI number: %s", device->name, iemi);
+        LOG_D("%s device IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = SIM800C_NETDEV_HWADDR_LEN;
-        /* get hardware address by IEMI */
-        for (i = 0, j = 0; i < SIM800C_NETDEV_HWADDR_LEN && j < SIM800C_IEMI_LEN; i++, j += 2)
+        /* get hardware address by IMEI */
+        for (i = 0, j = 0; i < SIM800C_NETDEV_HWADDR_LEN && j < SIM800C_IMEI_LEN; i++, j += 2)
         {
-            if (j != SIM800C_IEMI_LEN - 1)
+            if (j != SIM800C_IMEI_LEN - 1)
             {
-                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+                netdev->hwaddr[i] = (imei[j] - '0') * 10 + (imei[j + 1] - '0');
             }
             else
             {
-                netdev->hwaddr[i] = (iemi[j] - '0');
+                netdev->hwaddr[i] = (imei[j] - '0');
             }
         }
     }
