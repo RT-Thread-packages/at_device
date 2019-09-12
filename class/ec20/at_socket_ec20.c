@@ -408,7 +408,7 @@ __retry:
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use.*/
     if (ec20_socket_event_recv(device, SET_EVENT(device_socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
-        LOG_E("%s device socket(%d) wait connect URC timeout.", device->name, device_socket);
+        LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
     }
