@@ -31,6 +31,15 @@ if GetDepend(['AT_DEVICE_USING_ESP8266']):
     if GetDepend(['AT_DEVICE_ESP8266_SAMPLE']):
         src += Glob('samples/at_sample_esp8266.c')
 
+# ESP32
+if GetDepend(['AT_DEVICE_USING_ESP32']):
+    path += [cwd + '/class/esp32']
+    src += Glob('class/esp32/at_device_esp32.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/esp32/at_socket_esp32.c')
+    if GetDepend(['AT_DEVICE_ESP32_SAMPLE']):
+        src += Glob('samples/at_sample_esp32.c')
+
 # MW31
 if GetDepend(['AT_DEVICE_USING_MW31']):
     path += [cwd + '/class/mw31']
