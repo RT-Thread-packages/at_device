@@ -27,7 +27,7 @@
 
 #include <at_device_esp32.h>
 
-#define LOG_TAG                        "at.dev.esp"
+#define LOG_TAG                        "at.dev.esp32"
 
 #include <at_log.h>
 

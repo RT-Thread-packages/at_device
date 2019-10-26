@@ -27,7 +27,7 @@
 #define LOG_TAG                        "at.sample.esp"
 #include <at_log.h>
 
-#define ESP32_SAMPLE_DEIVCE_NAME     "esp0"
+#define ESP32_SAMPLE_DEIVCE_NAME     "esp32"
 
 static struct at_device_esp32 esp0 =
 {
