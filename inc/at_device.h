@@ -51,6 +51,7 @@ extern "C" {
 #define AT_DEVICE_CLASS_SIM76XX        0x05U
 #define AT_DEVICE_CLASS_RW007          0x06U
 #define AT_DEVICE_CLASS_MW31           0x07U
+#define AT_DEVICE_CLASS_ESP32          0x08U
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L
