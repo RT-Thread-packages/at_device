@@ -13,6 +13,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | sample | 不同设备示例文件目录 |
 | class | 不同设备针对 AT 组件的移植适配目录 |
 | class/esp8266 | ESP8266 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
+| class/esp32   | ESP32 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/rw007 | RW007 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/sim800c | SIM800C 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/sim76xx | SIM76XX 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
@@ -103,6 +104,13 @@ RT-Thread online packages  --->
   - **The maximum length of receive line buffer**：配置该示例设备最大一行接收的数据长度；
 - **Quectel EC20**：开启 EC20（4G 模块）设备支持；
 - **Espressif ESP8266**：开启 ESP8266 （WIFI 模块）设备支持；
+  - **Enable initialize by thread**：开启使用线程进行设备初始化功能（非阻塞模式初始化）；
+  - **Enable sample**：开启示例代码，该示例代码中有对示例设备的注册；
+  - **WIFI ssid**：配置该示例设备连接的 WIFI 用户名；
+  - **WIFI password**：配置该示例设备连接的 WIFI 密码；
+  - **AT client device name**：配置该示例设备使用的串口设备名称；
+  - **The maximum length of receive line buffer**：配置该示例设备最大一行接收的数据长度；
+- **Espressif ESP32**：开启 ESP32 （WIFI 模块）设备支持；
   - **Enable initialize by thread**：开启使用线程进行设备初始化功能（非阻塞模式初始化）；
   - **Enable sample**：开启示例代码，该示例代码中有对示例设备的注册；
   - **WIFI ssid**：配置该示例设备连接的 WIFI 用户名；

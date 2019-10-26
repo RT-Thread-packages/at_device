@@ -28,7 +28,7 @@
 
 #include <at_device_esp32.h>
 
-#define LOG_TAG                       "at.skt.esp"
+#define LOG_TAG                       "at.skt.esp32"
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_ESP32) && defined(AT_USING_SOCKET)
