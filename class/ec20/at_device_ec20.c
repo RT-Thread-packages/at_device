@@ -436,11 +436,14 @@ static int ec20_netdev_check_link_status(struct netdev *netdev)
 #define EC20_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
+    char tname[RT_NAME_MAX] = {0};
 
     RT_ASSERT(netdev);
 
+    rt_snprintf(tname, RT_NAME_MAX, "%s", netdev->name);
+
     /* create ec20 link status polling thread  */
-    tid = rt_thread_create("ec20_link", ec20_check_link_status_entry, (void *)netdev,
+    tid = rt_thread_create(tname, ec20_check_link_status_entry, (void *)netdev,
                            EC20_LINK_THREAD_STACK_SIZE, EC20_LINK_THREAD_PRIORITY, EC20_LINK_THREAD_TICK);
     if (tid != RT_NULL)
     {
@@ -886,7 +889,11 @@ static void ec20_init_thread_entry(void *parameter)
     {
         /* set network interface device status and address information */
         ec20_netdev_set_info(device->netdev);
-        ec20_netdev_check_link_status(device->netdev);
+        /* check and create link staus sync thread  */
+        if (rt_thread_find(device->netdev->name) == RT_NULL)
+        {
+            ec20_netdev_check_link_status(device->netdev);
+        }
 
         LOG_I("%s device network initialize success.", device->name);
     }

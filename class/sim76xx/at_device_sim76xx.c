@@ -277,7 +277,7 @@ static int sim76xx_netdev_check_link_status(struct netdev *netdev)
 
     RT_ASSERT(netdev);
 
-    rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
+    rt_snprintf(tname, RT_NAME_MAX, "%s", netdev->name);
 
     tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
                            SIM76XX_LINK_THREAD_STACK_SIZE, SIM76XX_LINK_THREAD_PRIORITY, SIM76XX_LINK_THREAD_TICK);
@@ -704,7 +704,11 @@ static void sim76xx_init_thread_entry(void *parameter)
     {
         /* set network interface device status and address information */
         sim76xx_netdev_set_info(device->netdev);
-        sim76xx_netdev_check_link_status(device->netdev);
+        /* check and create link staus sync thread  */
+        if (rt_thread_find(device->netdev->name) == RT_NULL)
+        {
+            sim76xx_netdev_check_link_status(device->netdev);
+        }
 
         LOG_I("%s device network initialize success!", device->name);
     }
