@@ -820,7 +820,7 @@ static int w60x_deinit(struct at_device *device)
     return w60x_netdev_set_down(device->netdev);
 }
 
-/* reset eap8266 device and initialize device network again */
+/* reset w60x device and initialize device network again */
 static int w60x_reset(struct at_device *device)
 {
     int result = RT_EOK;
@@ -842,7 +842,7 @@ static int w60x_reset(struct at_device *device)
     return result;
 }
 
-/* change eap8266 wifi ssid and password information */
+/* change w60x wifi ssid and password information */
 static int w60x_wifi_info_set(struct at_device *device, struct at_device_ssid_pwd *info)
 {
     int result = RT_EOK;
