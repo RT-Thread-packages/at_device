@@ -4,6 +4,15 @@ cwd = GetCurrentDir()
 path = [cwd + '/inc']
 src  = Glob('src/*.c')
 
+# A9G
+if GetDepend(['AT_DEVICE_USING_A9G']):
+    path += [cwd + '/class/a9g']
+	src += Glob('class/a9g/at_device_a9g.c')
+	if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/a9g/at_socket_a9g.c')
+    if GetDepend(['AT_DEVICE_A9G_SAMPLE']):
+        src += Glob('samples/at_sample_a9g.c')
+
 # M26/MC20
 if GetDepend(['AT_DEVICE_USING_M26']):
     path += [cwd + '/class/m26']
