@@ -353,11 +353,6 @@ static int a9g_domain_resolve(const char *name, char ip[16])
     {
         int err_code = 0;
 
-//        if (at_obj_exec_cmd(device->client, resp, "AT+CGACT=1,1") < 0)
-//        {
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
         if (at_obj_exec_cmd(device->client, resp, "AT+CDNSGIP=\"%s\"", name) < 0)
         {
             result = -RT_ERROR;
@@ -591,9 +586,7 @@ static const struct at_urc urc_table[] =
 {
     {"",            "CONNECT OK\r\n",      urc_connect_func},
     {"",            ",CONNECT FAIL\r\n",   urc_connect_func},
-    //{"",            "OK\r\n\r\n",          urc_send_func},
     {"",            ",SEND FAIL\r\n",      urc_send_func},
-    //{"",            "OK\r\n\r\n",          urc_close_func},
     {"CLOSED:",     "\r\n",                urc_close_func},
     {"+CIPRCV,",    "\r\n",                urc_recv_func},
 };

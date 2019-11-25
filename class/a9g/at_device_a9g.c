@@ -28,7 +28,7 @@
 
 #include <at_device_a9g.h>
 
-#define LOG_TAG                        "at.dev.a9g"
+#define LOG_TAG                    "at.dev.a9g"
 #include <at_log.h>
  
 #ifdef AT_DEVICE_USING_A9G
@@ -108,7 +108,7 @@ static int a9g_netdev_set_info(struct netdev *netdev)
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
 	
-	RT_ASSERT(netdev);
+    RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -132,8 +132,8 @@ static int a9g_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device hardware address(IEMI) */
     {
-#define A9G_NETDEV_HWADDR_LEN   8
-#define A9G_IEMI_LEN            15
+        #define A9G_NETDEV_HWADDR_LEN   8
+        #define A9G_IEMI_LEN            15
 
         char iemi[A9G_IEMI_LEN] = {0};
         int i = 0, j = 0;
@@ -175,19 +175,7 @@ static int a9g_netdev_set_info(struct netdev *netdev)
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
         at_resp_set_info(resp, A9G_IPADDR_RESP_SIZE, 2, A9G_INFO_RESP_TIMO);
-				
-//				/* Set GPRS attachment */
-//				at_obj_exec_cmd(device->client, resp, "AT+CGATT=1");
-//				rt_thread_mdelay(10);
-//				
-//				/* Define the PDP context */
-//				at_obj_exec_cmd(device->client, resp, "AT+CGDCONT=1,\"IP\",\"CMNET\"");
-//				rt_thread_mdelay(10);
-//				
-//				/* Set PDP context activation */
-//				at_obj_exec_cmd(device->client, resp, "AT+CGACT=1,1");
-//				rt_thread_mdelay(10);
-				
+		
         /* send "AT+CIFSR" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CIFSR") < 0)
         {
@@ -210,36 +198,36 @@ static int a9g_netdev_set_info(struct netdev *netdev)
     }
 
     /* set network interface device dns server */
-//    {
-//        #define DNS_ADDR_SIZE_MAX   16
-//        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+    {
+        #define DNS_ADDR_SIZE_MAX   16
+        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
 
-//        at_resp_set_info(resp, A9G_DNS_RESP_SIZE, 0, A9G_INFO_RESP_TIMO);
+        at_resp_set_info(resp, A9G_DNS_RESP_SIZE, 0, A9G_INFO_RESP_TIMO);
 
-//        /* send "AT+CDNSCFG?" commond to get DNS servers address */
-//        if (at_obj_exec_cmd(device->client, resp, "AT+CDNSCFG?") < 0)
-//        {
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
+        /* send "AT+CDNSCFG?" commond to get DNS servers address */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CDNSCFG?") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
 
-//        if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
-//            at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
-//        {
-//            LOG_E("Prase \"AT+CDNSCFG?\" commands resposne data error!");
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
+        if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:%s", dns_server1) <= 0 ||
+            at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:%s", dns_server2) <= 0)
+        {
+            LOG_E("Prase \"AT+CDNSCFG?\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
 
-//        LOG_D("a9g device(%s) primary DNS server address: %s", device->name, dns_server1);
-//        LOG_D("a9g device(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("a9g device(%s) primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("a9g device(%s) secondary DNS server address: %s", device->name, dns_server2);
 
-//        inet_aton(dns_server1, &addr);
-//        netdev_low_level_set_dns_server(netdev, 0, &addr);
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
 
-//        inet_aton(dns_server2, &addr);
-//        netdev_low_level_set_dns_server(netdev, 1, &addr);
-//    }
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
+    }
 
 __exit:
     if (resp)
@@ -265,39 +253,32 @@ static void check_link_status_entry(void *parameter)
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {
-        LOG_E("get a9g device by netdev name(%s) failed.", netdev->name);
+        LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
 
     resp = at_create_resp(A9G_LINK_RESP_SIZE, 0, A9G_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
-        LOG_E("a9g device(%s) set check link status failed, no memory for response object.", device->name);
+        LOG_E("no memory for response create.");
         return;
     }
 
     while (1)
     {
-//        rt_sem_t dynamic_sem;//<-- add by moneng
-        rt_err_t result = RT_NULL;//<-- add by moneng
-//        result = rt_sem_trytake(dynamic_sem);//<-- add by moneng
-        if(result == RT_EOK)//<-- add by moneng
+        /* send "AT+CREG?" commond  to check netweork interface device link status */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CREG?") < 0)
         {
-            /* send "AT+CREG?" commond  to check netweork interface device link status */
-            if (at_obj_exec_cmd(device->client, resp, "AT+CREG?") < 0)
-            {
-                rt_thread_mdelay(A9G_LINK_DELAY_TIME);
-                continue;
-            }
-            link_status = -1;
-            at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %d,%d", &result_code, &link_status);
+            rt_thread_mdelay(A9G_LINK_DELAY_TIME);
+            continue;
+        }
+        link_status = -1;
+        at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %d,%d", &result_code, &link_status);
 
-            /* check the network interface device link status  */
-            if ((A9G_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
-            {
-                netdev_low_level_set_link_status(netdev, (A9G_LINK_STATUS_OK == link_status));
-            }
-//            rt_sem_release(dynamic_sem);//<-- add by moneng
+        /* check the network interface device link status  */
+        if ((A9G_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
+        {
+            netdev_low_level_set_link_status(netdev, (A9G_LINK_STATUS_OK == link_status));
         }
         rt_thread_mdelay(A9G_LINK_DELAY_TIME);
     }
@@ -346,9 +327,9 @@ static int a9g_netdev_set_up(struct netdev *netdev)
     if (device->is_init == RT_FALSE)
     {
         a9g_net_init(device);
-        device->is_init = RT_TRUE;//<-- 感觉这里应该由 a9g_net_init 决定是否修改 device->is_init
+        device->is_init = RT_TRUE;
         
-        netdev_low_level_set_status(netdev, RT_TRUE);//<-- 感觉这里应该由 a9g_net_init 决定是否修改 netdev->flags >= NETDEV_FLAG_UP
+        netdev_low_level_set_status(netdev, RT_TRUE);
         LOG_D("the network interface device(%s) set up status.", netdev->name);
     }
 
@@ -426,13 +407,11 @@ __exit:
 static int a9g_ping_domain_resolve(struct at_device *device, const char *name, char ip[16])
 {
     int result = RT_EOK;
-		int recv_num = 0;
-		char host_name[50] = { 0 };
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
 
     /* The maximum response time is 14 seconds, affected by network status */
-    resp = at_create_resp(512, 0, 14 * RT_TICK_PER_SECOND);
+    resp = at_create_resp(512, 4, 14 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for a9g device(%s) response structure.", device->name);
@@ -445,24 +424,17 @@ static int a9g_ping_domain_resolve(struct at_device *device, const char *name, c
         goto __exit;
     }
 
-//    if (at_obj_exec_cmd(device->client, resp, "AT+CDNSGIP=\"%s\"", name) < 0)
-//    {
-//        result = -RT_ERROR;
-//        goto __exit;
-//    }
-		rt_kprintf("------start send domain!--------\n");
-		at_obj_exec_cmd(device->client, resp, "AT+CDNSGIP=\"%s\"", name); 
-		rt_thread_delay(10);
-		rt_kprintf("-------send domain ok!----------\n");
-    /* parse the third line of response data, get the IP address */
-//    if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
-    if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "+CDNSGIP:(%d),\"(%s)\",\"(%s)\",",recv_num, host_name, recv_ip) < 0)
-		{
+    if (at_obj_exec_cmd(device->client, resp, "AT+CDNSGIP=\"%s\"", name) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+	
+    if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
+    {
         rt_thread_mdelay(100);
-				LOG_I("%s",resp->buf);
         /* resolve failed, maybe receive an URC CRLF */
     }
-		LOG_I("GET THE IP ADDR:%s", recv_ip);
 
     if (rt_strlen(recv_ip) < 8)
     {
@@ -560,7 +532,6 @@ static struct netdev *a9g_netdev_add(const char *netdev_name)
     } while(0)                                                                                     \
 
 /* init for a9g */
-/* AT_SEND_CMD 是个宏定义函数 执行失败后会直接跳到 __exit 所以不能循环调用 */
 static void a9g_init_thread_entry(void *parameter)
 {
 #define INIT_RETRY                     5
@@ -583,10 +554,8 @@ static void a9g_init_thread_entry(void *parameter)
         return;
     }
 
-    LOG_D("start initializing the a9g device(%s)", device->name);
-		
-		
-		
+    LOG_D("start initializing the device(%s)", device->name);
+
     while (retry_num--)
     {
         rt_memset(parsed_data, 0, sizeof(parsed_data));
@@ -627,15 +596,17 @@ static void a9g_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-				/* make the device restart */
-				AT_SEND_CMD(client, resp, 0, 300, "AT+RST=1");
-				for(i = 0; i<=30; i++)
-				{
-						i++;
-						rt_thread_mdelay(1000);
-				}
+		
+		/* make the device restart */
+        AT_SEND_CMD(client, resp, 0, 300, "AT+RST=1");
+        for(i = 0; i<=30; i++)
+        {
+            i++;
+            rt_thread_mdelay(1000);
+        }
+		
         /* waiting for dirty data to be digested */
-				rt_thread_mdelay(1000);
+        rt_thread_mdelay(1000);
 
         /* check the GSM network is registered */
         for (i = 0; i < CREG_RETRY; i++)
@@ -660,7 +631,6 @@ static void a9g_init_thread_entry(void *parameter)
         /* the device default response timeout is 40 seconds, but it set to 15 seconds is convenient to use. */
         for (uint8_t ii = 0; ii < INIT_RETRY; ii++)
         {
-            //AT_SEND_CMD(client, resp, 0, 5 * 1000, "AT+CGATT=0");
             resp = at_resp_set_info(resp, 128, 0, rt_tick_from_millisecond(10 * 1000));
             if (at_obj_exec_cmd(client, resp, "AT+CGATT=0") == RT_EOK)
             {
@@ -672,7 +642,6 @@ static void a9g_init_thread_entry(void *parameter)
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
-            //CGATT ~ CGDCONT ~ CGACT
             for (uint8_t ii = 0; ii < INIT_RETRY; ii++)
             {
                 //AT_SEND_CMD(client, resp, 0, 5 * 1000, "AT+CGATT=1");
@@ -683,12 +652,14 @@ static void a9g_init_thread_entry(void *parameter)
                 }
                 rt_thread_mdelay(1000);
             }
+			
             AT_SEND_CMD(client, resp, 0, 1000, "AT+CGDCONT=1,\"IP\",\"CMNET\"");
-						rt_thread_mdelay(10);
+            rt_thread_mdelay(10);
             AT_SEND_CMD(client, resp, 0, 5 * 1000, "AT+CGACT=1,1");
-						rt_thread_mdelay(10);
+            rt_thread_mdelay(10);
             at_resp_parse_line_args_by_kw(resp, "OK", "%s", &parsed_data);
-            if (!strncmp(parsed_data, "OK", sizeof(parsed_data)))
+            
+			if (!strncmp(parsed_data, "OK", sizeof(parsed_data)))
             {
                 LOG_D("a9g device(%s) GPRS network is registered(%s).", device->name, parsed_data);
                 break;
@@ -728,8 +699,6 @@ static void a9g_init_thread_entry(void *parameter)
 
         if (qimux == 0)
         {
-            //跑程序的时候这个地方总会超时一次
-            //猜测可能是因为没有替代"AT+CIPSHUT"的操作导致的
             AT_SEND_CMD(client, resp, 0, 1 * 1000, "AT+CIPMUX=1");
         }
 
@@ -762,8 +731,8 @@ static void a9g_init_thread_entry(void *parameter)
             goto __exit;
         }
 #ifdef	AT_USING_A9G_GPS
-				AT_SEND_CMD(client, resp, 0, 300, "AT+GPS?");
-				at_resp_parse_line_args_by_kw(resp, "+GPS:", "+GPS: %d", &qimux);
+        AT_SEND_CMD(client, resp, 0, 300, "AT+GPS?");
+        at_resp_parse_line_args_by_kw(resp, "+GPS:", "+GPS: %d", &qimux);
         if (qimux == 0)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+GPS=1");
