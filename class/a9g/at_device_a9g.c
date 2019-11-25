@@ -762,7 +762,7 @@ __exit:
 
     if (result == RT_EOK)
     {
-        device->is_init = RT_TRUE;//<-- add by moneng
+        device->is_init = RT_TRUE;
         
         /* set network interface device status and address information */
         a9g_netdev_set_info(device->netdev);
@@ -774,9 +774,9 @@ __exit:
     }
     else
     {
-        device->is_init = RT_FALSE;//<-- add by moneng
+        device->is_init = RT_FALSE;
         
-        netdev_low_level_set_status(device->netdev, RT_FALSE);//<-- add by moneng
+        netdev_low_level_set_status(device->netdev, RT_FALSE);
         LOG_E("a9g device(%s) network initialize failed(%d)!", device->name, result);
     }
 }
