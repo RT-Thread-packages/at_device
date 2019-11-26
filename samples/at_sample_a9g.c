@@ -32,11 +32,11 @@
 static struct at_device_a9g a9g0 =
 {
     A9G_SAMPLE_DEIVCE_NAME,
-    AT_DEVICE_NAME,
-		
+    A9G_SAMPLE_CLIENT_NAME,
+
     A9G_SAMPLE_POWER_PIN,
     A9G_SAMPLE_STATUS_PIN,
-    AT_DEVICE_RECV_BUFF_LEN,
+    A9G_SAMPLE_RECV_BUFF_LEN,
 };
 
 static int a9g_device_register(void)
