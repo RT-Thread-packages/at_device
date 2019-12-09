@@ -25,10 +25,8 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <at_device_air720.h>
 
-#include "app_global.h"
 
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10300
 #error "This AT Client version is older, please check and update latest AT Client!"
@@ -241,7 +239,7 @@ __exit:
 
     if (result != RT_EOK)
     {
-        tcp_connect_error++;
+        
     }
 
     return result;

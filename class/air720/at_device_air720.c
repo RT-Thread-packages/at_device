@@ -57,26 +57,16 @@ static void air720_power_on(struct at_device *device)
     {
         return;
     }
-    // rt_pin_write(air720->power_pin, PIN_HIGH);
-    // rt_thread_mdelay(10);
-    // rt_pin_write(air720->power_pin, PIN_LOW);
-    // rt_pin_write(air720->power_pin, PIN_HIGH);
-    rt_pin_write(air720->power_pin, PIN_LOW);
-    rt_thread_mdelay(5000);
-    LOG_E("\n START POWER ON THE AIR720 \n the power  pin%d is %d\n the status pin%d is %d\n the device pow pin is %d\n", air720->power_pin, rt_pin_read(air720->power_pin), air720->power_status_pin, rt_pin_read(air720->power_status_pin), rt_pin_read(GET_PIN(B, 2)));
     if (rt_pin_read(air720->power_status_pin) == PIN_HIGH)
     {
         return;
     }
     rt_pin_write(air720->power_pin, PIN_HIGH);
-
-    LOG_E("pull the power pin to %d \n", rt_pin_read(air720->power_pin));
     while (rt_pin_read(air720->power_status_pin) == PIN_LOW)
     {
         rt_thread_mdelay(10);
     }
-    LOG_E("------> finish power on AIR720 \n the status pin to %d \n", rt_pin_read(air720->power_status_pin));
-    // rt_pin_write(air720->power_pin, PIN_LOW);
+    rt_pin_write(air720->power_pin, PIN_LOW);
 }
 
 static void air720_power_off(struct at_device *device)
@@ -90,25 +80,17 @@ static void air720_power_off(struct at_device *device)
     {
         return;
     }
-
-    LOG_E("\n START POWER OFF THE AIR720 \n the power pin%d is %d\n the status pin%d is%d\n the device pow pin is %d\n", air720->power_pin, rt_pin_read(air720->power_pin), air720->power_status_pin, rt_pin_read(air720->power_status_pin), rt_pin_read(GET_PIN(B, 2)));
-
-    //rt_pin_write(air720->power_pin, PIN_LOW);
-    //rt_thread_mdelay(3000);
-
     if (rt_pin_read(air720->power_status_pin) == PIN_LOW)
     {
         return;
     }
 
-    rt_pin_write(air720->power_pin, PIN_LOW);
-    LOG_E("pull the power pin to %d \n", rt_pin_read(air720->power_pin));
+    rt_pin_write(air720->power_pin, PIN_HIGH);
     while (rt_pin_read(air720->power_status_pin) == PIN_HIGH)
     {
         rt_thread_mdelay(10);
     }
-    // rt_pin_write(air720->power_pin, PIN_LOW);
-    LOG_E("the status pin to %d \n", rt_pin_read(air720->power_status_pin));
+    rt_pin_write(air720->power_pin, PIN_LOW);
 }
 
 /* =============================  sim76xx network interface operations ============================= */
@@ -309,7 +291,7 @@ static void check_link_status_entry(void *parameter)
                 at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
                 if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
                 {
-                     LOG_D("air720 device(%s) signal strength: %s", device->name, parsed_data);
+                    LOG_D("air720 device(%s) signal strength: %s", device->name, parsed_data);
                 }
             }
         }
@@ -325,33 +307,30 @@ static void check_link_status_entry(void *parameter)
 
 static int air720_netdev_check_link_status(struct netdev *netdev)
 {
-    if (!net_link_status_init)
-    {
+
 #define air720_LINK_THREAD_TICK 20
 #define air720_LINK_THREAD_STACK_SIZE 1024
 #define air720_LINK_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX - 22)
 
-        rt_thread_t tid;
-        char tname[RT_NAME_MAX] = {0};
+    rt_thread_t tid;
+    char tname[RT_NAME_MAX] = {0};
 
-        if (netdev == RT_NULL)
-        {
-            LOG_E("input network interface device is NULL.\n");
-            return -RT_ERROR;
-        }
-
-        rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
-
-        tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
-                               air720_LINK_THREAD_STACK_SIZE, air720_LINK_THREAD_PRIORITY, air720_LINK_THREAD_TICK);
-        if (tid)
-        {
-            rt_thread_startup(tid);
-        }
-
-        net_link_status_init = RT_TRUE;
-        return RT_EOK;
+    if (netdev == RT_NULL)
+    {
+        LOG_E("input network interface device is NULL.\n");
+        return -RT_ERROR;
     }
+
+    rt_snprintf(tname, RT_NAME_MAX, "%s_link", netdev->name);
+
+    tid = rt_thread_create(tname, check_link_status_entry, (void *)netdev,
+                           air720_LINK_THREAD_STACK_SIZE, air720_LINK_THREAD_PRIORITY, air720_LINK_THREAD_TICK);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
 }
 
 static int air720_net_init(struct at_device *device);
@@ -685,7 +664,6 @@ static void air720_init_thread_entry(void *parameter)
         rt_memset(parsed_data, 0, sizeof(parsed_data));
         rt_thread_mdelay(1000);
         air720_power_on(device);
-        //  air720_power_off(device);
         rt_thread_mdelay(25000);
 
         LOG_I("start initializing the air720 device(%s)", device->name);
@@ -804,7 +782,6 @@ static void air720_init_thread_entry(void *parameter)
         if (rt_strcmp(parsed_data, "CHINA MOBILE") == 0)
         {
             /* "CMCC" */
-            carrier = 1;
             LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
             client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
@@ -812,14 +789,12 @@ static void air720_init_thread_entry(void *parameter)
         else if (rt_strcmp(parsed_data, "CHN-UNICOM") == 0)
         {
             /* "UNICOM" */
-            carrier = 2;
             LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
             client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_UNICOM);
         }
         else if (rt_strcmp(parsed_data, "CHINA TELECOM") == 0)
         {
-            carrier = 3;
             client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_TELECOM);
             /* "CT" */
@@ -869,7 +844,6 @@ static void air720_init_thread_entry(void *parameter)
     else
     {
         LOG_E("air720 device(%s) network initialize failed(%d)!", device->name, result);
-        init6();
     }
 }
 
