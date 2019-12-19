@@ -185,6 +185,12 @@ static int bc26_check_link_status(struct at_device *device)
 
     RT_ASSERT(device);
 
+    if ( ! bc26->power_status)//power off
+    {
+        LOG_D("the power is off.");
+        return(-RT_ERROR);
+    }
+
     bc26 = (struct at_device_bc26 *)device->user_data;
     if (bc26->sleep_status)//is sleep status
     {
@@ -732,6 +738,7 @@ static void bc26_init_thread_entry(void *parameter)
         /* check signal strength */
         for (i = 0; i < CSQ_RETRY; i++)
         {
+            rt_thread_mdelay(1000);
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
             {
                 int signal_strength = 0, err_rate = 0;
@@ -746,7 +753,6 @@ static void bc26_init_thread_entry(void *parameter)
                     }
                 }
             }
-            rt_thread_mdelay(1000);
         }
         if (i == CSQ_RETRY)
         {
@@ -758,6 +764,7 @@ static void bc26_init_thread_entry(void *parameter)
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
+            rt_thread_mdelay(1000);
             if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") == RT_EOK)
             {
                 int link_stat = 0;
@@ -771,7 +778,6 @@ static void bc26_init_thread_entry(void *parameter)
                     }
                 }
             }
-            rt_thread_mdelay(1000);
         }
         if (i == CGREG_RETRY)
         {
@@ -783,6 +789,7 @@ static void bc26_init_thread_entry(void *parameter)
         /* check the GPRS network IP address */
         for (i = 0; i < IPADDR_RETRY; i++)
         {
+            rt_thread_mdelay(1000);
             if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") == RT_EOK)
             {
                 #define IP_ADDR_SIZE_MAX    16
@@ -795,7 +802,6 @@ static void bc26_init_thread_entry(void *parameter)
                     break;
                 }
             }
-            rt_thread_mdelay(1000);
         }
         if (i == IPADDR_RETRY)
         {
