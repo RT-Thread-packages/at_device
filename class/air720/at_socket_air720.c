@@ -197,7 +197,6 @@ __retry:
     /* waiting result event from AT URC, the device default connection timeout is 75 seconds, but it set to 10 seconds is convenient to use */
     if (air720_socket_event_recv(device, SET_EVENT(device_socket, 0), 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
-        //这边会有问题bug  在这边考虑直接如果这样就直接重启模块，还是重复几次重启模块
         LOG_E("air720 device(%s) socket(%d) connect failed, wait connect result timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
         goto __exit;
@@ -635,7 +634,7 @@ static const struct at_socket_ops air720_socket_ops =
         air720_socket_connect,
         air720_socket_close,
         air720_socket_send,
-        air720_domain_resolve, //域名解析
+        air720_domain_resolve, 
         air720_socket_set_event_cb,
 };
 

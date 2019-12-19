@@ -247,8 +247,8 @@ static void check_link_status_entry(void *parameter)
 
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
-    // rt_uint8_t buf[2] = {0};
-    //LOG_E("statrt air720 device(%s) link status check \n");
+    
+    LOG_D("statrt air720 device(%s) link status check \n");
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -284,7 +284,7 @@ static void check_link_status_entry(void *parameter)
             netdev_low_level_set_link_status(netdev, (air720_LINK_STATUS_OK == link_status));
         }
 
-        if (rt_pin_read(air720->power_status_pin) == PIN_HIGH) //判断lte是否掉线，如果掉线需要重启
+        if (rt_pin_read(air720->power_status_pin) == PIN_HIGH) //check the module_status , if moduble_status is Low, user can do your logic here
         {
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == 0)
             {
@@ -297,7 +297,7 @@ static void check_link_status_entry(void *parameter)
         }
         else
         {
-            //LTE 掉线
+            //LTE down
             LOG_E("the lte pin is low");
         }
 
@@ -664,7 +664,7 @@ static void air720_init_thread_entry(void *parameter)
         rt_memset(parsed_data, 0, sizeof(parsed_data));
         rt_thread_mdelay(1000);
         air720_power_on(device);
-        rt_thread_mdelay(25000);
+        rt_thread_mdelay(25000); //check the air720 hardware manual, when we use the pow_key to start air720, it takes about 20s,so we put 25s here to ensure starting air720 normally.
 
         LOG_I("start initializing the air720 device(%s)", device->name);
         /* wait air720 startup finish */
@@ -783,19 +783,16 @@ static void air720_init_thread_entry(void *parameter)
         {
             /* "CMCC" */
             LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
-            client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
         }
         else if (rt_strcmp(parsed_data, "CHN-UNICOM") == 0)
         {
             /* "UNICOM" */
             LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
-            client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_UNICOM);
         }
         else if (rt_strcmp(parsed_data, "CHINA TELECOM") == 0)
         {
-            client = device->client; //我也很疑惑
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_TELECOM);
             /* "CT" */
             LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
@@ -836,9 +833,8 @@ static void air720_init_thread_entry(void *parameter)
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
-        air720_netdev_set_info(device->netdev); //这边有问题
+        air720_netdev_set_info(device->netdev); 
         air720_netdev_check_link_status(device->netdev);
-        //  flag_at_conn_success = DEF_bON;
         LOG_I("air720 device(%s) network initialize success!", device->name);
     }
     else
@@ -851,7 +847,6 @@ static int air720_net_init(struct at_device *device)
 {
 #ifdef AT_DEVICE_AIR720_INIT_ASYN
     rt_thread_t tid;
-
     tid = rt_thread_create("air720_net_init", air720_init_thread_entry, (void *)device,
                            AIR720_THREAD_STACK_SIZE, AIR720_THREAD_PRIORITY, 20);
     if (tid)

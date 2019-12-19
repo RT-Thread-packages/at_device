@@ -34,7 +34,7 @@ extern "C" {
 #include <at_device.h>
 
 /* The maximum number of sockets supported by the air720 device */
-#define AT_DEVICE_AIR720_SOCKETS_NUM      5  //不清楚这个怎么查
+#define AT_DEVICE_AIR720_SOCKETS_NUM      6  
 
 struct at_device_air720
 {     
