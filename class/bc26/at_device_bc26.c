@@ -43,6 +43,7 @@ static int bc26_power_on(struct at_device *device)
     RT_ASSERT(device);
 
     bc26 = (struct at_device_bc26 *)device->user_data;
+    bc26->power_status = RT_TRUE;
 
     /* not nead to set pin configuration for bc26 device power on */
     if (bc26->power_pin == -1)
@@ -51,9 +52,7 @@ static int bc26_power_on(struct at_device *device)
     }
     
     rt_pin_write(bc26->power_pin, PIN_HIGH);
-
     rt_thread_mdelay(500);
-    
     rt_pin_write(bc26->power_pin, PIN_LOW);
 
     return(RT_EOK);
@@ -62,9 +61,10 @@ static int bc26_power_on(struct at_device *device)
 static int bc26_power_off(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
-
-    RT_ASSERT(device);
+    struct at_device_bc26 *bc26 = RT_NULL;
     
+    RT_ASSERT(device);
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -80,8 +80,11 @@ static int bc26_power_off(struct at_device *device)
     }
     
     at_delete_resp(resp);
+    
+    bc26 = (struct at_device_bc26 *)device->user_data;
+    bc26->power_status = RT_FALSE;
+    
     return(RT_EOK);
-
 }
 
 static int bc26_sleep(struct at_device *device)
@@ -92,7 +95,11 @@ static int bc26_sleep(struct at_device *device)
     RT_ASSERT(device);
     
     bc26 = (struct at_device_bc26 *)device->user_data;
-    if (bc26->sleep_status)//is sleep status
+    if ( ! bc26->power_status)//power off
+    {
+        return(RT_EOK);
+    }
+    if (bc26->sleep_status)//is sleep status 
     {
         return(RT_EOK);
     }
@@ -132,6 +139,11 @@ static int bc26_wakeup(struct at_device *device)
     RT_ASSERT(device);
 
     bc26 = (struct at_device_bc26 *)device->user_data;
+    if ( ! bc26->power_status)//power off
+    {
+        LOG_E("the power is off and the wake-up cannot be performed");
+        return(-RT_ERROR);
+    }
     if ( ! bc26->sleep_status)//no sleep status
     {
         return(RT_EOK);
@@ -858,6 +870,7 @@ static int bc26_init(struct at_device *device)
 {
     struct at_device_bc26 *bc26 = (struct at_device_bc26 *) device->user_data;
 
+    bc26->power_status = RT_FALSE;//default power is off.
     bc26->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
