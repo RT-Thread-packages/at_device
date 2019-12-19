@@ -103,6 +103,7 @@ if GetDepend(['AT_DEVICE_USING_BC26']):
     if GetDepend(['AT_DEVICE_BC26_SAMPLE']):
         src += Glob('samples/at_sample_bc26.c')
         
+
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
