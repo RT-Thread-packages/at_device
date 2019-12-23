@@ -446,8 +446,7 @@ static int bc26_domain_resolve(const char *name, char ip[16])
     int i, result;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-    struct at_device_bc26 *bc26 = (struct at_device_bc26 *) device->user_data;
-    char *recv_ip = (char *) bc26->socket_data;
+    struct at_device_bc26 *bc26 = RT_NULL;
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
@@ -489,10 +488,7 @@ static int bc26_domain_resolve(const char *name, char ip[16])
         }
         else
         {
-            //struct at_device_bc26 *bc26 = (struct at_device_bc26 *) device->user_data;
-            //char *recv_ip = (char *) bc26->socket_data;
-
-            if (rt_strlen(recv_ip) < 8)
+            if (rt_strlen(ip) < 8)
             {
                 rt_thread_mdelay(100);
                 /* resolve failed, maybe receive an URC CRLF */
@@ -501,8 +497,6 @@ static int bc26_domain_resolve(const char *name, char ip[16])
             }
             else
             {
-                //rt_strncpy(ip, recv_ip, 15);
-                //ip[15] = '\0';
                 result = RT_EOK;
                 break;
             }
@@ -510,6 +504,7 @@ static int bc26_domain_resolve(const char *name, char ip[16])
     }
 
  __exit:
+    bc26->socket_data = RT_NULL;
     if (resp)
     {
         at_delete_resp(resp);
@@ -576,6 +571,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         LOG_E("get device(%s) failed.", client_name);
         return;
     }
+    
     bc26 = (struct at_device_bc26 *) device->user_data;
     device_socket = (int) bc26->user_data;
 
