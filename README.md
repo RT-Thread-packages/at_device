@@ -2,7 +2,8 @@
 
 ## 1. 简介 ##
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、ESP32、M26、MC20、RW007、MW31、SIM800C、W60X 、SIM76XX、A9/A9G、BC26 系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
+
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、ESP32、M26、MC20、RW007、MW31、SIM800C、W60X 、SIM76XX、A9/A9G、BC26 、AIR720系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
 
 ### 1.1. 目录结构 ###
 
@@ -23,6 +24,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/w60x | W60X 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/a9g | A9G 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/bc26 | bc26 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
+| class/air720 | air720 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 ### 1.2 许可证 ###
 
 at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
@@ -66,7 +68,7 @@ AT device 软件包目前已经发布多个版本，各个版本之间选项配�
                   Version (V1.6.0)  --->
 
 - **Enable at device init by thread**: 配置开启设备网络初始化是否通过创建线程完成；
-- **AT socket device modules**: AT 设备选择，目前支持 RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX、A9/A9G、BC26 等设备；
+- **AT socket device modules**: AT 设备选择，目前支持 RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX、A9/A9G、BC26 、air720等设备；
 - **Version**: 下载软件包版本；
 
 **V2.X.X (laster) 版本配置选项介绍**
@@ -125,6 +127,7 @@ RT-Thread online packages  --->
 - **WinnerMicro W60X**：开启 W60X （WIFI 模块）设备支持；
 - **AiThink A9/A9G**：开启 A9/A9G （2G 模块）设备支持；
 - **Quectel BC26**：开启 BC26（NB-IOT 模块）设备支持；
+- **Luat Air720**：开启 air720（4g 模块）设备支持；
 - **Version** 下载软件包版本；
 
 上面配置选项以 2G 模块和 WIFI 模块选项为例，介绍了`V2.X.X` 版本 AT device 软件包配置方式，如下几点值得注意：
