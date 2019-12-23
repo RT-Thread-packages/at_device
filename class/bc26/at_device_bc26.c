@@ -40,8 +40,6 @@ static int bc26_power_on(struct at_device *device)
 {
     struct at_device_bc26 *bc26 = RT_NULL;
     
-    RT_ASSERT(device);
-
     bc26 = (struct at_device_bc26 *)device->user_data;
     bc26->power_status = RT_TRUE;
 
@@ -63,8 +61,6 @@ static int bc26_power_off(struct at_device *device)
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
     
-    RT_ASSERT(device);
-
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -91,8 +87,6 @@ static int bc26_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
-
-    RT_ASSERT(device);
     
     bc26 = (struct at_device_bc26 *)device->user_data;
     if ( ! bc26->power_status)//power off
@@ -135,9 +129,7 @@ static int bc26_wakeup(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
-
-    RT_ASSERT(device);
-
+    
     bc26 = (struct at_device_bc26 *)device->user_data;
     if ( ! bc26->power_status)//power off
     {
@@ -182,16 +174,13 @@ static int bc26_check_link_status(struct at_device *device)
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
     int result = -RT_ERROR;
-
-    RT_ASSERT(device);
-
+    
+    bc26 = (struct at_device_bc26 *)device->user_data;
     if ( ! bc26->power_status)//power off
     {
         LOG_D("the power is off.");
         return(-RT_ERROR);
     }
-
-    bc26 = (struct at_device_bc26 *)device->user_data;
     if (bc26->sleep_status)//is sleep status
     {
         if (bc26->power_pin != -1)
@@ -874,8 +863,11 @@ static int bc26_net_init(struct at_device *device)
 
 static int bc26_init(struct at_device *device)
 {
-    struct at_device_bc26 *bc26 = (struct at_device_bc26 *) device->user_data;
-
+    struct at_device_bc26 *bc26 = RT_NULL;
+    
+    RT_ASSERT(device);
+    
+    bc26 = (struct at_device_bc26 *) device->user_data;
     bc26->power_status = RT_FALSE;//default power is off.
     bc26->sleep_status = RT_FALSE;//default sleep is disabled.
 
@@ -915,6 +907,8 @@ static int bc26_init(struct at_device *device)
 
 static int bc26_deinit(struct at_device *device)
 {
+    RT_ASSERT(device);
+    
     return bc26_netdev_set_down(device->netdev);
 }
 
