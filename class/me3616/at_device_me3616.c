@@ -32,7 +32,9 @@
 
 #ifdef AT_DEVICE_USING_ME3616
 
+#ifndef ME3616_DEEP_SLEEP_EN
 #define ME3616_DEEP_SLEEP_EN              0//module support deep sleep mode
+#endif
 
 #define ME3616_WAIT_CONNECT_TIME          5000
 #define ME3616_THREAD_STACK_SIZE          2048
