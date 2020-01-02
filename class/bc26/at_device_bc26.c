@@ -104,10 +104,21 @@ static int bc26_sleep(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
+    /* enable sleep mode */
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)
+        
     {
-        LOG_D("enable sleep fail.");
+        LOG_D("enable sleep fail.\"AT+QSCLK=1\" execute fail.");
+        at_delete_resp(resp);
+        return(-RT_ERROR);
+    }
+    
+    /* enable PSM mode */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=1,,,\"01000011\",\"00000001\"") != RT_EOK)
+        
+    {
+        LOG_D("enable sleep fail.\"AT+CPSMS=1...\" execute fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
@@ -156,9 +167,18 @@ static int bc26_wakeup(struct at_device *device)
         rt_thread_mdelay(200);
     }
     
+    /* disable sleep mode */
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
     {
-        LOG_D("wake up fail.");
+        LOG_D("wake up fail. \"AT+QSCLK=0\" execute fail.");
+        at_delete_resp(resp);
+        return(-RT_ERROR);
+    }
+    
+    /* disable PSM mode  */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
+    {
+        LOG_D("wake up fail.\"AT+CPSMS=0\" execute fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
@@ -680,8 +700,22 @@ static void bc26_init_thread_entry(void *parameter)
             goto __exit;
         }
         
-        /* disable low power mode  */
+        /* disable sleep mode  */
         if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* disable eDRX mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CEDRXS=0") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* disable PSM mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
@@ -920,18 +954,14 @@ static int bc26_control(struct at_device *device, int cmd, void *arg)
 
     switch (cmd)
     {
-    case AT_DEVICE_CTRL_POWER_ON:
-        result = bc26_power_on(device);
-        break;
-    case AT_DEVICE_CTRL_POWER_OFF:
-        result = bc26_power_off(device);
-        break;
     case AT_DEVICE_CTRL_SLEEP:
         result = bc26_sleep(device);
         break;
     case AT_DEVICE_CTRL_WAKEUP:
         result = bc26_wakeup(device);
         break;
+    case AT_DEVICE_CTRL_POWER_ON:
+    case AT_DEVICE_CTRL_POWER_OFF:
     case AT_DEVICE_CTRL_RESET:
     case AT_DEVICE_CTRL_LOW_POWER:
     case AT_DEVICE_CTRL_NET_CONN:

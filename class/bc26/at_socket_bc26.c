@@ -154,7 +154,7 @@ static int bc26_socket_close(struct at_socket *socket)
 static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     enum at_socket_type type, rt_bool_t is_client)
 {
-    #define CONN_RETRY  3
+    #define CONN_RETRY  2
 
     int i = 0;
     const char *type_str = RT_NULL;
@@ -241,6 +241,7 @@ static int bc26_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     if (i == CONN_RETRY)
     {
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
+        result = -RT_ERROR;
     }
     
     if (resp)
@@ -300,7 +301,7 @@ static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
         {
             return RT_EOK;
         }
-        rt_thread_mdelay(50);
+        rt_thread_mdelay(100);
     }
 
     return -RT_ETIMEOUT;
@@ -407,8 +408,7 @@ static int bc26_socket_send(struct at_socket *socket, const char *buff, size_t b
 
         if (type == AT_SOCKET_TCP)
         {
-            at_wait_send_finish(socket, cur_pkt_size);
-            //rt_thread_mdelay(10);
+            at_wait_send_finish(socket, 2*cur_pkt_size);
         }
 
         sent_size += cur_pkt_size;
