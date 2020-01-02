@@ -115,9 +115,9 @@ if GetDepend(['AT_DEVICE_USING_AIR720']):
 # ME3616
 if GetDepend(['AT_DEVICE_USING_ME3616']):
     path += [cwd + '/class/me3616']
-    src += Glob('class/bc26/at_device_me3616.c')
+    src += Glob('class/me3616/at_device_me3616.c')
     if GetDepend(['AT_USING_SOCKET']):
-        src += Glob('class/bc26/at_socket_me3616.c')
+        src += Glob('class/me3616/at_socket_me3616.c')
     if GetDepend(['AT_DEVICE_ME3616_SAMPLE']):
         src += Glob('samples/at_sample_me3616.c')
         
