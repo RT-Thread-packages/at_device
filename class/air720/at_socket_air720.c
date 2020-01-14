@@ -88,22 +88,14 @@ static int air720_socket_close(struct at_socket *socket)
 {
     uint32_t event = 0;
     int result = RT_EOK;
-    at_response_t resp = RT_NULL;
     int device_socket = (int)socket->user_data;
     struct at_device *device = (struct at_device *)socket->device;
-
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
-    if (resp == RT_NULL)
-    {
-        LOG_E("no memory for air720 device(%s) response structure.", device->name);
-        return -RT_ENOMEM;
-    }
 
     /* clear socket close event */
     event = SET_EVENT(device_socket, AIR720_EVNET_CLOSE_OK);
     air720_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket) < 0)
+    if (at_obj_exec_cmd(device->client, NULL, "AT+CIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -117,11 +109,6 @@ static int air720_socket_close(struct at_socket *socket)
     }
 
 __exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
     return result;
 }
 
