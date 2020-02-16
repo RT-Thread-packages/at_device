@@ -120,7 +120,16 @@ if GetDepend(['AT_DEVICE_USING_ME3616']):
         src += Glob('class/me3616/at_socket_me3616.c')
     if GetDepend(['AT_DEVICE_ME3616_SAMPLE']):
         src += Glob('samples/at_sample_me3616.c')
-        
+
+# BC28
+if GetDepend(['AT_DEVICE_USING_BC28']):
+    path += [cwd + '/class/bc28']
+    src += Glob('class/bc28/at_device_bc28.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/bc28/at_socket_bc28.c')
+    if GetDepend(['AT_DEVICE_BC28_SAMPLE']):
+        src += Glob('samples/at_sample_bc28.c')
+
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
