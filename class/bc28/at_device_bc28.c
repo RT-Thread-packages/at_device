@@ -36,30 +36,60 @@
 #define BC28_THREAD_STACK_SIZE          2048
 #define BC28_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
 
-static void bc28_power_on(struct at_device *device)
+static int bc28_power_on(struct at_device *device)
 {
-    struct at_device_bc28 *bc28 = RT_NULL;
-    
-    bc28 = (struct at_device_bc28 *)device->user_data;
-    bc28->power_status = RT_TRUE;
+    return(RT_EOK);
+}
 
-    /* not need to set pin configuration for bc28 device power on */
-    if (bc28->power_pin == -1)
-    {
-        return(RT_EOK);
-    }
-    
+static int bc28_power_off(struct at_device *device)
+{
+    return(RT_EOK);
+}
+
+static int bc28_sleep(struct at_device *device)
+{
+    return(RT_EOK);
+}
+
+static int bc28_wakeup(struct at_device *device)
+{
+    return(RT_EOK);
+}
+
+static int bc28_reset(struct at_device *device)
+{
+    struct at_device_bc28 *bc28 = (struct at_device_bc28 *)device->user_data;
+
+    rt_pin_mode(bc28->power_pin, PIN_MODE_OUTPUT);
     rt_pin_write(bc28->power_pin, PIN_HIGH);
-    rt_thread_mdelay(500);
+    rt_thread_mdelay(300);
     rt_pin_write(bc28->power_pin, PIN_LOW);
 
     return(RT_EOK);
 }
 
-static void bc28_power_off(struct at_device *device)
+static int bc28_check_link_status(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc28 *bc28 = RT_NULL;
+    int result = -RT_ERROR;
+    
+    bc28 = (struct at_device_bc28 *)device->user_data;
+    if ( ! bc28->power_status) // power off
+    {
+        LOG_D("the power is off.");
+        return(-RT_ERROR);
+    }
+    if (bc28->sleep_status)    // is sleep status
+    {
+        if (bc28->power_pin != -1)
+        {
+            rt_pin_write(bc28->power_pin, PIN_HIGH);
+            rt_thread_mdelay(100);
+            rt_pin_write(bc28->power_pin, PIN_LOW);
+            rt_thread_mdelay(200);
+        }
+    }
     
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
@@ -67,61 +97,735 @@ static void bc28_power_off(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
-    if (at_obj_exec_cmd(device->client, resp, "AT+QPOWD=0") != RT_EOK)
+
+    result = -RT_ERROR;
+    if (at_obj_exec_cmd(device->client, resp, "AT+CGATT?") == RT_EOK)
     {
-        LOG_D("power off fail.");
-        at_delete_resp(resp);
-        return(-RT_ERROR);
+        int link_stat = 0;
+        if (at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT:%d", &link_stat) > 0)
+        {
+            if (link_stat == 1)
+            {
+                result = RT_EOK;
+            }
+        }
     }
-    
+#if 0
+    if (bc28->sleep_status)  // is sleep status
+    {
+        if (at_obj_exec_cmd(device->client, resp, "AT+QRELLOCK") != RT_EOK)
+        {
+            LOG_D("startup entry into sleep fail.");
+        }
+    }
+#endif
     at_delete_resp(resp);
     
-    bc28 = (struct at_device_bc28 *)device->user_data;
-    bc28->power_status = RT_FALSE;
-    
-    return(RT_EOK);
+    return(result);
 }
 
-at_device_bc28 functions
+/* =============================  bc28 network interface operations ============================= */
+/* set bc28 network interface device status and address information */
+static int bc28_netdev_set_info(struct netdev *netdev)
+{
+#define BC28_INFO_RESP_SIZE        128
+#define BC28_INFO_RESP_TIMOUT      rt_tick_from_millisecond(300)
 
+    int result = RT_EOK;
+    ip_addr_t addr;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
 
-static int bc28_power_on();
-static int bc28_power_off();
-static int bc28_sleep();
-static int bc28_wakeup();
+    RT_ASSERT(netdev);
 
-static int bc28_check_link_status();
-static int bc28_netdev_set_info();
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
 
-static void bc28_check_link_status_entry();
-static int bc28_netdev_check_link_status();
+    /* set network interface device status */
+    netdev_low_level_set_status(netdev, RT_TRUE);
+    netdev_low_level_set_link_status(netdev, RT_TRUE);
+    netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
 
-static int bc28_netdev_set_up();
-static int bc28_netdev_set_down();
-static int bc28_netdev_set_dns_server();
-static int bc28_netdev_ping();
+    resp = at_create_resp(BC28_INFO_RESP_SIZE, 0, BC28_INFO_RESP_TIMOUT);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* set network interface device hardware address(IMEI) */
+    {
+        #define BC28_NETDEV_HWADDR_LEN   8
+        #define BC28_IMEI_LEN            15
+
+        char imei[BC28_IMEI_LEN] = {0};
+        int i = 0, j = 0;
+
+        /* send "AT+CGSN=1" commond to get device IMEI */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGSN=1") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        if (at_resp_parse_line_args(resp, 2, "+CGSN:%s", imei) <= 0)
+        {
+            LOG_E("%s device prase \"AT+CGSN=1\" cmd error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        LOG_D("%s device IMEI number: %s", device->name, imei);
+
+        netdev->hwaddr_len = BC28_NETDEV_HWADDR_LEN;
+        /* get hardware address by IMEI */
+        for (i = 0, j = 0; i < BC28_NETDEV_HWADDR_LEN && j < BC28_IMEI_LEN; i++, j+=2)
+        {
+            if (j != BC28_IMEI_LEN - 1)
+            {
+                netdev->hwaddr[i] = (imei[j] - '0') * 10 + (imei[j + 1] - '0');
+            }
+            else
+            {
+                netdev->hwaddr[i] = (imei[j] - '0');
+            }
+        }
+    }
+
+    /* set network interface device IP address */
+    {
+        #define IP_ADDR_SIZE_MAX    16
+        char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+        
+        /* send "AT+CGPADDR" commond to get IP address */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse response data "+CGPADDR: 0,<IP_address>" */
+        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR:%*d,%s", ipaddr) <= 0)
+        {
+            LOG_E("%s device \"AT+CGPADDR\" cmd error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("%s device IP address: %s", device->name, ipaddr);
+
+        /* set network interface address information */
+        inet_aton(ipaddr, &addr);
+        netdev_low_level_set_ipaddr(netdev, &addr);
+    }
+
+    /* set network interface device dns server */
+    {
+        #define DNS_ADDR_SIZE_MAX   16
+        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+        
+        /* send "AT+QIDNSCFG?" commond to get DNS servers address */
+        if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG?") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* parse response data "PrimaryDns:<pri_dns>" 
+         *                     "SecondaryDns:<sec_dns>" 
+        */
+        if (at_resp_parse_line_args_by_kw(resp, "PrimaryDns:", "PrimaryDns:\"%[^\"]\"", dns_server1) <= 0)
+        {
+            LOG_E("%s device prase \"AT+QIDNSCFG?\" cmd error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        if (at_resp_parse_line_args_by_kw(resp, "SecondaryDns:", "SecondaryDns:\"%[^\"]\"", dns_server2) <= 0)
+        {
+            LOG_E("%s device prase \"AT+QIDNSCFG?\" cmd error.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
+
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
+
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+static void bc28_check_link_status_entry(void *parameter)
+{
+#define BC28_LINK_DELAY_TIME    (60 * RT_TICK_PER_SECOND)
+
+    rt_bool_t is_link_up;
+    struct at_device *device = RT_NULL;
+    struct netdev *netdev = (struct netdev *) parameter;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return;
+    }
+    
+    while (1)
+    {
+        is_link_up = (bc28_check_link_status(device) == RT_EOK);
+
+        netdev_low_level_set_link_status(netdev, is_link_up);
+
+        rt_thread_delay(BC28_LINK_DELAY_TIME);
+    }
+}
+
+static int bc28_netdev_check_link_status(struct netdev *netdev)
+{
+#define BC28_LINK_THREAD_STACK_SIZE     (1024 + 512)
+#define BC28_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+
+    rt_thread_t tid;
+    char tname[RT_NAME_MAX] = {0};
+
+    RT_ASSERT(netdev);
+
+    rt_snprintf(tname, RT_NAME_MAX, "%s", netdev->name);
+
+    /* create bc28 link status polling thread  */
+    tid = rt_thread_create(tname, bc28_check_link_status_entry, (void *)netdev,
+                           BC28_LINK_THREAD_STACK_SIZE, BC28_LINK_THREAD_PRIORITY, 20);
+    if (tid != RT_NULL)
+    {
+        rt_thread_startup(tid);
+    }
+
+    return RT_EOK;
+}
+
+static int bc28_net_init(struct at_device *device);
+
+static int bc28_netdev_set_up(struct netdev *netdev)
+{
+    struct at_device *device = RT_NULL;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    if (device->is_init == RT_FALSE)
+    {
+        bc28_net_init(device);
+        device->is_init = RT_TRUE;
+
+        netdev_low_level_set_status(netdev, RT_TRUE);
+        LOG_D("network interface device(%s) set up status.", netdev->name);
+    }
+
+    return RT_EOK;
+}
+
+static int bc28_netdev_set_down(struct netdev *netdev)
+{
+    struct at_device *device = RT_NULL;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    if (device->is_init == RT_TRUE)
+    {
+        bc28_power_off(device);
+        device->is_init = RT_FALSE;
+
+        netdev_low_level_set_status(netdev, RT_FALSE);
+        LOG_D("network interface device(%s) set down status.", netdev->name);
+    }
+
+    return RT_EOK;
+}
+
+static int bc28_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
+{
+#define BC28_DNS_RESP_LEN      64
+#define BC28_DNS_RESP_TIMEOUT  rt_tick_from_millisecond(300)
+
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(BC28_DNS_RESP_LEN, 0, BC28_DNS_RESP_TIMEOUT);
+    if (resp == RT_NULL)
+    {
+        LOG_D("no memory for resp create.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+
+    /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
+        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+#ifdef NETDEV_USING_PING
+static int bc28_netdev_ping(struct netdev *netdev, const char *host,
+        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+{
+#define BC28_PING_RESP_SIZE       128
+#define BC28_PING_IP_SIZE         16
+#define BC28_PING_TIMEOUT           (5 * RT_TICK_PER_SECOND)
+
+    rt_err_t result = RT_EOK;
+    int response = -1, recv_data_len, ping_time, ttl;
+    char ip_addr[BC28_PING_IP_SIZE] = {0};
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+
+    RT_ASSERT(netdev);
+    RT_ASSERT(host);
+    RT_ASSERT(ping_resp);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(BC28_PING_RESP_SIZE, 4, BC28_PING_TIMEOUT);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create");
+        return -RT_ENOMEM;
+    }
+
+    /* send "AT+NPING=<remote_address>[,<p_size>[,<timeout>]]" commond to send ping request */
+    if (at_obj_exec_cmd(device->client, resp, "AT+NPING=\"%s\",12,%d", host, timeout / RT_TICK_PER_SECOND) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+#if 0
+    at_resp_parse_line_args_by_kw(resp, "+NPING:", "+NPING:%d", &response);
+    /* Received the ping response from the server */
+    if (response == 0)
+    {
+        if (at_resp_parse_line_args_by_kw(resp, "+NPING:", "+NPING:\"%[^\"]\",%d,%d,%d",
+                                          ip_addr, &ttl, &ping_time) <= 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+    }
+
+    /* prase response number */
+    switch (response)
+    {
+    case 0:
+        inet_aton(ip_addr, &(ping_resp->ip_addr));
+        ping_resp->data_len = recv_data_len;
+        ping_resp->ticks = ping_time;
+        ping_resp->ttl = ttl;
+        result = RT_EOK;
+        break;
+    case 569:
+        result = -RT_ETIMEOUT;
+        break;
+    default:
+        result = -RT_ERROR;
+        break;
+    }
+#endif
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+#endif /* NETDEV_USING_PING */
 
 const struct netdev_ops bc28_netdev_ops =
 {
     bc28_netdev_set_up,
     bc28_netdev_set_down,
+
     RT_NULL,
     bc28_netdev_set_dns_server,
     RT_NULL,
+
 #ifdef NETDEV_USING_PING
     bc28_netdev_ping,
 #endif
     RT_NULL,
 };
 
+static struct netdev *bc28_netdev_add(const char *netdev_name)
+{
+#define ETHERNET_MTU        1500
+#define HWADDR_LEN          8
+    struct netdev *netdev = RT_NULL;
 
-static struct netdev *bc28_netdev_add();
+    netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
+    if (netdev == RT_NULL)
+    {
+        LOG_E("no memory for netdev create.");
+        return RT_NULL;
+    }
 
-static void bc28_init_thread_entry();
+    netdev->mtu = ETHERNET_MTU;
+    netdev->ops = &bc28_netdev_ops;
+    netdev->hwaddr_len = HWADDR_LEN;
 
-static int bc28_net_init();
+#ifdef SAL_USING_AT
+    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    /* set the network interface socket/netdb operations */
+    sal_at_netdev_set_pf_info(netdev);
+#endif
 
+    netdev_register(netdev, netdev_name, RT_NULL);
+
+    return netdev;
+}
+
+/* =============================  bc26 device operations ============================= */
+
+/* initialize for bc28 */
+static void bc28_init_thread_entry(void *parameter)
+{
+#define INIT_RETRY                     5
+#define CPIN_RETRY                     5
+#define CSQ_RETRY                      20
+#define CGREG_RETRY                    50
+#define IPADDR_RETRY                   10
+
+    int i;
+    int retry_num = INIT_RETRY;
+    rt_err_t result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = (struct at_device *) parameter;
+    struct at_client *client = device->client;
+
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return;
+    }
+
+    LOG_D("start init %s device.", device->name);
+
+    while (retry_num--)
+    {
+        /* reset the bc28 device */
+        bc28_reset(device);
+        rt_thread_mdelay(1000);
+
+        /* wait bc28 startup finish, send AT every 500ms, if receive OK, SYNC success*/
+        if (at_client_obj_wait_connect(client, BC28_WAIT_CONNECT_TIME))
+        {
+            result = -RT_ETIMEOUT;
+            goto __exit;
+        }
+        
+        /* disable echo */
+        if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* disable auto register */
+        if (at_obj_exec_cmd(device->client, resp, "AT+QREGSWT=2") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* disable auto connect */
+        if (at_obj_exec_cmd(device->client, resp, "AT+NCONFIG=AUTOCONNECT,FALSE") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* check IMEI */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGSN=1") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* search band 8 */
+        if (at_obj_exec_cmd(device->client, resp, "AT+NBAND=8") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* set max function */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CFUN=1") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* auto report recv from tcp */
+        if (at_obj_exec_cmd(device->client, resp, "AT+NSONMI=2") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* disable eDRX mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CEDRXS=0,5") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* disable PSM mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* check IMSI */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CIMI") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* attach */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGATT=1") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* Get the baudrate */
+        if (at_obj_exec_cmd(device->client, resp, "AT+NATSPEED?") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        at_resp_parse_line_args_by_kw(resp, "+NATSPEED:", "+NATSPEED:%d", &i);
+        LOG_D("%s device baudrate %d", device->name, i);
+        
+        /* get module version */
+        if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        for (i = 0; i < (int) resp->line_counts - 1; i++)
+        {
+            LOG_D("%s", at_resp_get_line(resp, i + 1));
+        }
+        
+        /* check SIM card */
+        for (i = 0; i < CPIN_RETRY; i++)
+        {
+            rt_thread_mdelay(1000);
+            if (at_obj_exec_cmd(device->client, resp, "AT+CPIN?") == RT_EOK)
+            {
+                if (at_resp_get_line_by_kw(resp, "READY") != RT_NULL)
+                    break;
+            }
+        }
+        if (i == CPIN_RETRY)
+        {
+            LOG_E("%s device SIM card detection failed.", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* check signal strength */
+        for (i = 0; i < CSQ_RETRY; i++)
+        {
+            rt_thread_mdelay(1000);
+            if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
+            {
+                int signal_strength = 0, err_rate = 0;
+                
+                if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ:%d,%d", &signal_strength, &err_rate) > 0)
+                {
+                    if ((signal_strength != 99) && (signal_strength != 0))
+                    {
+                        LOG_D("%s device signal strength: %d, channel bit error rate: %d",
+                                device->name, signal_strength, err_rate);
+                        break;
+                    }
+                }
+            }
+        }
+        if (i == CSQ_RETRY)
+        {
+            LOG_E("%s device signal strength check failed", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+                
+        /* check the GPRS network is registered */
+        for (i = 0; i < CGREG_RETRY; i++)
+        {
+            rt_thread_mdelay(1000);
+            if (at_obj_exec_cmd(device->client, resp, "AT+CGATT?") == RT_EOK)
+            {
+                int link_stat = 0;
+                
+                if (at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT:%d", &link_stat) > 0)
+                {
+                    if (link_stat == 1)
+                    {
+                        LOG_D("%s device GPRS is registered", device->name);
+                        break;
+                    }
+                }
+            }
+        }
+        if (i == CGREG_RETRY)
+        {
+            LOG_E("%s device GPRS is register failed", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* check the GPRS network IP address */
+        for (i = 0; i < IPADDR_RETRY; i++)
+        {
+            rt_thread_mdelay(1000);
+            if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR") == RT_EOK)
+            {
+                #define IP_ADDR_SIZE_MAX    16
+                char ipaddr[IP_ADDR_SIZE_MAX] = {0};
+                
+                /* parse response data "+CGPADDR: 0,<IP_address>" */
+                if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR:%*d,%s", ipaddr) > 0)
+                {
+                    LOG_D("%s device IP address: %s", device->name, ipaddr);
+                    break;
+                }
+            }
+        }
+        if (i == IPADDR_RETRY)
+        {
+            LOG_E("%s device GPRS is get IP address failed", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* initialize successfully  */
+        result = RT_EOK;
+        break;
+
+    __exit:
+        if (result != RT_EOK)
+        {
+            /* power off the bc28 device */
+            bc28_power_off(device);
+            rt_thread_mdelay(1000);
+
+            LOG_I("%s device initialize retry...", device->name);
+        }
+    }
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    if (result == RT_EOK)
+    {
+        /* set network interface device status and address information */
+        bc28_netdev_set_info(device->netdev);
+        /* check and create link staus sync thread  */
+        if (rt_thread_find(device->netdev->name) == RT_NULL)
+        {
+            bc28_netdev_check_link_status(device->netdev);
+        }
+
+        LOG_I("%s device network initialize success.", device->name);
+    }
+    else
+    {
+        LOG_E("%s device network initialize failed(%d).", device->name, result);
+    }
+}
+
+/* bc28 device network initialize */
+static int bc28_net_init(struct at_device *device)
+{
+#ifdef AT_DEVICE_BC28_INIT_ASYN
+    rt_thread_t tid;
+
+    tid = rt_thread_create("bc28_net", bc28_init_thread_entry, (void *)device,
+                           BC28_THREAD_STACK_SIZE, BC28_THREAD_PRIORITY, 20);
+    if (tid)
+    {
+        rt_thread_startup(tid);
+    }
+    else
+    {
+        LOG_E("create %s device init thread failed.", device->name);
+        return -RT_ERROR;
+    }
+#else
+    bc28_init_thread_entry(device);
+#endif /* AT_DEVICE_BC28_INIT_ASYN */
+
+    return RT_EOK;
+}
 
 static int bc28_init(struct at_device *device)
 {
@@ -167,6 +871,8 @@ static int bc28_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_POWER_ON:
     case AT_DEVICE_CTRL_POWER_OFF:
     case AT_DEVICE_CTRL_RESET:
+        result = bc28_reset(device);
+        break;
     case AT_DEVICE_CTRL_LOW_POWER:
     case AT_DEVICE_CTRL_NET_CONN:
     case AT_DEVICE_CTRL_NET_DISCONN:
@@ -202,7 +908,7 @@ static int bc28_device_class_register(void)
         return -RT_ENOMEM;
     }
 
-    /* fill bc26 device class object */
+    /* fill bc28 device class object */
 #ifdef AT_USING_SOCKET
     bc28_socket_class_register(class);
 #endif

@@ -41,8 +41,8 @@ struct at_device_bc28
     char *device_name;
     char *client_name;
 
-    int reset_pin;
-    int adc_pin;
+    int power_pin;          /* BC28 has not power_en, it should be reset pin */
+    int power_status_pin;   /* ADC */
     size_t recv_bufsz;
     struct at_device device;
 
