@@ -57,6 +57,7 @@ extern "C" {
 #define AT_DEVICE_CLASS_BC26           0x0BU
 #define AT_DEVICE_CLASS_AIR720         0x0CU
 #define AT_DEVICE_CLASS_ME3616         0x0DU
+#define AT_DEVICE_CLASS_M6315          0x0EU
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L
