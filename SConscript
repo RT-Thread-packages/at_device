@@ -121,6 +121,15 @@ if GetDepend(['AT_DEVICE_USING_ME3616']):
     if GetDepend(['AT_DEVICE_ME3616_SAMPLE']):
         src += Glob('samples/at_sample_me3616.c')
 
+# M6315
+if GetDepend(['AT_DEVICE_USING_M6315']):
+    path += [cwd + '/class/m6315']
+    src += Glob('class/m6315/at_device_m6315.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/m6315/at_socket_m6315.c')
+    if GetDepend(['AT_DEVICE_M6315_SAMPLE']):
+        src += Glob('samples/at_sample_m6315.c')            
+
 # BC28
 if GetDepend(['AT_DEVICE_USING_BC28']):
     path += [cwd + '/class/bc28']
