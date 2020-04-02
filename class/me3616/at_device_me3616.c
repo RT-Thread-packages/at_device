@@ -1,5 +1,5 @@
 /*
- * File      : at_device_bc26.c
+ * File      : at_device_me3616.c
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
  *
@@ -19,81 +19,90 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2019-12-13     qiyongzhong  first version
+ * 2019-12-30     qiyongzhong  first version
  */
 
 #include <stdio.h>
 #include <string.h>
 
-#include <at_device_bc26.h>
+#include <at_device_me3616.h>
 
-#define LOG_TAG                         "at.dev.bc26"
+#define LOG_TAG                         "at.dev.me3616"
 #include <at_log.h>
 
-#ifdef AT_DEVICE_USING_BC26
+#ifdef AT_DEVICE_USING_ME3616
 
-#define BC26_WAIT_CONNECT_TIME          5000
-#define BC26_THREAD_STACK_SIZE          2048
-#define BC26_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
+#ifndef ME3616_DEEP_SLEEP_EN
+#define ME3616_DEEP_SLEEP_EN              0//module support deep sleep mode
+#endif
 
-static int bc26_power_on(struct at_device *device)
+#define ME3616_WAIT_CONNECT_TIME          5000
+#define ME3616_THREAD_STACK_SIZE          2048
+#define ME3616_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
+
+static int me3616_power_on(struct at_device *device)
 {
-    struct at_device_bc26 *bc26 = RT_NULL;
+    struct at_device_me3616 *me3616 = RT_NULL;
     
-    bc26 = (struct at_device_bc26 *)device->user_data;
-    bc26->power_status = RT_TRUE;
+    me3616 = (struct at_device_me3616 *)device->user_data;
+    me3616->power_status = RT_TRUE;
 
-    /* not nead to set pin configuration for bc26 device power on */
-    if (bc26->power_pin == -1)
+    /* not nead to set pin configuration for me3616 device power on */
+    if (me3616->power_pin == -1)
     {
         return(RT_EOK);
     }
     
-    rt_pin_write(bc26->power_pin, PIN_HIGH);
+    rt_pin_write(me3616->power_pin, PIN_HIGH);
     rt_thread_mdelay(500);
-    rt_pin_write(bc26->power_pin, PIN_LOW);
+    rt_pin_write(me3616->power_pin, PIN_LOW);
+    
+    LOG_D("power on success.");
 
     return(RT_EOK);
 }
 
-static int bc26_power_off(struct at_device *device)
+static int me3616_power_off(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
-    struct at_device_bc26 *bc26 = RT_NULL;
+    struct at_device_me3616 *me3616 = RT_NULL;
     
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_D("no memory for resp create.");
+        LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
-    if (at_obj_exec_cmd(device->client, resp, "AT+QPOWD=0") != RT_EOK)
+
+    at_obj_exec_cmd(device->client, resp, "AT+ZTURNOFF");//command response does not have "\r\n" after "OK"
+    /*if (at_obj_exec_cmd(device->client, resp, "AT+ZTURNOFF") != RT_EOK)
     {
         LOG_D("power off fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
-    }
+    }*/
     
     at_delete_resp(resp);
     
-    bc26 = (struct at_device_bc26 *)device->user_data;
-    bc26->power_status = RT_FALSE;
+    me3616 = (struct at_device_me3616 *)device->user_data;
+    me3616->power_status = RT_FALSE;
+    
+    LOG_D("power off success.");
     
     return(RT_EOK);
 }
 
-static int bc26_sleep(struct at_device *device)
+static int me3616_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
-    struct at_device_bc26 *bc26 = RT_NULL;
+    struct at_device_me3616 *me3616 = RT_NULL;
     
-    bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+    me3616 = (struct at_device_me3616 *)device->user_data;
+    if ( ! me3616->power_status)//power off
     {
         return(RT_EOK);
     }
-    if (bc26->sleep_status)//is sleep status 
+    if (me3616->sleep_status)//is sleep status 
     {
         return(RT_EOK);
     }
@@ -101,53 +110,46 @@ static int bc26_sleep(struct at_device *device)
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_D("no memory for resp create.");
-        return(-RT_ERROR);
-    }
-
-    /* enable sleep mode */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)
-        
-    {
-        LOG_D("enable sleep fail.\"AT+QSCLK=1\" execute fail.");
-        at_delete_resp(resp);
+        LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
     
-    /* enable PSM mode */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=1,,,\"01000011\",\"00000001\"") != RT_EOK)
-        
+    if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=1,,,\"00111110\",\"00000001\"") != RT_EOK)
     {
-        LOG_D("enable sleep fail.\"AT+CPSMS=1...\" execute fail.");
+        LOG_D("enable sleep fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+QRELLOCK") != RT_EOK)
+    #if ME3616_DEEP_SLEEP_EN
+    if (at_obj_exec_cmd(device->client, resp, "AT+ZSLR") != RT_EOK)
     {
         LOG_D("startup entry into sleep fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
-    
-    bc26->sleep_status = RT_TRUE;
+    #endif
     
     at_delete_resp(resp);
+    me3616->sleep_status = RT_TRUE;
+    
+    LOG_D("sleep success.");
+    
     return(RT_EOK);
 }
 
-static int bc26_wakeup(struct at_device *device)
+static int me3616_wakeup(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
-    struct at_device_bc26 *bc26 = RT_NULL;
-    
-    bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+    struct at_device_me3616 *me3616 = RT_NULL;
+
+    me3616 = (struct at_device_me3616 *)device->user_data;
+    if ( ! me3616->power_status)//power off
     {
         LOG_E("the power is off and the wake-up cannot be performed");
         return(-RT_ERROR);
     }
-    if ( ! bc26->sleep_status)//no sleep status
+    if ( ! me3616->sleep_status)//no sleep status
     {
         return(RT_EOK);
     }
@@ -155,67 +157,67 @@ static int bc26_wakeup(struct at_device *device)
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_D("no memory for resp create.");
+        LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-
-    if (bc26->power_pin != -1)
+    
+    #if ME3616_DEEP_SLEEP_EN
+    if (me3616->power_pin != -1)
     {
-        rt_pin_write(bc26->power_pin, PIN_HIGH);
+        rt_pin_write(me3616->power_pin, PIN_HIGH);
         rt_thread_mdelay(100);
-        rt_pin_write(bc26->power_pin, PIN_LOW);
+        rt_pin_write(me3616->power_pin, PIN_LOW);
         rt_thread_mdelay(200);
     }
+    #endif
     
-    /* disable sleep mode */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
-    {
-        LOG_D("wake up fail. \"AT+QSCLK=0\" execute fail.");
-        at_delete_resp(resp);
-        return(-RT_ERROR);
-    }
-    
-    /* disable PSM mode  */
     if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
     {
-        LOG_D("wake up fail.\"AT+CPSMS=0\" execute fail.");
+        LOG_D("wake up fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
     
-    bc26->sleep_status = RT_FALSE;
-    
     at_delete_resp(resp);
+    me3616->sleep_status = RT_FALSE;
+    
+    LOG_D("wake up success.");
+    
     return(RT_EOK);
 }
 
-static int bc26_check_link_status(struct at_device *device)
+static int me3616_check_link_status(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
-    struct at_device_bc26 *bc26 = RT_NULL;
+    struct at_device_me3616 *me3616 = RT_NULL;
     int result = -RT_ERROR;
-    
-    bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+
+    RT_ASSERT(device);
+
+    me3616 = (struct at_device_me3616 *)device->user_data;
+    if ( ! me3616->power_status)//power off
     {
         LOG_D("the power is off.");
         return(-RT_ERROR);
     }
-    if (bc26->sleep_status)//is sleep status
+    
+    #if ME3616_DEEP_SLEEP_EN
+    if (me3616->sleep_status)//is sleep status
     {
-        if (bc26->power_pin != -1)
+        if (me3616->power_pin != -1)
         {
-            rt_pin_write(bc26->power_pin, PIN_HIGH);
+            rt_pin_write(me3616->power_pin, PIN_HIGH);
             rt_thread_mdelay(100);
-            rt_pin_write(bc26->power_pin, PIN_LOW);
+            rt_pin_write(me3616->power_pin, PIN_LOW);
             rt_thread_mdelay(200);
         }
     }
+    #endif
     
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
-        LOG_D("no memory for resp create.");
+        LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
 
@@ -231,14 +233,16 @@ static int bc26_check_link_status(struct at_device *device)
             }
         }
     }
-
-    if (bc26->sleep_status)//is sleep status
+    
+    #if ME3616_DEEP_SLEEP_EN
+    if (me3616->sleep_status)//is sleep status
     {
-        if (at_obj_exec_cmd(device->client, resp, "AT+QRELLOCK") != RT_EOK)
+        if (at_obj_exec_cmd(device->client, resp, "AT+ZSLR") != RT_EOK)
         {
             LOG_D("startup entry into sleep fail.");
         }
     }
+    #endif
     
     at_delete_resp(resp);
     
@@ -246,12 +250,12 @@ static int bc26_check_link_status(struct at_device *device)
 }
 
 
-/* =============================  bc26 network interface operations ============================= */
-/* set bc26 network interface device status and address information */
-static int bc26_netdev_set_info(struct netdev *netdev)
+/* =============================  me3616 network interface operations ============================= */
+/* set me3616 network interface device status and address information */
+static int me3616_netdev_set_info(struct netdev *netdev)
 {
-#define BC26_INFO_RESP_SIZE      128
-#define BC26_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+#define ME3616_INFO_RESP_SIZE      128
+#define ME3616_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
 
     int result = RT_EOK;
     ip_addr_t addr;
@@ -272,7 +276,7 @@ static int bc26_netdev_set_info(struct netdev *netdev)
     netdev_low_level_set_link_status(netdev, RT_TRUE);
     netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
 
-    resp = at_create_resp(BC26_INFO_RESP_SIZE, 0, BC26_INFO_RESP_TIMO);
+    resp = at_create_resp(ME3616_INFO_RESP_SIZE, 0, ME3616_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -282,10 +286,10 @@ static int bc26_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device hardware address(IMEI) */
     {
-        #define BC26_NETDEV_HWADDR_LEN   8
-        #define BC26_IMEI_LEN            15
+        #define ME3616_NETDEV_HWADDR_LEN   8
+        #define ME3616_IMEI_LEN            15
 
-        char imei[BC26_IMEI_LEN] = {0};
+        char imei[ME3616_IMEI_LEN] = {0};
         int i = 0, j = 0;
 
         /* send "AT+GSN" commond to get device IMEI */
@@ -304,11 +308,11 @@ static int bc26_netdev_set_info(struct netdev *netdev)
         
         LOG_D("%s device IMEI number: %s", device->name, imei);
 
-        netdev->hwaddr_len = BC26_NETDEV_HWADDR_LEN;
+        netdev->hwaddr_len = ME3616_NETDEV_HWADDR_LEN;
         /* get hardware address by IMEI */
-        for (i = 0, j = 0; i < BC26_NETDEV_HWADDR_LEN && j < BC26_IMEI_LEN; i++, j+=2)
+        for (i = 0, j = 0; i < ME3616_NETDEV_HWADDR_LEN && j < ME3616_IMEI_LEN; i++, j+=2)
         {
-            if (j != BC26_IMEI_LEN - 1)
+            if (j != ME3616_IMEI_LEN - 1)
             {
                 netdev->hwaddr[i] = (imei[j] - '0') * 10 + (imei[j + 1] - '0');
             }
@@ -332,7 +336,7 @@ static int bc26_netdev_set_info(struct netdev *netdev)
         }
 
         /* parse response data "+CGPADDR: 1,<IP_address>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,\"%s\"", ipaddr) <= 0)
         {
             LOG_E("%s device \"AT+CGPADDR=1\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -345,38 +349,7 @@ static int bc26_netdev_set_info(struct netdev *netdev)
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
-
-    /* set network interface device dns server */
-    {
-        #define DNS_ADDR_SIZE_MAX   16
-        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
-        
-        /* send "AT+QIDNSCFG=1" commond to get DNS servers address */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=1") != RT_EOK)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        /* parse response data "+QIDNSCFG: <contextID>,<pridnsaddr>,<secdnsaddr>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"",
-                dns_server1, dns_server2) <= 0)
-        {
-            LOG_E("%s device prase \"AT+QIDNSCFG=1\" cmd error.", device->name);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
-
-        inet_aton(dns_server1, &addr);
-        netdev_low_level_set_dns_server(netdev, 0, &addr);
-
-        inet_aton(dns_server2, &addr);
-        netdev_low_level_set_dns_server(netdev, 1, &addr);
-    }
-
+    
 __exit:
     if (resp)
     {
@@ -386,9 +359,9 @@ __exit:
     return result;
 }
 
-static void bc26_check_link_status_entry(void *parameter)
+static void me3616_check_link_status_entry(void *parameter)
 {
-#define BC26_LINK_DELAY_TIME    (60 * RT_TICK_PER_SECOND)
+#define ME3616_LINK_DELAY_TIME    (60 * RT_TICK_PER_SECOND)
 
     rt_bool_t is_link_up;
     struct at_device *device = RT_NULL;
@@ -403,19 +376,19 @@ static void bc26_check_link_status_entry(void *parameter)
     
     while (1)
     {
-        is_link_up = (bc26_check_link_status(device) == RT_EOK);
+        is_link_up = (me3616_check_link_status(device) == RT_EOK);
 
         netdev_low_level_set_link_status(netdev, is_link_up);
 
-        rt_thread_delay(BC26_LINK_DELAY_TIME);
+        rt_thread_delay(ME3616_LINK_DELAY_TIME);
     }
 }
 
-static int bc26_netdev_check_link_status(struct netdev *netdev)
+static int me3616_netdev_check_link_status(struct netdev *netdev)
 {
-#define BC26_LINK_THREAD_TICK           20
-#define BC26_LINK_THREAD_STACK_SIZE     (1024 + 512)
-#define BC26_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+#define ME3616_LINK_THREAD_TICK           20
+#define ME3616_LINK_THREAD_STACK_SIZE     (1024 + 512)
+#define ME3616_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
     char tname[RT_NAME_MAX] = {0};
@@ -424,9 +397,9 @@ static int bc26_netdev_check_link_status(struct netdev *netdev)
 
     rt_snprintf(tname, RT_NAME_MAX, "%s", netdev->name);
 
-    /* create bc26 link status polling thread  */
-    tid = rt_thread_create(tname, bc26_check_link_status_entry, (void *)netdev,
-                           BC26_LINK_THREAD_STACK_SIZE, BC26_LINK_THREAD_PRIORITY, BC26_LINK_THREAD_TICK);
+    /* create me3616 link status polling thread  */
+    tid = rt_thread_create(tname, me3616_check_link_status_entry, (void *)netdev,
+                           ME3616_LINK_THREAD_STACK_SIZE, ME3616_LINK_THREAD_PRIORITY, ME3616_LINK_THREAD_TICK);
     if (tid != RT_NULL)
     {
         rt_thread_startup(tid);
@@ -435,9 +408,9 @@ static int bc26_netdev_check_link_status(struct netdev *netdev)
     return RT_EOK;
 }
 
-static int bc26_net_init(struct at_device *device);
+static int me3616_net_init(struct at_device *device);
 
-static int bc26_netdev_set_up(struct netdev *netdev)
+static int me3616_netdev_set_up(struct netdev *netdev)
 {
     struct at_device *device = RT_NULL;
 
@@ -450,7 +423,7 @@ static int bc26_netdev_set_up(struct netdev *netdev)
 
     if (device->is_init == RT_FALSE)
     {
-        bc26_net_init(device);
+        me3616_net_init(device);
         device->is_init = RT_TRUE;
 
         netdev_low_level_set_status(netdev, RT_TRUE);
@@ -460,7 +433,7 @@ static int bc26_netdev_set_up(struct netdev *netdev)
     return RT_EOK;
 }
 
-static int bc26_netdev_set_down(struct netdev *netdev)
+static int me3616_netdev_set_down(struct netdev *netdev)
 {
     struct at_device *device = RT_NULL;
 
@@ -473,7 +446,7 @@ static int bc26_netdev_set_down(struct netdev *netdev)
 
     if (device->is_init == RT_TRUE)
     {
-        bc26_power_off(device);
+        me3616_power_off(device);
         device->is_init = RT_FALSE;
 
         netdev_low_level_set_status(netdev, RT_FALSE);
@@ -483,63 +456,17 @@ static int bc26_netdev_set_down(struct netdev *netdev)
     return RT_EOK;
 }
 
-static int bc26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
-{
-#define BC26_DNS_RESP_LEN    64
-#define BC26_DNS_RESP_TIMEO  rt_tick_from_millisecond(300)
-
-    int result = RT_EOK;
-    at_response_t resp = RT_NULL;
-    struct at_device *device = RT_NULL;
-
-    RT_ASSERT(netdev);
-    RT_ASSERT(dns_server);
-
-    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
-    if (device == RT_NULL)
-    {
-        LOG_E("get device(%s) failed.", netdev->name);
-        return -RT_ERROR;
-    }
-
-    resp = at_create_resp(BC26_DNS_RESP_LEN, 0, BC26_DNS_RESP_TIMEO);
-    if (resp == RT_NULL)
-    {
-        LOG_D("no memory for resp create.");
-        result = -RT_ENOMEM;
-        goto __exit;
-    }
-
-    /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
-        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
-
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
 #ifdef NETDEV_USING_PING
-static int bc26_netdev_ping(struct netdev *netdev, const char *host,
+static int me3616_netdev_ping(struct netdev *netdev, const char *host,
         size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
-#define BC26_PING_RESP_SIZE       128
-#define BC26_PING_IP_SIZE         16
-#define BC26_PING_TIMEO           (5 * RT_TICK_PER_SECOND)
+#define ME3616_PING_RESP_SIZE       256
+#define ME3616_PING_IP_SIZE         16
+#define ME3616_PING_TIMEO           (10 * RT_TICK_PER_SECOND)
 
     rt_err_t result = RT_EOK;
     int response = -1, recv_data_len, ping_time, ttl;
-    char ip_addr[BC26_PING_IP_SIZE] = {0};
+    char ip_addr[ME3616_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
 
@@ -554,49 +481,45 @@ static int bc26_netdev_ping(struct netdev *netdev, const char *host,
         return -RT_ERROR;
     }
 
-    resp = at_create_resp(BC26_PING_RESP_SIZE, 4, BC26_PING_TIMEO);
+    resp = at_create_resp(ME3616_PING_RESP_SIZE, 0, ME3616_PING_TIMEO);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create");
         return -RT_ENOMEM;
     }
 
-    /* send "AT+QPING=<contextID>"<host>"[,[<timeout>][,<pingnum>]]" commond to send ping request */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QPING=1,\"%s\",%d,1", host, timeout / RT_TICK_PER_SECOND) < 0)
+    if (at_obj_exec_cmd(device->client, resp, "AT+EDNS=\"%s\"", host) != RT_EOK)
     {
         result = -RT_ERROR;
         goto __exit;
     }
 
-    at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d", &response);
-    /* Received the ping response from the server */
-    if (response == 0)
+    if (at_resp_parse_line_args_by_kw(resp, "IPV4:", "IPV4:%s\r", ip_addr) <= 0)
     {
-        if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,\"%[^\"]\",%d,%d,%d",
-                                          &response, ip_addr, &recv_data_len, &ping_time, &ttl) <= 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
+        result = -RT_ERROR;
+        goto __exit;
     }
 
-    /* prase response number */
-    switch (response)
+    at_resp_set_info(resp, ME3616_PING_RESP_SIZE, 8, timeout);
+
+    /* send "AT+PING=<host>[-l/L <p_size>] [-n/N <count>][-w/W <time>][-6][-i <value>][-d<value>] */
+    if (at_obj_exec_cmd(device->client, resp, "AT+PING=%s -d 1 -n 1 -w %d", ip_addr, timeout) < 0)
     {
-    case 0:
-        inet_aton(ip_addr, &(ping_resp->ip_addr));
-        ping_resp->data_len = recv_data_len;
-        ping_resp->ticks = ping_time;
-        ping_resp->ttl = ttl;
-        result = RT_EOK;
-        break;
-    case 569:
-        result = -RT_ETIMEOUT;
-        break;
-    default:
         result = -RT_ERROR;
-        break;
+        goto __exit;
     }
+
+    if (at_resp_parse_line_args_by_kw(resp, "received=", "%*[^=]=%d%*[^=]=%d%*[^=]=%d", 
+                                        &recv_data_len, &ping_time, &ttl) <= 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    inet_aton(ip_addr, &(ping_resp->ip_addr));
+    ping_resp->data_len = recv_data_len;
+    ping_resp->ticks = ping_time;
+    ping_resp->ttl = ttl;
 
 __exit:
     if (resp)
@@ -608,24 +531,23 @@ __exit:
 }
 #endif /* NETDEV_USING_PING */
 
-
-
-const struct netdev_ops bc26_netdev_ops =
+const struct netdev_ops me3616_netdev_ops =
 {
-    bc26_netdev_set_up,
-    bc26_netdev_set_down,
+    me3616_netdev_set_up,
+    me3616_netdev_set_down,
 
     RT_NULL,
-    bc26_netdev_set_dns_server,
+    RT_NULL,
     RT_NULL,
 
 #ifdef NETDEV_USING_PING
-    bc26_netdev_ping,
+    me3616_netdev_ping,
+    RT_NULL,
 #endif
     RT_NULL,
 };
 
-static struct netdev *bc26_netdev_add(const char *netdev_name)
+static struct netdev *me3616_netdev_add(const char *netdev_name)
 {
 #define ETHERNET_MTU        1500
 #define HWADDR_LEN          8
@@ -639,7 +561,7 @@ static struct netdev *bc26_netdev_add(const char *netdev_name)
     }
 
     netdev->mtu = ETHERNET_MTU;
-    netdev->ops = &bc26_netdev_ops;
+    netdev->ops = &me3616_netdev_ops;
     netdev->hwaddr_len = HWADDR_LEN;
 
 #ifdef SAL_USING_AT
@@ -653,15 +575,15 @@ static struct netdev *bc26_netdev_add(const char *netdev_name)
     return netdev;
 }
 
-/* =============================  bc26 device operations ============================= */
+/* =============================  me3616 device operations ============================= */
 
-/* initialize for bc26 */
-static void bc26_init_thread_entry(void *parameter)
+/* initialize for me3616 */
+static void me3616_init_thread_entry(void *parameter)
 {
 #define INIT_RETRY                     5
 #define CPIN_RETRY                     5
 #define CSQ_RETRY                      20
-#define CGREG_RETRY                    50
+#define CGREG_RETRY                    60
 #define IPADDR_RETRY                   10
 
     int i;
@@ -671,7 +593,7 @@ static void bc26_init_thread_entry(void *parameter)
     struct at_device *device = (struct at_device *) parameter;
     struct at_client *client = device->client;
 
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
+    resp = at_create_resp(256, 0, rt_tick_from_millisecond(500));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -682,12 +604,12 @@ static void bc26_init_thread_entry(void *parameter)
 
     while (retry_num--)
     {
-        /* power on the bc26 device */
-        bc26_power_on(device);
-        rt_thread_mdelay(1000);
+        /* power on the me3616 device */
+        me3616_power_on(device);
+        rt_thread_mdelay(2000);
 
-        /* wait bc26 startup finish, send AT every 500ms, if receive OK, SYNC success*/
-        if (at_client_obj_wait_connect(client, BC26_WAIT_CONNECT_TIME))
+        /* wait me3616 startup finish, send AT every 500ms, if receive OK, SYNC success*/
+        if (at_client_obj_wait_connect(client, ME3616_WAIT_CONNECT_TIME))
         {
             result = -RT_ETIMEOUT;
             goto __exit;
@@ -700,8 +622,8 @@ static void bc26_init_thread_entry(void *parameter)
             goto __exit;
         }
         
-        /* disable sleep mode  */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
+        /* disable PSM mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
@@ -713,13 +635,20 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
-        /* disable PSM mode  */
-        if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
+
+        /* disable low power mode  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+ESOSETRPT=1") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
-        }
+        }  
+        
+        /* disable sleep function  */
+        if (at_obj_exec_cmd(device->client, resp, "AT+ZSLR=0") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        } 
         
         /* Get the baudrate */
         if (at_obj_exec_cmd(device->client, resp, "AT+IPR?") != RT_EOK)
@@ -728,7 +657,7 @@ static void bc26_init_thread_entry(void *parameter)
             goto __exit;
         }
         at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
-        LOG_D("%s device baudrate %d", device->name, i);     
+        LOG_D("%s device baudrate %d", device->name, i);
         
         /* get module version */
         if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
@@ -739,7 +668,7 @@ static void bc26_init_thread_entry(void *parameter)
         for (i = 0; i < (int) resp->line_counts - 1; i++)
         {
             LOG_D("%s", at_resp_get_line(resp, i + 1));
-        }
+        }   
         
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
@@ -840,8 +769,8 @@ static void bc26_init_thread_entry(void *parameter)
     __exit:
         if (result != RT_EOK)
         {
-            /* power off the bc26 device */
-            bc26_power_off(device);
+            /* power off the me3616 device */
+            me3616_power_off(device);
             rt_thread_mdelay(1000);
 
             LOG_I("%s device initialize retry...", device->name);
@@ -856,11 +785,11 @@ static void bc26_init_thread_entry(void *parameter)
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
-        bc26_netdev_set_info(device->netdev);
+        me3616_netdev_set_info(device->netdev);
         /* check and create link staus sync thread  */
         if (rt_thread_find(device->netdev->name) == RT_NULL)
         {
-            bc26_netdev_check_link_status(device->netdev);
+            me3616_netdev_check_link_status(device->netdev);
         }
 
         LOG_I("%s device network initialize success.", device->name);
@@ -871,14 +800,14 @@ static void bc26_init_thread_entry(void *parameter)
     }
 }
 
-/* bc26 device network initialize */
-static int bc26_net_init(struct at_device *device)
+/* me3616 device network initialize */
+static int me3616_net_init(struct at_device *device)
 {
-#ifdef AT_DEVICE_BC26_INIT_ASYN
+#ifdef AT_DEVICE_ME3616_INIT_ASYN
     rt_thread_t tid;
 
-    tid = rt_thread_create("bc26_net", bc26_init_thread_entry, (void *)device,
-                           BC26_THREAD_STACK_SIZE, BC26_THREAD_PRIORITY, 20);
+    tid = rt_thread_create("me3616_net", me3616_init_thread_entry, (void *)device,
+                           ME3616_THREAD_STACK_SIZE, ME3616_THREAD_PRIORITY, 20);
     if (tid)
     {
         rt_thread_startup(tid);
@@ -889,64 +818,64 @@ static int bc26_net_init(struct at_device *device)
         return -RT_ERROR;
     }
 #else
-    bc26_init_thread_entry(device);
-#endif /* AT_DEVICE_BC26_INIT_ASYN */
+    me3616_init_thread_entry(device);
+#endif /* AT_DEVICE_ME3616_INIT_ASYN */
 
     return RT_EOK;
 }
 
-static int bc26_init(struct at_device *device)
+static int me3616_init(struct at_device *device)
 {
-    struct at_device_bc26 *bc26 = RT_NULL;
-    
+    struct at_device_me3616 *me3616 = RT_NULL;
+
     RT_ASSERT(device);
-    
-    bc26 = (struct at_device_bc26 *) device->user_data;
-    bc26->power_status = RT_FALSE;//default power is off.
-    bc26->sleep_status = RT_FALSE;//default sleep is disabled.
+
+    me3616 = (struct at_device_me3616 *) device->user_data;
+    me3616->power_status = RT_FALSE;//default power is off.
+    me3616->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
-    at_client_init(bc26->client_name, bc26->recv_line_num);
+    at_client_init(me3616->client_name, me3616->recv_line_num);
 
-    device->client = at_client_get(bc26->client_name);
+    device->client = at_client_get(me3616->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", bc26->client_name);
+        LOG_E("get AT client(%s) failed.", me3616->client_name);
         return -RT_ERROR;
     }
 
     /* register URC data execution function  */
 #ifdef AT_USING_SOCKET
-    bc26_socket_init(device);
+    me3616_socket_init(device);
 #endif
 
-    /* add bc26 device to the netdev list */
-    device->netdev = bc26_netdev_add(bc26->device_name);
+    /* add me3616 device to the netdev list */
+    device->netdev = me3616_netdev_add(me3616->device_name);
     if (device->netdev == RT_NULL)
     {
-        LOG_E("add netdev(%s) failed.", bc26->device_name);
+        LOG_E("add netdev(%s) failed.", me3616->device_name);
         return -RT_ERROR;
     }
 
-    /* initialize bc26 pin configuration */
-    if (bc26->power_pin != -1)
+    /* initialize me3616 pin configuration */
+    if (me3616->power_pin != -1)
     {
-        rt_pin_write(bc26->power_pin, PIN_LOW);
-        rt_pin_mode(bc26->power_pin, PIN_MODE_OUTPUT);
+        rt_pin_write(me3616->power_pin, PIN_LOW);
+        rt_pin_mode(me3616->power_pin, PIN_MODE_OUTPUT);
     }
 
-    /* initialize bc26 device network */
-    return bc26_netdev_set_up(device->netdev);
+    /* initialize me3616 device network */
+    return me3616_netdev_set_up(device->netdev);
 }
 
-static int bc26_deinit(struct at_device *device)
+static int me3616_deinit(struct at_device *device)
 {
     RT_ASSERT(device);
     
-    return bc26_netdev_set_down(device->netdev);
+    return me3616_netdev_set_down(device->netdev);
 }
 
-static int bc26_control(struct at_device *device, int cmd, void *arg)
+static int me3616_control(struct at_device *device, int cmd, void *arg)
 {
     int result = -RT_ERROR;
 
@@ -955,10 +884,10 @@ static int bc26_control(struct at_device *device, int cmd, void *arg)
     switch (cmd)
     {
     case AT_DEVICE_CTRL_SLEEP:
-        result = bc26_sleep(device);
+        result = me3616_sleep(device);
         break;
     case AT_DEVICE_CTRL_WAKEUP:
-        result = bc26_wakeup(device);
+        result = me3616_wakeup(device);
         break;
     case AT_DEVICE_CTRL_POWER_ON:
     case AT_DEVICE_CTRL_POWER_OFF:
@@ -980,14 +909,14 @@ static int bc26_control(struct at_device *device, int cmd, void *arg)
     return result;
 }
 
-const struct at_device_ops bc26_device_ops =
+const struct at_device_ops me3616_device_ops =
 {
-    bc26_init,
-    bc26_deinit,
-    bc26_control,
+    me3616_init,
+    me3616_deinit,
+    me3616_control,
 };
 
-static int bc26_device_class_register(void)
+static int me3616_device_class_register(void)
 {
     struct at_device_class *class = RT_NULL;
 
@@ -998,15 +927,15 @@ static int bc26_device_class_register(void)
         return -RT_ENOMEM;
     }
 
-    /* fill bc26 device class object */
+    /* fill me3616 device class object */
 #ifdef AT_USING_SOCKET
-    bc26_socket_class_register(class);
+    me3616_socket_class_register(class);
 #endif
-    class->device_ops = &bc26_device_ops;
+    class->device_ops = &me3616_device_ops;
 
-    return at_device_class_register(class, AT_DEVICE_CLASS_BC26);
+    return at_device_class_register(class, AT_DEVICE_CLASS_ME3616);
 }
-INIT_DEVICE_EXPORT(bc26_device_class_register);
+INIT_DEVICE_EXPORT(me3616_device_class_register);
 
-#endif /* AT_DEVICE_USING_BC26 */
+#endif /* AT_DEVICE_USING_ME3616 */
 

@@ -84,21 +84,13 @@ static int m26_socket_event_recv(struct at_device *device, uint32_t event, uint3
 static int m26_socket_close(struct at_socket *socket)
 {
     int result = 0;
-    at_response_t resp = RT_NULL;
     int device_socke = (int) socket->user_data;
     struct at_device *device  = (struct at_device *) socket->device;
-
-    resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
-    if (resp == RT_NULL)
-    {
-        LOG_E("no memory for resp create.", device->name);
-        return -RT_ENOMEM;
-    }
-
+    
     /* clear socket close event */
     m26_socket_event_recv(device, SET_EVENT(device_socke, M26_EVNET_CLOSE_OK), 0, RT_EVENT_FLAG_OR);
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+QICLOSE=%d", device_socke) < 0)
+    if (at_obj_exec_cmd(device->client, NULL, "AT+QICLOSE=%d", device_socke) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -113,11 +105,6 @@ static int m26_socket_close(struct at_socket *socket)
     }
 
 __exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
     return result;
 }
 

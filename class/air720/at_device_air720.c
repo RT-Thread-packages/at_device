@@ -36,7 +36,7 @@
 
 #ifdef AT_DEVICE_USING_AIR720
 
-#define AIR720_WAIT_CONNECT_TIME 5000
+#define AIR720_WAIT_CONNECT_TIME 30000
 #define AIR720_THREAD_STACK_SIZE 2048
 #define AIR720_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX / 2)
 // #define AIR720_THREAD_PRIORITY 6
@@ -664,7 +664,7 @@ static void air720_init_thread_entry(void *parameter)
         rt_memset(parsed_data, 0, sizeof(parsed_data));
         rt_thread_mdelay(1000);
         air720_power_on(device);
-        rt_thread_mdelay(25000); //check the air720 hardware manual, when we use the pow_key to start air720, it takes about 20s,so we put 25s here to ensure starting air720 normally.
+        rt_thread_mdelay(5000); //check the air720 hardware manual, when we use the pow_key to start air720, it takes about 20s,so we put 25s here to ensure starting air720 normally.
 
         LOG_I("start initializing the air720 device(%s)", device->name);
         /* wait air720 startup finish */

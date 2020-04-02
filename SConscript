@@ -103,7 +103,33 @@ if GetDepend(['AT_DEVICE_USING_BC26']):
     if GetDepend(['AT_DEVICE_BC26_SAMPLE']):
         src += Glob('samples/at_sample_bc26.c')
         
+# air720
+if GetDepend(['AT_DEVICE_USING_AIR720']):
+    path += [cwd + '/class/air720']
+    src += Glob('class/air720/at_device_air720.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/air720/at_socket_air720.c')
+    if GetDepend(['AT_DEVICE_AIR720_SAMPLE']):
+        src += Glob('samples/at_sample_air720.c')
+        
+# ME3616
+if GetDepend(['AT_DEVICE_USING_ME3616']):
+    path += [cwd + '/class/me3616']
+    src += Glob('class/me3616/at_device_me3616.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/me3616/at_socket_me3616.c')
+    if GetDepend(['AT_DEVICE_ME3616_SAMPLE']):
+        src += Glob('samples/at_sample_me3616.c')
 
+# M6315
+if GetDepend(['AT_DEVICE_USING_M6315']):
+    path += [cwd + '/class/m6315']
+    src += Glob('class/m6315/at_device_m6315.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/m6315/at_socket_m6315.c')
+    if GetDepend(['AT_DEVICE_M6315_SAMPLE']):
+        src += Glob('samples/at_sample_m6315.c')            
+        
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
