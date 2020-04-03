@@ -130,7 +130,7 @@ static int bc28_socket_close(struct at_socket *socket)
         return -RT_ENOMEM;
     }
     
-    result = at_obj_exec_cmd(device->client, resp, "AT+QICLOSE=%d", device_socket);
+    result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
 
     at_delete_resp(resp);
 
@@ -154,7 +154,7 @@ static int bc28_socket_close(struct at_socket *socket)
 static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     enum at_socket_type type, rt_bool_t is_client)
 {
-    #define CONN_RETRY  2
+#define CONN_RETRY  2
 
     int i = 0;
     const char *type_str = RT_NULL;
@@ -172,17 +172,9 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         return -RT_ERROR;
     }
 
-    switch(type)
+    if (type != AT_SOCKET_TCP)
     {
-        case AT_SOCKET_TCP:
-            type_str = "TCP";
-            break;
-        case AT_SOCKET_UDP:
-            type_str = "UDP";
-            break;
-        default:
-            LOG_E("%s device socket(%d)  connect type error.", device->name, device_socket);
-            return -RT_ERROR;
+        return -RT_ERROR;
     }
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
@@ -198,8 +190,8 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         event = SET_EVENT(device_socket, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL);
         bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIOPEN=1,%d,\"%s\",\"%s\",%d,0,1", 
-                            device_socket, type_str, ip, port) < 0)
+        if (at_obj_exec_cmd(device->client, resp, "AT+NSOCO=%d,%s,%d", 
+                            device_socket, ip, port) < 0)
         {
             result = -RT_ERROR;
             break;
@@ -439,7 +431,7 @@ __exit:
  *         -2: wait socket event timeout
  *         -5: no memory
  */
-static int bc28_domain_resolve(const char *name, char ip[16])
+int bc28_domain_resolve(const char *name, char ip[16])
 {
     #define RESOLVE_RETRY  3
 
@@ -472,7 +464,7 @@ static int bc28_domain_resolve(const char *name, char ip[16])
     bc28 = (struct at_device_bc28 *) device->user_data;
     bc28->socket_data = ip;
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSGIP=1,\"%s\"", name) != RT_EOK)
+    if (at_obj_exec_cmd(device->client, resp, "AT+QDNS=0,%s", name) != RT_EOK)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -704,29 +696,12 @@ static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_
         return;
     }
 
-    for (i = 0; i < size; i++)
-    {
-        if (*(data + i) == '.')
-            j++;
-    }
-    /* There would be several dns result, we just pickup one */
-    if (j == 3)
-    {
-        sscanf(data, "+QIURC: \"dnsgip\",\"%[^\"]", recv_ip);
-        recv_ip[15] = '\0';
+    sscanf(data, "+QDNS:%s", recv_ip);
+    recv_ip[15] = '\0';
 
-        rt_memcpy(bc28->socket_data, recv_ip, sizeof(recv_ip));
+    rt_memcpy(bc28->socket_data, recv_ip, sizeof(recv_ip));
 
-        bc28_socket_event_send(device, BC28_EVENT_DOMAIN_OK);
-    }
-    else
-    {
-        sscanf(data, "+QIURC: \"dnsgip\",%d,%d,%d", &result, &ip_count, &dns_ttl);
-        if (result)
-        {
-            at_tcp_ip_errcode_parse(result);
-        }
-    }
+    bc28_socket_event_send(device, BC28_EVENT_DOMAIN_OK);
 }
 
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
@@ -734,6 +709,13 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     RT_ASSERT(data);
 
     LOG_I("URC data : %.*s", size, data);
+}
+
+static void urc_dns_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    RT_ASSERT(data && size);
+
+    urc_dnsqip_func(client, data, size);
 }
 
 static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t size)
@@ -755,6 +737,7 @@ static const struct at_urc urc_table[] =
     {"SEND FAIL",   "\r\n",                 urc_send_func},
     {"+QIOPEN:",    "\r\n",                 urc_connect_func},
     {"+QIURC:",     "\r\n",                 urc_qiurc_func},
+    {"+QDNS:",      "\r\n",                 urc_dns_func},
 };
 
 static const struct at_socket_ops bc28_socket_ops =
