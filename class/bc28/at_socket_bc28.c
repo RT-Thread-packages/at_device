@@ -131,6 +131,10 @@ static int bc28_socket_close(struct at_socket *socket)
     }
     
     result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
+    if (result < 0)
+    {
+        LOG_E("close socket %d failed", device_socket);
+    }
 
     at_delete_resp(resp);
 
@@ -158,7 +162,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
     int i = 0;
     const char *type_str = RT_NULL;
-    uint32_t event = 0;
+    uint32_t event = 0, protocol = 0;
     at_response_t resp = RT_NULL;
     int result = 0, event_result = 0;
     int device_socket = (int) socket->user_data;
@@ -171,17 +175,59 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     {
         return -RT_ERROR;
     }
-
+#if 0
     if (type != AT_SOCKET_TCP)
     {
         return -RT_ERROR;
     }
+#else
+    switch(type)
+    {
+        case AT_SOCKET_TCP:
+            type_str = "STREAM";
+            protocol = 6;
+            break;
+        case AT_SOCKET_UDP:
+            type_str = "DGRAM";
+            protocol = 17;
+            break;
+        default:
+            LOG_E("%s device socket(%d)  connect type error.", device->name, device_socket);
+            return -RT_ERROR;
+    }
+#endif
+
+    
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
+    }
+
+    /* AT+NSOCR=<type>,<protocol>,<listen port>[,<receive control>[,<af_type>[,<ip address>]]] */
+    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,%d", type_str, protocol, port) < 0)
+    {
+        result = -RT_ERROR;
+        goto __connect_exit;
+    }
+
+    /* check socket */
+    int return_socket = -1;
+    if (at_resp_parse_line_args(resp, 2, "%d", &return_socket) <= 0)
+    {
+        LOG_E("%s device create %s socket (port %d) failed.", device->name, type_str, port);
+        result = -RT_ERROR;
+        goto __connect_exit;
+    }
+
+    if (return_socket != device_socket)
+    {
+        LOG_D("socket not match");
+        at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", return_socket);
+        result = -RT_ERROR;
+        goto __connect_exit;
     }
 
     for(i=0; i<CONN_RETRY; i++)
@@ -235,7 +281,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
         result = -RT_ERROR;
     }
-    
+__connect_exit:
     if (resp)
     {
         at_delete_resp(resp);
