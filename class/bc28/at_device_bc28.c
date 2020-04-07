@@ -66,6 +66,7 @@ static int bc28_check_link_status(struct at_device *device)
     int result = -RT_ERROR;
     
     bc28 = (struct at_device_bc28 *)device->user_data;
+
     if ( ! bc28->power_status) // power off
     {
         LOG_E("the power is off.");
@@ -181,7 +182,6 @@ static int bc28_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device IP address */
     {
-        #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
         
         /* send "AT+CGPADDR" commond to get IP address */
@@ -376,9 +376,7 @@ static int bc28_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
         goto __exit;
     }
 
-    /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
-        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
+    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%s", inet_ntoa(*dns_server)) != RT_EOK)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -439,7 +437,11 @@ static int bc28_netdev_ping(struct netdev *netdev, const char *host,
 #ifdef AT_USING_SOCKET
     else
     {
-        bc28_domain_resolve(host, ip_addr);
+        if(0 > bc28_domain_resolve(host, ip_addr))
+        {
+            LOG_E("can not resolve domain");
+            goto __exit;
+        }
     }
 #endif
     
@@ -765,7 +767,6 @@ static void bc28_init_thread_entry(void *parameter)
             rt_thread_mdelay(1000);
             if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR") == RT_EOK)
             {
-                #define IP_ADDR_SIZE_MAX    16
                 char ipaddr[IP_ADDR_SIZE_MAX] = {0};
                 
                 /* parse response data "+CGPADDR: 0,<IP_address>" */
