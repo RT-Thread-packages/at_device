@@ -336,7 +336,7 @@ static int me3616_netdev_set_info(struct netdev *netdev)
         }
 
         /* parse response data "+CGPADDR: 1,<IP_address>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,\"%s\"", ipaddr) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) <= 0)
         {
             LOG_E("%s device \"AT+CGPADDR=1\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -553,6 +553,12 @@ static struct netdev *me3616_netdev_add(const char *netdev_name)
 #define HWADDR_LEN          8
     struct netdev *netdev = RT_NULL;
 
+    netdev = netdev_get_by_name(netdev_name);
+    if(netdev != RT_NULL)
+    {
+        return(netdev);
+    }
+    
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -656,7 +662,7 @@ static void me3616_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
+        at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d\r", &i);
         LOG_D("%s device baudrate %d", device->name, i);
         
         /* get module version */
@@ -748,7 +754,7 @@ static void me3616_init_thread_entry(void *parameter)
                 char ipaddr[IP_ADDR_SIZE_MAX] = {0};
                 
                 /* parse response data "+CGPADDR: 1,<IP_address>" */
-                if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) > 0)
+                if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) > 0)
                 {
                     LOG_D("%s device IP address: %s", device->name, ipaddr);
                     break;
