@@ -35,6 +35,7 @@ extern "C" {
 
 /* The maximum number of sockets supported by the BC28 device */
 #define AT_DEVICE_BC28_SOCKETS_NUM  7
+#define AT_DEVICE_BC28_MIN_SOCKET   1
 
 struct at_device_bc28
 {

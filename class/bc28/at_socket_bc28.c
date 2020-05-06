@@ -31,6 +31,7 @@
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_BC28) && defined(AT_USING_SOCKET)
+#else
 
 #define BC28_MODULE_SEND_MAX_SIZE       1024
 
@@ -120,7 +121,7 @@ static int bc28_socket_close(struct at_socket *socket)
 {
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data;
+    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
     struct at_device *device = (struct at_device *) socket->device;
 
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
@@ -165,7 +166,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     uint32_t event = 0, protocol = 0;
     at_response_t resp = RT_NULL;
     int result = 0, event_result = 0;
-    int device_socket = (int) socket->user_data;
+    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
     struct at_device *device = (struct at_device *) socket->device;
 
     RT_ASSERT(ip);
@@ -197,8 +198,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 #endif
 
-    
-
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -207,7 +206,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 
     /* AT+NSOCR=<type>,<protocol>,<listen port>[,<receive control>[,<af_type>[,<ip address>]]] */
-    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,%d", type_str, protocol, port) < 0)
+    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,%d,1", type_str, protocol, port) < 0)
     {
         result = -RT_ERROR;
         goto __connect_exit;
@@ -230,55 +229,32 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         goto __connect_exit;
     }
 
+    /* if the protocol is not tcp, no need connect to server */
+    if (protocol != 6)
+        return RT_EOK;
+
     for(i=0; i<CONN_RETRY; i++)
     {
-        /* clear socket connect event */
-        event = SET_EVENT(device_socket, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL);
-        bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-
-        if (at_obj_exec_cmd(device->client, resp, "AT+NSOCO=%d,%s,%d", 
-                            device_socket, ip, port) < 0)
+        if (at_obj_exec_cmd(device->client, resp, "AT+NSOCO=%d,%s,%d", device_socket, ip, port) < 0)
         {
             result = -RT_ERROR;
             break;
         }
 
-        /* waiting result event from AT URC, the device default connection timeout is 60 seconds*/
-        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
-                                    60 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
-        {
-            LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            break;
-        }
-        /* waiting OK or failed result */
-        event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL, 
-                                                1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result < 0)
-        {
-            LOG_E("%s device socket(%d) wait connect OK|FAIL timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            break;
-        }
-        /* check result */
-        if (event_result & BC28_EVENT_CONN_OK)
-        {
-            result = RT_EOK;
-            break;
-        }
-        
-        LOG_D("%s device socket(%d) connect failed, the socket was not be closed and now will connect retry.",
-                    device->name, device_socket);
-        if (bc28_socket_close(socket) < 0)
+        if( NULL == at_resp_get_line_by_kw(resp, "OK"))
         {
             result = -RT_ERROR;
-            break;
+            continue;
         }
+
+        result = RT_EOK;
+        break;
     }
 
-    if (i == CONN_RETRY)
+    if (result != RT_EOK)
     {
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
+        at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
         result = -RT_ERROR;
     }
 __connect_exit:
@@ -294,7 +270,7 @@ static int at_get_send_size(struct at_socket *socket, size_t *size, size_t *acke
 {
     int result = 0;
     at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data;
+    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
     struct at_device *device = (struct at_device *) socket->device;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
@@ -358,13 +334,14 @@ static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
  *          -2: waited socket event timeout
  *          -5: no memory
  */
-static int bc28_socket_send(struct at_socket *socket, const char *buff, size_t bfsz, enum at_socket_type type)
+static int bc28_socket_send(struct at_socket *socket, const char *buff, 
+                            size_t bfsz, enum at_socket_type type)
 {
     uint32_t event = 0;
     int result = 0, event_result = 0;
     size_t cur_pkt_size = 0, sent_size = 0;
     at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data;
+    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_bc28 *bc28 = (struct at_device_bc28 *) device->user_data;
     rt_mutex_t lock = device->client->lock;
