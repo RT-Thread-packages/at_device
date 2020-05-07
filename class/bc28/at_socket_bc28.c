@@ -33,7 +33,7 @@
 #if defined(AT_DEVICE_USING_BC28) && defined(AT_USING_SOCKET)
 #else
 
-#define BC28_MODULE_SEND_MAX_SIZE       1024
+#define BC28_MODULE_SEND_MAX_SIZE       1358
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -176,12 +176,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     {
         return -RT_ERROR;
     }
-#if 0
-    if (type != AT_SOCKET_TCP)
-    {
-        return -RT_ERROR;
-    }
-#else
+
     switch(type)
     {
         case AT_SOCKET_TCP:
@@ -196,7 +191,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             LOG_E("%s device socket(%d)  connect type error.", device->name, device_socket);
             return -RT_ERROR;
     }
-#endif
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
@@ -230,7 +224,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 
     /* if the protocol is not tcp, no need connect to server */
-    if (protocol != 6)
+    if (type != AT_SOCKET_TCP)
         return RT_EOK;
 
     for(i=0; i<CONN_RETRY; i++)
@@ -334,6 +328,142 @@ static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
  *          -2: waited socket event timeout
  *          -5: no memory
  */
+#if 1
+static int bc28_socket_send(struct at_socket *socket, const char *buff, 
+                            size_t bfsz, enum at_socket_type type)
+{
+    uint32_t event = 0;
+    int result = 0, event_result = 0;
+    size_t cur_pkt_size = 0, sent_size = 0;
+    at_response_t resp = RT_NULL;
+    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
+    struct at_device *device = (struct at_device *) socket->device;
+    struct at_device_bc28 *bc28 = (struct at_device_bc28 *) device->user_data;
+    rt_mutex_t lock = device->client->lock;
+
+    RT_ASSERT(buff);
+
+    resp = at_create_resp(128, 2, rt_tick_from_millisecond(300));
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return -RT_ENOMEM;
+    }
+
+    rt_mutex_take(lock, RT_WAITING_FOREVER);
+
+    /* set current socket for send URC event */
+    bc28->user_data = (void *) device_socket;
+
+    /* clear socket send event */
+    event = SET_EVENT(device_socket, BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL);
+    bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
+
+    /* set AT client end sign to deal with '>' sign.*/
+    at_obj_set_end_sign(device->client, '>');
+
+    while (sent_size < bfsz)
+    {
+        if (bfsz - sent_size < BC28_MODULE_SEND_MAX_SIZE)
+        {
+            cur_pkt_size = bfsz - sent_size;
+        }
+        else
+        {
+            cur_pkt_size = BC28_MODULE_SEND_MAX_SIZE;
+        }
+
+        switch (type)
+        {
+        case AT_SOCKET_TCP:
+            /* TCP: AT+NSOSD=<socket>,<length>,<data>[,<flag>[,<sequence>]] */
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%x", device_socket, 
+                                (int)cur_pkt_size, buff + sent_size) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+            break;
+
+        case AT_SOCKET_UDP:
+            /* UDP: AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%d", device_socket, (int)cur_pkt_size) < 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
+        
+        default:
+            LOG_E("not supported send type %d.", type);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
+        if (at_obj_exec_cmd(device->client, resp, "AT+QISEND=%d,%d", device_socket, (int)cur_pkt_size) < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        rt_thread_mdelay(5);//delay at least 4ms
+        
+        /* send the real data to server or client */
+        result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
+        if (result == 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        /* waiting result event from AT URC */
+        event = SET_EVENT(device_socket, 0);
+        event_result = bc28_socket_event_recv(device, event, 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+        if (event_result < 0)
+        {
+            LOG_E("%s device socket(%d) wait event timeout.", device->name, device_socket);
+            result = -RT_ETIMEOUT;
+            goto __exit;
+        }
+        /* waiting OK or failed result */
+        event = BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL;
+        event_result = bc28_socket_event_recv(device, event, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+        if (event_result < 0)
+        {
+            LOG_E("%s device socket(%d) wait sned OK|FAIL timeout.", device->name, device_socket);
+            result = -RT_ETIMEOUT;
+            goto __exit;
+        }
+        /* check result */
+        if (event_result & BC28_EVENT_SEND_FAIL)
+        {
+            LOG_E("%s device socket(%d) send failed.", device->name, device_socket);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (type == AT_SOCKET_TCP)
+        {
+            at_wait_send_finish(socket, 2*cur_pkt_size);
+        }
+
+        sent_size += cur_pkt_size;
+    }
+
+__exit:
+    /* reset the end sign for data conflict */
+    at_obj_set_end_sign(device->client, 0);
+
+    rt_mutex_release(lock);
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result > 0 ? sent_size : result;
+}
+#else
 static int bc28_socket_send(struct at_socket *socket, const char *buff, 
                             size_t bfsz, enum at_socket_type type)
 {
@@ -442,6 +572,7 @@ __exit:
 
     return result > 0 ? sent_size : result;
 }
+#endif
 
 /**
  * domain resolve by AT commands.
