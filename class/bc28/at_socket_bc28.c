@@ -251,6 +251,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
         result = -RT_ERROR;
     }
+
 __connect_exit:
     if (resp)
     {
@@ -360,7 +361,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
     bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
     /* set AT client end sign to deal with '>' sign.*/
-    at_obj_set_end_sign(device->client, '>');
+    //at_obj_set_end_sign(device->client, '>');
 
     while (sent_size < bfsz)
     {
@@ -373,12 +374,21 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             cur_pkt_size = BC28_MODULE_SEND_MAX_SIZE;
         }
 
+        size_t i = 0, ind = 0;
+        char hex_data[cur_pkt_size * 2 + 1];
+        rt_memset(hex_data, 0, sizeof(hex_data));
+
+        for (i=0, ind=0; i<cur_pkt_size; i++, ind+=2)
+        {
+            sprintf(&hex_data[ind], "%02X", buff[sent_size + i]);
+        }
+
         switch (type)
         {
         case AT_SOCKET_TCP:
             /* TCP: AT+NSOSD=<socket>,<length>,<data>[,<flag>[,<sequence>]] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%x", device_socket, 
-                                (int)cur_pkt_size, buff + sent_size) < 0)
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%s", device_socket, 
+                                (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -387,7 +397,8 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         case AT_SOCKET_UDP:
             /* UDP: AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%d", device_socket, (int)cur_pkt_size) < 0)
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%d", device_socket, 
+                                (int)cur_pkt_size) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
@@ -399,19 +410,18 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             goto __exit;
         }
 
-        /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QISEND=%d,%d", device_socket, (int)cur_pkt_size) < 0)
+        /* check if sent ok */
+        int return_socket = -1, return_size = -1;
+        if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
         {
+            LOG_E("%s device %d socket send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
-        
-        rt_thread_mdelay(5);//delay at least 4ms
-        
-        /* send the real data to server or client */
-        result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
-        if (result == 0)
+
+        if (return_socket != device_socket || return_size != cur_pkt_size)
         {
+            LOG_D("%s device %d socket send data incompletely.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
