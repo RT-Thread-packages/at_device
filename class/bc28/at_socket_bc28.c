@@ -636,7 +636,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+QIURC: \"closed\",%d", &device_socket);
+    sscanf(data, "+NSOCLI: %d", &device_socket);
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -666,8 +666,17 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
+    /* AT+NSORF=<socket>,<req_length>
+     * <socket>,<ip_addr>,<port>,<length>,<data>,<remaining_length>
+     * 
+     * mode 1 => +NSONMI:<socket>,<length>
+     * mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data>
+     * mode 3 => +NSONMI: <socket>,<length>,<data>
+     * 
+     */
+
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+QIURC: \"recv\",%d,%d", &device_socket, (int *) &bfsz);
+    sscanf(data, "+NSONMI:%d,%d", &device_socket, (int *) &bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -697,12 +706,36 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* sync receive data */
+    #if 0
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
         LOG_E("%s device receive size(%d) data failed.", device->name, bfsz);
         rt_free(recv_buf);
         return;
     }
+    #else
+    at_response_t resp = RT_NULL;
+
+    resp = at_create_resp(bfsz + 64, 0, rt_tick_from_millisecond(300));
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return;
+    }
+
+    if (at_obj_exec_cmd(device->client, resp, "AT+NSORF=%d,%d", device_socket, bfsz) != RT_EOK)
+    {
+        LOG_E(">> AT+NSORF=%d,%d", device_socket, bfsz);
+        rt_free(recv_buf);
+        return;
+    }
+
+    /* <socket>,<ip_addr>,<port>,<length>,<data>,<remaining_length> */
+    if (at_resp_parse_line_args(resp, 1, "%d,%s,%d,%d,%s,%d", ))
+    {
+        /*  */
+    }
+    #endif
 
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
@@ -754,6 +787,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     LOG_I("URC data : %.*s", size, data);
 }
 
+#if 0
 static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
@@ -766,13 +800,14 @@ static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t
     default  : urc_func(client, data, size);      break;
     }
 }
+#endif
 
 /* +NSOSTR:<socket>,<sequence>,<status> */
 static const struct at_urc urc_table[] =
 {
-    {"SEND OK",     "\r\n",       urc_send_func},
+    //{"SEND OK",     "\r\n",       urc_send_func},
     {"+NSOSTR:",   "\r\n",        urc_send_func},
-    {"+QIOPEN:",    "\r\n",       urc_connect_func},
+    //{"+QIOPEN:",    "\r\n",       urc_connect_func},
     //{"+QIURC:",     "\r\n",       urc_qiurc_func},
     {"+QDNS:",      "\r\n",       urc_dns_func},
     {"+NSONMI:",    "\r\n",       urc_recv_func},
