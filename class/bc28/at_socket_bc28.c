@@ -52,6 +52,52 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
+static int string_to_hex(const char *str, char *hex, const rt_size_t len)
+{
+    RT_ASSERT(str && hex);
+
+    int str_len = rt_strlen(str);
+    int pos = 0, i;
+
+    if (len < 1 || str_len < len)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < len; i++, pos += 2)
+    {
+        rt_sprintf(&hex[pos], "%02X", str[i]);
+    }
+
+    return i;
+}
+
+static int hex_to_string(const char *hex, char *str, const rt_size_t len)
+{
+    RT_ASSERT(hex && str);
+
+    int hex_len = rt_strlen(hex);
+    int pos = 0, left, right, i;
+
+    if (len < 1 || hex_len/2 < len)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < len*2; i++, pos++)
+    {
+        left = hex[i++];
+        right = hex[i];
+
+        left  = (left  < 58) ? (left  - 48) : (left  - 55);
+        right = (right < 58) ? (right - 48) : (right - 55);
+
+        str[pos] = (left << 4) | right;
+    }
+
+    return pos;
+}
+
 static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
 {
     switch(result)
