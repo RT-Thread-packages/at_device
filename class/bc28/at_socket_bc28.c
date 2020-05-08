@@ -52,6 +52,16 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
+/**
+ * convert data from ASCII string to Hex string.
+ *
+ * @param str  input ASCII string
+ * @param hex  output Hex string
+ * @param len  length of str, or the size you want to convert
+ *
+ * @return =0: convert failed, or no data need to convert
+ *         >0: the size of convert success
+ */
 static int string_to_hex(const char *str, char *hex, const rt_size_t len)
 {
     RT_ASSERT(str && hex);
@@ -72,6 +82,16 @@ static int string_to_hex(const char *str, char *hex, const rt_size_t len)
     return i;
 }
 
+/**
+ * convert data from Hex string to ASCII string.
+ *
+ * @param hex  input Hex string
+ * @param str  output ASCII string
+ * @param len  length of str, or the size you want to convert
+ *
+ * @return =0: convert failed, or no data need to convert
+ *         >0: the size of convert success
+ */
 static int hex_to_string(const char *hex, char *str, const rt_size_t len)
 {
     RT_ASSERT(hex && str);
@@ -307,61 +327,6 @@ __connect_exit:
     return result;
 }
 
-static int at_get_send_size(struct at_socket *socket, size_t *size, size_t *acked, size_t *nacked)
-{
-    int result = 0;
-    at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
-    struct at_device *device = (struct at_device *) socket->device;
-
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
-    if (resp == RT_NULL)
-    {
-        LOG_E("no memory for resp create.", device->name);
-        return -RT_ENOMEM;
-    }
-
-    if (at_obj_exec_cmd(device->client, resp, "AT+QISEND=%d,0", device_socket) < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    if (at_resp_parse_line_args_by_kw(resp, "+QISEND:", "+QISEND: %d,%d,%d", size, acked, nacked) <= 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-__exit:
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result;
-}
-
-static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
-{
-    /* get the timeout by the input data size */
-    rt_tick_t timeout = rt_tick_from_millisecond(settings_size);
-    rt_tick_t last_time = rt_tick_get();
-    size_t size = 0, acked = 0, nacked = 0xFFFF;
-
-    while (rt_tick_get() - last_time <= timeout)
-    {
-        at_get_send_size(socket, &size, &acked, &nacked);
-        if (nacked == 0)
-        {
-            return RT_EOK;
-        }
-        rt_thread_mdelay(100);
-    }
-
-    return -RT_ETIMEOUT;
-}
-
 /**
  * send data to server or client by AT commands.
  *
@@ -375,7 +340,6 @@ static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
  *          -2: waited socket event timeout
  *          -5: no memory
  */
-#if 1
 static int bc28_socket_send(struct at_socket *socket, const char *buff, 
                             size_t bfsz, enum at_socket_type type)
 {
@@ -457,7 +421,15 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         }
 
         /* check if sent ok */
+        if (!at_resp_get_line_by_kw(resp, "OK"))
+        {
+            LOG_E("%s device %d socket send data failed.", device->name, device_socket);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
         int return_socket = -1, return_size = -1;
+
         if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
         {
             LOG_E("%s device %d socket send data failed.", device->name, device_socket);
@@ -472,43 +444,14 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             goto __exit;
         }
 
-        /* waiting result event from AT URC */
-        event = SET_EVENT(device_socket, 0);
-        event_result = bc28_socket_event_recv(device, event, 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result < 0)
-        {
-            LOG_E("%s device socket(%d) wait event timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            goto __exit;
-        }
-        /* waiting OK or failed result */
-        event = BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL;
-        event_result = bc28_socket_event_recv(device, event, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result < 0)
-        {
-            LOG_E("%s device socket(%d) wait sned OK|FAIL timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            goto __exit;
-        }
-        /* check result */
-        if (event_result & BC28_EVENT_SEND_FAIL)
-        {
-            LOG_E("%s device socket(%d) send failed.", device->name, device_socket);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        if (type == AT_SOCKET_TCP)
-        {
-            at_wait_send_finish(socket, 2*cur_pkt_size);
-        }
+        //rt_thread_mdelay(100);
 
         sent_size += cur_pkt_size;
     }
 
 __exit:
     /* reset the end sign for data conflict */
-    at_obj_set_end_sign(device->client, 0);
+    //at_obj_set_end_sign(device->client, 0);
 
     rt_mutex_release(lock);
 
@@ -519,116 +462,6 @@ __exit:
 
     return result > 0 ? sent_size : result;
 }
-#else
-static int bc28_socket_send(struct at_socket *socket, const char *buff, 
-                            size_t bfsz, enum at_socket_type type)
-{
-    uint32_t event = 0;
-    int result = 0, event_result = 0;
-    size_t cur_pkt_size = 0, sent_size = 0;
-    at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
-    struct at_device *device = (struct at_device *) socket->device;
-    struct at_device_bc28 *bc28 = (struct at_device_bc28 *) device->user_data;
-    rt_mutex_t lock = device->client->lock;
-
-    RT_ASSERT(buff);
-
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(300));
-    if (resp == RT_NULL)
-    {
-        LOG_E("no memory for resp create.");
-        return -RT_ENOMEM;
-    }
-
-    rt_mutex_take(lock, RT_WAITING_FOREVER);
-
-    /* set current socket for send URC event */
-    bc28->user_data = (void *) device_socket;
-
-    /* clear socket send event */
-    event = SET_EVENT(device_socket, BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL);
-    bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-
-    /* set AT client end sign to deal with '>' sign.*/
-    at_obj_set_end_sign(device->client, '>');
-
-    while (sent_size < bfsz)
-    {
-        if (bfsz - sent_size < BC28_MODULE_SEND_MAX_SIZE)
-        {
-            cur_pkt_size = bfsz - sent_size;
-        }
-        else
-        {
-            cur_pkt_size = BC28_MODULE_SEND_MAX_SIZE;
-        }
-
-        /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QISEND=%d,%d", device_socket, (int)cur_pkt_size) < 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-        
-        rt_thread_mdelay(5);//delay at least 4ms
-        
-        /* send the real data to server or client */
-        result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
-        if (result == 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        /* waiting result event from AT URC */
-        event = SET_EVENT(device_socket, 0);
-        event_result = bc28_socket_event_recv(device, event, 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result < 0)
-        {
-            LOG_E("%s device socket(%d) wait event timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            goto __exit;
-        }
-        /* waiting OK or failed result */
-        event = BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL;
-        event_result = bc28_socket_event_recv(device, event, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result < 0)
-        {
-            LOG_E("%s device socket(%d) wait sned OK|FAIL timeout.", device->name, device_socket);
-            result = -RT_ETIMEOUT;
-            goto __exit;
-        }
-        /* check result */
-        if (event_result & BC28_EVENT_SEND_FAIL)
-        {
-            LOG_E("%s device socket(%d) send failed.", device->name, device_socket);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        if (type == AT_SOCKET_TCP)
-        {
-            at_wait_send_finish(socket, 2*cur_pkt_size);
-        }
-
-        sent_size += cur_pkt_size;
-    }
-
-__exit:
-    /* reset the end sign for data conflict */
-    at_obj_set_end_sign(device->client, 0);
-
-    rt_mutex_release(lock);
-
-    if (resp)
-    {
-        at_delete_resp(resp);
-    }
-
-    return result > 0 ? sent_size : result;
-}
-#endif
 
 /**
  * domain resolve by AT commands.
@@ -881,7 +714,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 }
 
-static void urc_dnsqip_func(struct at_client *client, const char *data, rt_size_t size)
+static void urc_dns_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int i = 0, j = 0;
     char recv_ip[16] = {0};
@@ -921,13 +754,6 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     LOG_I("URC data : %.*s", size, data);
 }
 
-static void urc_dns_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    RT_ASSERT(data && size);
-
-    urc_dnsqip_func(client, data, size);
-}
-
 static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
@@ -941,13 +767,16 @@ static void urc_qiurc_func(struct at_client *client, const char *data, rt_size_t
     }
 }
 
+/* +NSOSTR:<socket>,<sequence>,<status> */
 static const struct at_urc urc_table[] =
 {
-    {"SEND OK",     "\r\n",                 urc_send_func},
-    {"SEND FAIL",   "\r\n",                 urc_send_func},
-    {"+QIOPEN:",    "\r\n",                 urc_connect_func},
-    {"+QIURC:",     "\r\n",                 urc_qiurc_func},
-    {"+QDNS:",      "\r\n",                 urc_dns_func},
+    {"SEND OK",     "\r\n",       urc_send_func},
+    {"+NSOSTR:",   "\r\n",        urc_send_func},
+    {"+QIOPEN:",    "\r\n",       urc_connect_func},
+    //{"+QIURC:",     "\r\n",       urc_qiurc_func},
+    {"+QDNS:",      "\r\n",       urc_dns_func},
+    {"+NSONMI:",    "\r\n",       urc_recv_func},
+    {"+NSOCLI:",    "\r\n",       urc_close_func},
 };
 
 static const struct at_socket_ops bc28_socket_ops =
