@@ -31,7 +31,6 @@
 #include <at_log.h>
 
 #if defined(AT_DEVICE_USING_BC28) && defined(AT_USING_SOCKET)
-#else
 
 #define BC28_MODULE_SEND_MAX_SIZE       1358
 
@@ -48,7 +47,8 @@
 #define BC28_EVENT_DOMAIN_OK           (1L << 6)
 
 static at_evt_cb_t at_evt_cb_set[] = {
-        [AT_SOCKET_EVT_RECV] = NULL,
+
+        [AT_SOCKET_EVT_RECV]   = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
@@ -652,7 +652,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     int device_socket = 0;
     rt_int32_t timeout;
     rt_size_t bfsz = 0, temp_size = 0;
-    char *recv_buf = RT_NULL, temp[8] = {0};
+    char *recv_buf = RT_NULL, *hex_buf = RT_NULL, temp[8] = {0};
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
@@ -686,7 +686,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     recv_buf = (char *) rt_calloc(1, bfsz);
-    if (recv_buf == RT_NULL)
+    hex_buf  = (char *) rt_calloc(1, bfsz * 2 + 1);
+    if (recv_buf == RT_NULL || hex_buf == RT_NULL)
     {
         LOG_E("no memory for URC receive buffer(%d).", bfsz);
         /* read and clean the coming data */
@@ -702,6 +703,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
             }
             temp_size += sizeof(temp);
         }
+
+        if (recv_buf) rt_free(recv_buf);
+        if (hex_buf)  rt_free(hex_buf);
         return;
     }
 
@@ -720,6 +724,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
+        rt_free(recv_buf);
+        rt_free(hex_buf);
         return;
     }
 
@@ -727,14 +733,24 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     {
         LOG_E(">> AT+NSORF=%d,%d", device_socket, bfsz);
         rt_free(recv_buf);
+        rt_free(hex_buf);
         return;
     }
 
     /* <socket>,<ip_addr>,<port>,<length>,<data>,<remaining_length> */
-    if (at_resp_parse_line_args(resp, 1, "%d,%s,%d,%d,%s,%d", ))
+    int return_socket = -1, remote_port = -1, data_length = 0, remaining_length = 0;
+    char remote_addr[IP_ADDR_SIZE_MAX] = {0};
+    if (at_resp_parse_line_args(resp, 1, "%d,%s,%d,%d,%s,%d", &return_socket, remote_addr, 
+                                &remote_port, &data_length, hex_buf, &remaining_length) > 0)
     {
         /*  */
+        hex_to_string(hex_buf, recv_buf, data_length);
+
+        LOG_D("socket %d recv %d bytes from %s:%d\n%s\n", return_socket, data_length, 
+              remote_addr, remote_port, hex_buf);
+        rt_free(hex_buf);
     }
+
     #endif
 
     /* get at socket object by device socket descriptor */
