@@ -66,6 +66,7 @@ static int bc28_check_link_status(struct at_device *device)
     int result = -RT_ERROR;
     
     bc28 = (struct at_device_bc28 *)device->user_data;
+
     if ( ! bc28->power_status) // power off
     {
         LOG_E("the power is off.");

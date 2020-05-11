@@ -754,7 +754,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     #endif
 
     /* get at socket object by device socket descriptor */
-    socket = &(device->sockets[device_socket]);
+    socket = &(device->sockets[device_socket - AT_DEVICE_BC28_MIN_SOCKET]);
 
     /* notice the receive buffer and buffer size */
     if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
@@ -853,11 +853,10 @@ int bc28_socket_class_register(struct at_device_class *class)
 {
     RT_ASSERT(class);
 
-    class->socket_num = AT_DEVICE_BC28_SOCKETS_NUM;
+    class->socket_num = AT_DEVICE_BC28_SOCKETS_NUM - AT_DEVICE_BC28_MIN_SOCKET;
     class->socket_ops = &bc28_socket_ops;
 
     return RT_EOK;
 }
 
 #endif /* AT_DEVICE_USING_BC28 && AT_USING_SOCKET */
-
