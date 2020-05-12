@@ -223,7 +223,7 @@ static int bc28_socket_close(struct at_socket *socket)
  *          -5: no memory
  */
 static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
-    enum at_socket_type type, rt_bool_t is_client)
+                               enum at_socket_type type, rt_bool_t is_client)
 {
 #define CONN_RETRY  2
 
@@ -266,7 +266,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 
     /* AT+NSOCR=<type>,<protocol>,<listen port>[,<receive control>[,<af_type>[,<ip address>]]] */
-    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,%d,1", type_str, protocol, port) < 0)
+    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,0,1", type_str, protocol) < 0)
     {
         result = -RT_ERROR;
         goto __connect_exit;
@@ -276,7 +276,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     int return_socket = -1;
     if (at_resp_parse_line_args(resp, 2, "%d", &return_socket) <= 0)
     {
-        LOG_E("%s device create %s socket (port %d) failed.", device->name, type_str, port);
+        LOG_E("%s device create %s socket failed.", device->name, type_str);
         result = -RT_ERROR;
         goto __connect_exit;
     }
@@ -407,8 +407,8 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         case AT_SOCKET_UDP:
             /* UDP: AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%d", device_socket, 
-                                (int)cur_pkt_size) < 0)
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,118.31.15.152,8101,%d,%s", device_socket, 
+                                (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
