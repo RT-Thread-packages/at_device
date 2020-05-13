@@ -238,6 +238,8 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
 
+    LOG_E(">> bc28_socket_connect()");
+
     if ( ! is_client)
     {
         return -RT_ERROR;
@@ -269,8 +271,10 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,0,1", type_str, protocol) < 0)
     {
         result = -RT_ERROR;
-        goto __connect_exit;
+        goto __exit;
     }
+
+    LOG_E(">> AT+NSOCR=%s,%d,0,1", type_str, protocol);
 
     /* check socket */
     int return_socket = -1;
@@ -278,15 +282,17 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     {
         LOG_E("%s device create %s socket failed.", device->name, type_str);
         result = -RT_ERROR;
-        goto __connect_exit;
+        goto __exit;
     }
+
+    LOG_E(">> return socket: %d", return_socket);
 
     if (return_socket != device_socket)
     {
         LOG_D("socket not match");
         at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", return_socket);
         result = -RT_ERROR;
-        goto __connect_exit;
+        goto __exit;
     }
 
     /* if the protocol is not tcp, no need connect to server */
@@ -301,11 +307,15 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             break;
         }
 
-        if( NULL == at_resp_get_line_by_kw(resp, "OK"))
+        LOG_E(">> AT+NSOCO=%d,%s,%d", device_socket, ip, port);
+
+        if(!at_resp_get_line_by_kw(resp, "OK"))
         {
             result = -RT_ERROR;
             continue;
         }
+
+        LOG_E(">> AT OK");
 
         result = RT_EOK;
         break;
@@ -318,7 +328,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         result = -RT_ERROR;
     }
 
-__connect_exit:
+__exit:
     if (resp)
     {
         at_delete_resp(resp);
@@ -403,6 +413,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
                 result = -RT_ERROR;
                 goto __exit;
             }
+            LOG_E(">> AT+NSOSD=%d,%d,%s", device_socket, (int)cur_pkt_size, hex_data);
             break;
 
         case AT_SOCKET_UDP:
@@ -423,7 +434,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         /* check if sent ok */
         if (!at_resp_get_line_by_kw(resp, "OK"))
         {
-            LOG_E("%s device %d socket send data failed.", device->name, device_socket);
+            LOG_E("@ %s device socket [%d] send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -432,7 +443,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
         {
-            LOG_E("%s device %d socket send data failed.", device->name, device_socket);
+            LOG_E("@@ %s device socket [%d] send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -637,6 +648,9 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     sscanf(data, "+NSOCLI: %d", &device_socket);
+
+    bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
+
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
