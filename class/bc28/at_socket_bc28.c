@@ -301,12 +301,15 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
     for(i=0; i<CONN_RETRY; i++)
     {
+        /* clear socket connect event */
+        event = SET_EVENT(device_socket, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL);
+        bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
+
         if (at_obj_exec_cmd(device->client, resp, "AT+NSOCO=%d,%s,%d", device_socket, ip, port) < 0)
         {
             result = -RT_ERROR;
-            break;
+            continue;
         }
-
         LOG_E(">> AT+NSOCO=%d,%s,%d", device_socket, ip, port);
 
         if(!at_resp_get_line_by_kw(resp, "OK"))
@@ -314,11 +317,31 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = -RT_ERROR;
             continue;
         }
-
         LOG_E(">> AT OK");
 
-        result = RT_EOK;
-        break;
+        /* waiting result event from AT URC, the device default connection timeout is 10 seconds*/
+        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
+                                   10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
+        {
+            LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
+            /* No news is good news */
+            result = RT_EOK;
+            break;
+        }
+        /* waiting OK or failed result */
+        event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL, 
+                                              1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+        if (event_result & BC28_EVENT_CONN_FAIL)
+        {
+            LOG_E("%s device socket(%d) wait connect OK|FAIL timeout.", device->name, device_socket);
+            result = -RT_ERROR;
+            continue;
+        }
+        else
+        {
+            result = RT_EOK;
+            break;
+        }
     }
 
     if (result != RT_EOK)
@@ -434,7 +457,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         /* check if sent ok */
         if (!at_resp_get_line_by_kw(resp, "OK"))
         {
-            LOG_E("@ %s device socket [%d] send data failed.", device->name, device_socket);
+            LOG_E("@ %s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -443,7 +466,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
         {
-            LOG_E("@@ %s device socket [%d] send data failed.", device->name, device_socket);
+            LOG_E("@@ %s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
