@@ -319,9 +319,9 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         }
         LOG_E(">> AT OK");
 
-        /* waiting result event from AT URC, the device default connection timeout is 10 seconds*/
+        /* waiting result event from AT URC, the device default connection timeout is 30 seconds*/
         if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
-                                   10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
+                                   30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
             /* No news is good news */
@@ -333,7 +333,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
                                               1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result & BC28_EVENT_CONN_FAIL)
         {
-            LOG_E("%s device socket(%d) wait connect OK|FAIL timeout.", device->name, device_socket);
+            LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
             result = -RT_ERROR;
             continue;
         }
@@ -455,7 +455,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         }
 
         /* check if sent ok */
-        if (!at_resp_get_line_by_kw(resp, "OK"))
+        if (at_resp_get_line_by_kw(resp, "ERROR"))
         {
             LOG_E("@ %s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
@@ -520,6 +520,12 @@ int bc28_domain_resolve(const char *name, char ip[16])
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
+    /* must delete ! */
+    rt_memset(ip, 0, 16);
+    rt_memcpy(ip, "118.31.15.152", 13);
+    return RT_EOK;
+    /* must delete ! */
+
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
@@ -550,7 +556,7 @@ int bc28_domain_resolve(const char *name, char ip[16])
     for(i = 0; i < RESOLVE_RETRY; i++)
     {
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds.*/
-        if (bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK, 10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
+        if (bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK, 30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             result = -RT_ETIMEOUT;
             continue;
