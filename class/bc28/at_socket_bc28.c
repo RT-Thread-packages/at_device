@@ -33,6 +33,7 @@
 #if defined(AT_DEVICE_USING_BC28) && defined(AT_USING_SOCKET)
 
 #define BC28_MODULE_SEND_MAX_SIZE       1358
+#define BC28_MODULE_RECV_MAX_SIZE       1358
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -312,6 +313,19 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         }
         LOG_E(">> AT+NSOCO=%d,%s,%d", device_socket, ip, port);
 
+#if 1
+        /* Print response line buffer */
+        char *line_buffer = RT_NULL;
+
+        for(rt_size_t line_num = 1; line_num <= resp->line_counts; line_num++)
+        {
+            if((line_buffer = at_resp_get_line(resp, line_num)) != RT_NULL)
+                LOG_E("line %d buffer : %s", line_num, line_buffer);
+            else
+                LOG_E("Parse line buffer error!");
+        }
+#endif
+
         if(!at_resp_get_line_by_kw(resp, "OK"))
         {
             result = -RT_ERROR;
@@ -321,7 +335,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds*/
         if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
-                                   30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
+                                   10 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
             /* No news is good news */
@@ -387,7 +401,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
     RT_ASSERT(buff);
 
-    resp = at_create_resp(128, 2, rt_tick_from_millisecond(300));
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -453,9 +467,20 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             result = -RT_ERROR;
             goto __exit;
         }
+#if 1
+        /* Print response line buffer */
+        char *line_buffer = RT_NULL;
 
+        for(rt_size_t line_num = 1; line_num <= resp->line_counts; line_num++)
+        {
+            if((line_buffer = at_resp_get_line(resp, line_num)) != RT_NULL)
+                LOG_E("line %d buffer : %s", line_num, line_buffer);
+            else
+                LOG_E("Parse line buffer error!");
+        }
+#endif
         /* check if sent ok */
-        if (at_resp_get_line_by_kw(resp, "ERROR"))
+        if (!at_resp_get_line_by_kw(resp, "OK"))
         {
             LOG_E("@ %s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
@@ -547,7 +572,7 @@ int bc28_domain_resolve(const char *name, char ip[16])
     bc28 = (struct at_device_bc28 *) device->user_data;
     bc28->socket_data = ip;
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+QDNS=0,%s", name) != RT_EOK)
+    if (at_obj_exec_cmd(device->client, resp, "AT+QDNS=0,%s", name) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -696,6 +721,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_int32_t timeout;
     rt_size_t bfsz = 0, temp_size = 0;
     char *recv_buf = RT_NULL, *hex_buf = RT_NULL, temp[8] = {0};
+    char remote_addr[IP_ADDR_SIZE_MAX] = {0};
+    int remote_port = -1, return_socket = -1, data_length = 0, remaining_length = 0;
+
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
@@ -709,17 +737,19 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    /* AT+NSORF=<socket>,<req_length>
-     * <socket>,<ip_addr>,<port>,<length>,<data>,<remaining_length>
-     * 
+    /* 
      * mode 1 => +NSONMI:<socket>,<length>
      * mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data>
-     * mode 3 => +NSONMI: <socket>,<length>,<data>
-     * 
      */
+    hex_buf  = (char *) rt_calloc(1, BC28_MODULE_RECV_MAX_SIZE * 2 + 1);
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+NSONMI:%d,%d", &device_socket, (int *) &bfsz);
+    LOG_E("@ %s", data);
+    //sscanf(data, "+NSONMI:%d,%d", &device_socket, (int *) &bfsz);
+    sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
+    LOG_E(">> socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
+    rt_free(hex_buf);
+    return;
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -729,7 +759,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     recv_buf = (char *) rt_calloc(1, bfsz);
-    hex_buf  = (char *) rt_calloc(1, bfsz * 2 + 1);
+    //hex_buf  = (char *) rt_calloc(1, bfsz * 2 + 1);
     if (recv_buf == RT_NULL || hex_buf == RT_NULL)
     {
         LOG_E("no memory for URC receive buffer(%d).", bfsz);
@@ -763,7 +793,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     #else
     at_response_t resp = RT_NULL;
 
-    resp = at_create_resp(bfsz + 64, 0, rt_tick_from_millisecond(300));
+    resp = at_create_resp(BC28_MODULE_RECV_MAX_SIZE + 64, 0, rt_tick_from_millisecond(6000));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -772,25 +802,38 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    if (at_obj_exec_cmd(device->client, resp, "AT+NSORF=%d,%d", device_socket, bfsz) != RT_EOK)
+    int ret;
+
+    if ((ret = at_obj_exec_cmd(device->client, resp, "AT+NSORF=%d,%d", device_socket, bfsz)) < 0)
     {
-        LOG_E(">> AT+NSORF=%d,%d", device_socket, bfsz);
-        rt_free(recv_buf);
-        rt_free(hex_buf);
-        return;
+        LOG_E(">> [%d] AT+NSORF=%d,%d", ret, device_socket, bfsz);
+        //rt_free(recv_buf);
+        //rt_free(hex_buf);
+        //return;
     }
 
+#if 1
+    /* Print response line buffer */
+    char *line_buffer = RT_NULL;
+
+    for(rt_size_t line_num = 1; line_num <= resp->line_counts; line_num++)
+    {
+        if((line_buffer = at_resp_get_line(resp, line_num)) != RT_NULL)
+            LOG_E("line %d buffer : %s", line_num, line_buffer);
+        else
+            LOG_E("Parse line buffer error!");
+    }
+#endif
+
     /* <socket>,<ip_addr>,<port>,<length>,<data>,<remaining_length> */
-    int return_socket = -1, remote_port = -1, data_length = 0, remaining_length = 0;
-    char remote_addr[IP_ADDR_SIZE_MAX] = {0};
     if (at_resp_parse_line_args(resp, 1, "%d,%s,%d,%d,%s,%d", &return_socket, remote_addr, 
                                 &remote_port, &data_length, hex_buf, &remaining_length) > 0)
     {
         /*  */
         hex_to_string(hex_buf, recv_buf, data_length);
 
-        LOG_D("socket %d recv %d bytes from %s:%d\n%s\n", return_socket, data_length, 
-              remote_addr, remote_port, hex_buf);
+        LOG_E("%s device socket(%d) recv %d bytes from %s:%d\n%s\n", device->name, 
+              return_socket, data_length, remote_addr, remote_port, hex_buf);
         rt_free(hex_buf);
     }
 

@@ -632,7 +632,7 @@ static void bc28_init_thread_entry(void *parameter)
         }
 
         /* auto report recv from tcp */
-        if (at_obj_exec_cmd(device->client, resp, "AT+NSONMI=1") != RT_EOK)
+        if (at_obj_exec_cmd(device->client, resp, "AT+NSONMI=2") != RT_EOK)
         {
             result = -RT_ERROR;
             LOG_E(">> AT+NSONMI=2");
