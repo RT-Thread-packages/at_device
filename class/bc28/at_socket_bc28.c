@@ -544,13 +544,13 @@ int bc28_domain_resolve(const char *name, char ip[16])
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
-
+#if 0
     /* must delete ! */
     rt_memset(ip, 0, 16);
     rt_memcpy(ip, "118.31.15.152", 13);
     return RT_EOK;
     /* must delete ! */
-
+#endif
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
@@ -747,9 +747,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     LOG_E("@ %s", data);
     //sscanf(data, "+NSONMI:%d,%d", &device_socket, (int *) &bfsz);
     sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
+    //sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,", &device_socket, remote_addr, &remote_port, (int *) &bfsz);
     LOG_E(">> socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
-    rt_free(hex_buf);
-    return;
+    
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -758,7 +758,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    recv_buf = (char *) rt_calloc(1, bfsz);
+    recv_buf = (char *) rt_calloc(1, bfsz + 1);
     //hex_buf  = (char *) rt_calloc(1, bfsz * 2 + 1);
     if (recv_buf == RT_NULL || hex_buf == RT_NULL)
     {
@@ -783,14 +783,27 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* sync receive data */
-    #if 0
+#if 1
+#if 0
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
         LOG_E("%s device receive size(%d) data failed.", device->name, bfsz);
         rt_free(recv_buf);
         return;
     }
-    #else
+#else
+    /*if (at_client_obj_recv(client, hex_buf, bfsz * 2, timeout) <= 0)
+    {
+        LOG_E("%s device receive size(%d) data failed. # %s #", device->name, bfsz, hex_buf);
+        rt_free(hex_buf);
+        rt_free(recv_buf);
+        return;
+    }*/
+    hex_to_string(hex_buf, recv_buf, bfsz);
+    LOG_E("recv_buf: %s", recv_buf);
+    rt_free(hex_buf);
+#endif
+#else
     at_response_t resp = RT_NULL;
 
     resp = at_create_resp(BC28_MODULE_RECV_MAX_SIZE + 64, 0, rt_tick_from_millisecond(6000));
@@ -837,7 +850,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         rt_free(hex_buf);
     }
 
-    #endif
+#endif
 
     /* get at socket object by device socket descriptor */
     socket = &(device->sockets[device_socket - AT_DEVICE_BC28_MIN_SOCKET]);
