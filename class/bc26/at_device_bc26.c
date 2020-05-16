@@ -52,6 +52,7 @@ static int bc26_power_on(struct at_device *device)
     rt_pin_write(bc26->power_pin, PIN_HIGH);
     rt_thread_mdelay(500);
     rt_pin_write(bc26->power_pin, PIN_LOW);
+	
 
     return(RT_EOK);
 }
@@ -165,6 +166,7 @@ static int bc26_wakeup(struct at_device *device)
         rt_thread_mdelay(100);
         rt_pin_write(bc26->power_pin, PIN_LOW);
         rt_thread_mdelay(200);
+		rt_pin_write(bc26->power_pin, PIN_HIGH);
     }
     
     /* disable sleep mode */
@@ -209,6 +211,7 @@ static int bc26_check_link_status(struct at_device *device)
             rt_thread_mdelay(100);
             rt_pin_write(bc26->power_pin, PIN_LOW);
             rt_thread_mdelay(200);
+			rt_pin_write(bc26->power_pin, PIN_HIGH);
         }
     }
     
