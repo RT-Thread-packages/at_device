@@ -529,7 +529,7 @@ static void sim76xx_init_thread_entry(void *parameter)
             at_obj_exec_cmd(client, resp, "AT+CPIN?");
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_D("%s device SIM card detection failed.", device->name);
+                LOG_D("%s device SIM card detection success.", device->name);
                 break;
             }
             LOG_I("\"AT+CPIN\" commands send retry...");
