@@ -491,18 +491,18 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
         return -RT_ERROR;
     }
 
-    // for (i = 0; i < rt_strlen(host) && !isalpha(host[i]); i++)
-    //     ;
+    for (i = 0; i < rt_strlen(host) && !isalpha(host[i]); i++)
+        ;
 
-    // if (i < strlen(host))
-    // {
-    //     /* check domain name is usable */
-    //     if (air720_ping_domain_resolve(device, host, ip_addr) < 0)
-    //     {
-    //         return -RT_ERROR;
-    //     }
-    //     rt_memset(ip_addr, 0x00, air720_PING_IP_SIZE);
-    // }
+    if (i < strlen(host))
+    {
+        /* check domain name is usable */
+        if (air720_ping_domain_resolve(device, host, ip_addr) < 0)
+        {
+            return -RT_ERROR;
+        }
+        rt_memset(ip_addr, 0x00, air720_PING_IP_SIZE);
+    }
 
     resp = at_create_resp(air720_PING_RESP_SIZE, 0, air720_PING_TIMEO);
     if (resp == RT_NULL)
@@ -512,16 +512,16 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    // /* domain name prase error options */
-    // if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP: 0", "+CDNSGIP: 0,%d", &err_code) > 0)
-    // {
-    //     /* 3 - network error, 8 - dns common error */
-    //     if (err_code == 3 || err_code == 8)
-    //     {
-    //         result = -RT_ERROR;
-    //         goto __exit;
-    //     }
-    // }
+    /* domain name prase error options */
+    if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP: 0", "+CDNSGIP: 0,%d", &err_code) > 0)
+    {
+        /* 3 - network error, 8 - dns common error */
+        if (err_code == 3 || err_code == 8)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+    }
 
     /* send "AT+CIPPING=<IP addr>[,<retryNum>[,<dataLen>[,<timeout>[,<ttl>]]]]" commond to send ping request */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPPING=%s,1,%d,%d,64",

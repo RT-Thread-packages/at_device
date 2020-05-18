@@ -337,10 +337,6 @@ __exit:
     return result;
 }
 
-static int air720_socket_quick_send(struct at_socket *socket, const char *buff, size_t bfsz, enum at_socket_type type)
-{
-}
-
 /**
  * domain resolve by AT commands.
  *
