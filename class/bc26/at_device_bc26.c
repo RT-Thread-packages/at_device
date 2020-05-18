@@ -27,136 +27,136 @@
 
 #include <at_device_bc26.h>
 
-#define LOG_TAG                         "at.dev.bc26"
+#define LOG_TAG "at.dev.bc26"
 #include <at_log.h>
 
 #ifdef AT_DEVICE_USING_BC26
 
-#define BC26_WAIT_CONNECT_TIME          5000
-#define BC26_THREAD_STACK_SIZE          2048
-#define BC26_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
+#define BC26_WAIT_CONNECT_TIME 5000
+#define BC26_THREAD_STACK_SIZE 2048
+#define BC26_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX / 2)
 
 static int bc26_power_on(struct at_device *device)
 {
     struct at_device_bc26 *bc26 = RT_NULL;
-    
+
     bc26 = (struct at_device_bc26 *)device->user_data;
     bc26->power_status = RT_TRUE;
 
     /* not nead to set pin configuration for bc26 device power on */
     if (bc26->power_pin == -1)
     {
-        return(RT_EOK);
+        return (RT_EOK);
     }
-    
+
     rt_pin_write(bc26->power_pin, PIN_HIGH);
     rt_thread_mdelay(500);
     rt_pin_write(bc26->power_pin, PIN_LOW);
 
-    return(RT_EOK);
+    return (RT_EOK);
 }
 
 static int bc26_power_off(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_D("no memory for resp create.");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+QPOWD=0") != RT_EOK)
     {
         LOG_D("power off fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     at_delete_resp(resp);
-    
+
     bc26 = (struct at_device_bc26 *)device->user_data;
     bc26->power_status = RT_FALSE;
-    
-    return(RT_EOK);
+
+    return (RT_EOK);
 }
 
 static int bc26_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
-    
+
     bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+    if (!bc26->power_status) //power off
     {
-        return(RT_EOK);
+        return (RT_EOK);
     }
-    if (bc26->sleep_status)//is sleep status 
+    if (bc26->sleep_status) //is sleep status
     {
-        return(RT_EOK);
+        return (RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_D("no memory for resp create.");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
 
     /* enable sleep mode */
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)
-        
+
     {
         LOG_D("enable sleep fail.\"AT+QSCLK=1\" execute fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     /* enable PSM mode */
     if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=1,,,\"01000011\",\"00000001\"") != RT_EOK)
-        
+
     {
         LOG_D("enable sleep fail.\"AT+CPSMS=1...\" execute fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
 
     if (at_obj_exec_cmd(device->client, resp, "AT+QRELLOCK") != RT_EOK)
     {
         LOG_D("startup entry into sleep fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     bc26->sleep_status = RT_TRUE;
-    
+
     at_delete_resp(resp);
-    return(RT_EOK);
+    return (RT_EOK);
 }
 
 static int bc26_wakeup(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
-    
+
     bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+    if (!bc26->power_status) //power off
     {
         LOG_E("the power is off and the wake-up cannot be performed");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    if ( ! bc26->sleep_status)//no sleep status
+    if (!bc26->sleep_status) //no sleep status
     {
-        return(RT_EOK);
+        return (RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_D("no memory for resp create.");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
 
     if (bc26->power_pin != -1)
@@ -165,28 +165,29 @@ static int bc26_wakeup(struct at_device *device)
         rt_thread_mdelay(100);
         rt_pin_write(bc26->power_pin, PIN_LOW);
         rt_thread_mdelay(200);
+        rt_pin_write(bc26->power_pin, PIN_HIGH);
     }
-    
+
     /* disable sleep mode */
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
     {
         LOG_D("wake up fail. \"AT+QSCLK=0\" execute fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     /* disable PSM mode  */
     if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
     {
         LOG_D("wake up fail.\"AT+CPSMS=0\" execute fail.");
         at_delete_resp(resp);
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    
+
     bc26->sleep_status = RT_FALSE;
-    
+
     at_delete_resp(resp);
-    return(RT_EOK);
+    return (RT_EOK);
 }
 
 static int bc26_check_link_status(struct at_device *device)
@@ -194,14 +195,14 @@ static int bc26_check_link_status(struct at_device *device)
     at_response_t resp = RT_NULL;
     struct at_device_bc26 *bc26 = RT_NULL;
     int result = -RT_ERROR;
-    
+
     bc26 = (struct at_device_bc26 *)device->user_data;
-    if ( ! bc26->power_status)//power off
+    if (!bc26->power_status) //power off
     {
         LOG_D("the power is off.");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
-    if (bc26->sleep_status)//is sleep status
+    if (bc26->sleep_status) //is sleep status
     {
         if (bc26->power_pin != -1)
         {
@@ -209,14 +210,15 @@ static int bc26_check_link_status(struct at_device *device)
             rt_thread_mdelay(100);
             rt_pin_write(bc26->power_pin, PIN_LOW);
             rt_thread_mdelay(200);
+            rt_pin_write(bc26->power_pin, PIN_HIGH);
         }
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_D("no memory for resp create.");
-        return(-RT_ERROR);
+        return (-RT_ERROR);
     }
 
     result = -RT_ERROR;
@@ -232,26 +234,25 @@ static int bc26_check_link_status(struct at_device *device)
         }
     }
 
-    if (bc26->sleep_status)//is sleep status
+    if (bc26->sleep_status) //is sleep status
     {
         if (at_obj_exec_cmd(device->client, resp, "AT+QRELLOCK") != RT_EOK)
         {
             LOG_D("startup entry into sleep fail.");
         }
     }
-    
-    at_delete_resp(resp);
-    
-    return(result);
-}
 
+    at_delete_resp(resp);
+
+    return (result);
+}
 
 /* =============================  bc26 network interface operations ============================= */
 /* set bc26 network interface device status and address information */
 static int bc26_netdev_set_info(struct netdev *netdev)
 {
-#define BC26_INFO_RESP_SIZE      128
-#define BC26_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
+#define BC26_INFO_RESP_SIZE 128
+#define BC26_INFO_RESP_TIMO rt_tick_from_millisecond(300)
 
     int result = RT_EOK;
     ip_addr_t addr;
@@ -282,8 +283,8 @@ static int bc26_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device hardware address(IMEI) */
     {
-        #define BC26_NETDEV_HWADDR_LEN   8
-        #define BC26_IMEI_LEN            15
+#define BC26_NETDEV_HWADDR_LEN 8
+#define BC26_IMEI_LEN 15
 
         char imei[BC26_IMEI_LEN] = {0};
         int i = 0, j = 0;
@@ -294,19 +295,19 @@ static int bc26_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("%s device IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = BC26_NETDEV_HWADDR_LEN;
         /* get hardware address by IMEI */
-        for (i = 0, j = 0; i < BC26_NETDEV_HWADDR_LEN && j < BC26_IMEI_LEN; i++, j+=2)
+        for (i = 0, j = 0; i < BC26_NETDEV_HWADDR_LEN && j < BC26_IMEI_LEN; i++, j += 2)
         {
             if (j != BC26_IMEI_LEN - 1)
             {
@@ -321,9 +322,9 @@ static int bc26_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device IP address */
     {
-        #define IP_ADDR_SIZE_MAX    16
+#define IP_ADDR_SIZE_MAX 16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         /* send "AT+CGPADDR=1" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") != RT_EOK)
         {
@@ -348,9 +349,9 @@ static int bc26_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device dns server */
     {
-        #define DNS_ADDR_SIZE_MAX   16
+#define DNS_ADDR_SIZE_MAX 16
         char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
-        
+
         /* send "AT+QIDNSCFG=1" commond to get DNS servers address */
         if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=1") != RT_EOK)
         {
@@ -360,7 +361,7 @@ static int bc26_netdev_set_info(struct netdev *netdev)
 
         /* parse response data "+QIDNSCFG: <contextID>,<pridnsaddr>,<secdnsaddr>" */
         if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"",
-                dns_server1, dns_server2) <= 0)
+                                          dns_server1, dns_server2) <= 0)
         {
             LOG_E("%s device prase \"AT+QIDNSCFG=1\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -388,11 +389,11 @@ __exit:
 
 static void bc26_check_link_status_entry(void *parameter)
 {
-#define BC26_LINK_DELAY_TIME    (60 * RT_TICK_PER_SECOND)
+#define BC26_LINK_DELAY_TIME (60 * RT_TICK_PER_SECOND)
 
     rt_bool_t is_link_up;
     struct at_device *device = RT_NULL;
-    struct netdev *netdev = (struct netdev *) parameter;
+    struct netdev *netdev = (struct netdev *)parameter;
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -400,7 +401,7 @@ static void bc26_check_link_status_entry(void *parameter)
         LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
-    
+
     while (1)
     {
         is_link_up = (bc26_check_link_status(device) == RT_EOK);
@@ -413,9 +414,9 @@ static void bc26_check_link_status_entry(void *parameter)
 
 static int bc26_netdev_check_link_status(struct netdev *netdev)
 {
-#define BC26_LINK_THREAD_TICK           20
-#define BC26_LINK_THREAD_STACK_SIZE     (1024 + 512)
-#define BC26_LINK_THREAD_PRIORITY       (RT_THREAD_PRIORITY_MAX - 2)
+#define BC26_LINK_THREAD_TICK 20
+#define BC26_LINK_THREAD_STACK_SIZE (1024 + 512)
+#define BC26_LINK_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX - 2)
 
     rt_thread_t tid;
     char tname[RT_NAME_MAX] = {0};
@@ -485,8 +486,8 @@ static int bc26_netdev_set_down(struct netdev *netdev)
 
 static int bc26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
-#define BC26_DNS_RESP_LEN    64
-#define BC26_DNS_RESP_TIMEO  rt_tick_from_millisecond(300)
+#define BC26_DNS_RESP_LEN 64
+#define BC26_DNS_RESP_TIMEO rt_tick_from_millisecond(300)
 
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
@@ -511,8 +512,8 @@ static int bc26_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     }
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
-        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
+    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s",
+                        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -531,11 +532,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int bc26_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+                            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
-#define BC26_PING_RESP_SIZE       128
-#define BC26_PING_IP_SIZE         16
-#define BC26_PING_TIMEO           (5 * RT_TICK_PER_SECOND)
+#define BC26_PING_RESP_SIZE 128
+#define BC26_PING_IP_SIZE 16
+#define BC26_PING_TIMEO (5 * RT_TICK_PER_SECOND)
 
     rt_err_t result = RT_EOK;
     int response = -1, recv_data_len, ping_time, ttl;
@@ -608,33 +609,31 @@ __exit:
 }
 #endif /* NETDEV_USING_PING */
 
-
-
 const struct netdev_ops bc26_netdev_ops =
-{
-    bc26_netdev_set_up,
-    bc26_netdev_set_down,
+    {
+        bc26_netdev_set_up,
+        bc26_netdev_set_down,
 
-    RT_NULL,
-    bc26_netdev_set_dns_server,
-    RT_NULL,
+        RT_NULL,
+        bc26_netdev_set_dns_server,
+        RT_NULL,
 
 #ifdef NETDEV_USING_PING
-    bc26_netdev_ping,
+        bc26_netdev_ping,
 #endif
-    RT_NULL,
+        RT_NULL,
 };
 
 static struct netdev *bc26_netdev_add(const char *netdev_name)
 {
-#define ETHERNET_MTU        1500
-#define HWADDR_LEN          8
+#define ETHERNET_MTU 1500
+#define HWADDR_LEN 8
     struct netdev *netdev = RT_NULL;
 
     netdev = netdev_get_by_name(netdev_name);
-    if(netdev != RT_NULL)
+    if (netdev != RT_NULL)
     {
-        return(netdev);
+        return (netdev);
     }
 
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
@@ -649,7 +648,7 @@ static struct netdev *bc26_netdev_add(const char *netdev_name)
     netdev->hwaddr_len = HWADDR_LEN;
 
 #ifdef SAL_USING_AT
-    extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
+    extern int sal_at_netdev_set_pf_info(struct netdev * netdev);
     /* set the network interface socket/netdb operations */
     sal_at_netdev_set_pf_info(netdev);
 #endif
@@ -664,17 +663,17 @@ static struct netdev *bc26_netdev_add(const char *netdev_name)
 /* initialize for bc26 */
 static void bc26_init_thread_entry(void *parameter)
 {
-#define INIT_RETRY                     5
-#define CPIN_RETRY                     5
-#define CSQ_RETRY                      20
-#define CGREG_RETRY                    50
-#define IPADDR_RETRY                   10
+#define INIT_RETRY 5
+#define CPIN_RETRY 5
+#define CSQ_RETRY 20
+#define CGREG_RETRY 50
+#define IPADDR_RETRY 10
 
     int i;
     int retry_num = INIT_RETRY;
     rt_err_t result = RT_EOK;
     at_response_t resp = RT_NULL;
-    struct at_device *device = (struct at_device *) parameter;
+    struct at_device *device = (struct at_device *)parameter;
     struct at_client *client = device->client;
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
@@ -698,14 +697,14 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-        
+
         /* disable echo */
         if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* disable sleep mode  */
         if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=0") != RT_EOK)
         {
@@ -719,14 +718,14 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* disable PSM mode  */
         if (at_obj_exec_cmd(device->client, resp, "AT+CPSMS=0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Get the baudrate */
         if (at_obj_exec_cmd(device->client, resp, "AT+IPR?") != RT_EOK)
         {
@@ -734,19 +733,19 @@ static void bc26_init_thread_entry(void *parameter)
             goto __exit;
         }
         at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
-        LOG_D("%s device baudrate %d", device->name, i);     
-        
+        LOG_D("%s device baudrate %d", device->name, i);
+
         /* get module version */
         if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        for (i = 0; i < (int) resp->line_counts - 1; i++)
+        for (i = 0; i < (int)resp->line_counts - 1; i++)
         {
             LOG_D("%s", at_resp_get_line(resp, i + 1));
         }
-        
+
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
@@ -771,13 +770,13 @@ static void bc26_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
             {
                 int signal_strength = 0, err_rate = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &signal_strength, &err_rate) > 0)
                 {
                     if ((signal_strength != 99) && (signal_strength != 0))
                     {
                         LOG_D("%s device signal strength: %d, channel bit error rate: %d",
-                                device->name, signal_strength, err_rate);
+                              device->name, signal_strength, err_rate);
                         break;
                     }
                 }
@@ -789,7 +788,7 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-                
+
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
@@ -797,7 +796,7 @@ static void bc26_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") == RT_EOK)
             {
                 int link_stat = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %*d,%d", &link_stat) > 0)
                 {
                     if ((link_stat == 1) || (link_stat == 5))
@@ -814,16 +813,16 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check the GPRS network IP address */
         for (i = 0; i < IPADDR_RETRY; i++)
         {
             rt_thread_mdelay(1000);
             if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") == RT_EOK)
             {
-                #define IP_ADDR_SIZE_MAX    16
+#define IP_ADDR_SIZE_MAX 16
                 char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-                
+
                 /* parse response data "+CGPADDR: 1,<IP_address>" */
                 if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) > 0)
                 {
@@ -838,7 +837,7 @@ static void bc26_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* initialize successfully  */
         result = RT_EOK;
         break;
@@ -904,12 +903,12 @@ static int bc26_net_init(struct at_device *device)
 static int bc26_init(struct at_device *device)
 {
     struct at_device_bc26 *bc26 = RT_NULL;
-    
+
     RT_ASSERT(device);
-    
-    bc26 = (struct at_device_bc26 *) device->user_data;
-    bc26->power_status = RT_FALSE;//default power is off.
-    bc26->sleep_status = RT_FALSE;//default sleep is disabled.
+
+    bc26 = (struct at_device_bc26 *)device->user_data;
+    bc26->power_status = RT_FALSE; //default power is off.
+    bc26->sleep_status = RT_FALSE; //default sleep is disabled.
 
     /* initialize AT client */
     at_client_init(bc26->client_name, bc26->recv_line_num);
@@ -948,7 +947,7 @@ static int bc26_init(struct at_device *device)
 static int bc26_deinit(struct at_device *device)
 {
     RT_ASSERT(device);
-    
+
     return bc26_netdev_set_down(device->netdev);
 }
 
@@ -987,17 +986,17 @@ static int bc26_control(struct at_device *device, int cmd, void *arg)
 }
 
 const struct at_device_ops bc26_device_ops =
-{
-    bc26_init,
-    bc26_deinit,
-    bc26_control,
+    {
+        bc26_init,
+        bc26_deinit,
+        bc26_control,
 };
 
 static int bc26_device_class_register(void)
 {
     struct at_device_class *class = RT_NULL;
 
-    class = (struct at_device_class *) rt_calloc(1, sizeof(struct at_device_class));
+    class = (struct at_device_class *)rt_calloc(1, sizeof(struct at_device_class));
     if (class == RT_NULL)
     {
         LOG_E("no memory for device class create.");
@@ -1015,4 +1014,3 @@ static int bc26_device_class_register(void)
 INIT_DEVICE_EXPORT(bc26_device_class_register);
 
 #endif /* AT_DEVICE_USING_BC26 */
-

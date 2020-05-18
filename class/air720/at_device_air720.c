@@ -40,10 +40,6 @@
 #define AIR720_THREAD_STACK_SIZE 2048
 #define AIR720_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX / 2)
 // #define AIR720_THREAD_PRIORITY 6
-/* AT+CSTT command default*/
-static char *CSTT_CHINA_MOBILE = "AT+CSTT=\"CMNET\"";
-static char *CSTT_CHINA_UNICOM = "AT+CSTT=\"UNINET\"";
-static char *CSTT_CHINA_TELECOM = "AT+CSTT=\"CTNET\"";
 
 static void air720_power_on(struct at_device *device)
 {
@@ -57,16 +53,9 @@ static void air720_power_on(struct at_device *device)
     {
         return;
     }
-    if (rt_pin_read(air720->power_status_pin) == PIN_HIGH)
-    {
-        return;
-    }
-    rt_pin_write(air720->power_pin, PIN_HIGH);
-    while (rt_pin_read(air720->power_status_pin) == PIN_LOW)
-    {
-        rt_thread_mdelay(10);
-    }
     rt_pin_write(air720->power_pin, PIN_LOW);
+    rt_thread_mdelay(4000);
+    rt_pin_write(air720->power_pin, PIN_HIGH);
 }
 
 static void air720_power_off(struct at_device *device)
@@ -80,17 +69,9 @@ static void air720_power_off(struct at_device *device)
     {
         return;
     }
-    if (rt_pin_read(air720->power_status_pin) == PIN_LOW)
-    {
-        return;
-    }
-
-    rt_pin_write(air720->power_pin, PIN_HIGH);
-    while (rt_pin_read(air720->power_status_pin) == PIN_HIGH)
-    {
-        rt_thread_mdelay(10);
-    }
     rt_pin_write(air720->power_pin, PIN_LOW);
+    rt_thread_mdelay(2000);
+    rt_pin_write(air720->power_pin, PIN_HIGH);
 }
 
 /* =============================  sim76xx network interface operations ============================= */
@@ -134,17 +115,24 @@ static int air720_netdev_set_info(struct netdev *netdev)
         goto __exit;
     }
 
-    /* set network interface device hardware address(IEMI) */
+    /* set network interface device hardware address(IMEI) */
     {
 #define air720_NETDEV_HWADDR_LEN 8
 #define air720_IEMI_LEN 15
 
-        char iemi[air720_IEMI_LEN] = {0};
+        char imei[air720_IEMI_LEN] = {0};
         int i = 0, j = 0;
 
-        /* send "AT+GSN" commond to get device IEMI */
-        if (at_obj_exec_cmd(device->client, resp, "AT+GSN") < 0)
+        /* send "AT+CGSN" commond to get device IMEI */
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGSN") < 0)
         {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
+        if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
+        {
+            LOG_E("%s device prase \"AT+CGSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -155,11 +143,11 @@ static int air720_netdev_set_info(struct netdev *netdev)
         {
             if (j != air720_IEMI_LEN - 1)
             {
-                netdev->hwaddr[i] = (iemi[j] - '0') * 10 + (iemi[j + 1] - '0');
+                netdev->hwaddr[i] = (imei[j] - '0') * 10 + (imei[j + 1] - '0');
             }
             else
             {
-                netdev->hwaddr[i] = (iemi[j] - '0');
+                netdev->hwaddr[i] = (imei[j] - '0');
             }
         }
     }
@@ -185,7 +173,7 @@ static int air720_netdev_set_info(struct netdev *netdev)
             goto __exit;
         }
 
-        LOG_E("air720 device(%s) IP address: %s", device->name, ipaddr);
+        LOG_I("air720 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -233,6 +221,8 @@ __exit:
     return result;
 }
 
+int air720_reboot(struct at_device *device);
+
 static void check_link_status_entry(void *parameter)
 {
 #define air720_LINK_STATUS_OK 1
@@ -247,7 +237,7 @@ static void check_link_status_entry(void *parameter)
 
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
-    
+
     LOG_D("statrt air720 device(%s) link status check \n");
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
@@ -280,7 +270,6 @@ static void check_link_status_entry(void *parameter)
         /* check the network interface device link status  */
         if ((air720_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
         {
-
             netdev_low_level_set_link_status(netdev, (air720_LINK_STATUS_OK == link_status));
         }
 
@@ -299,6 +288,7 @@ static void check_link_status_entry(void *parameter)
         {
             //LTE down
             LOG_E("the lte pin is low");
+            air720_reboot(device);
         }
 
         rt_thread_mdelay(air720_LINK_DELAY_TIME);
@@ -479,7 +469,7 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
 {
 #define air720_PING_RESP_SIZE 128
 #define air720_PING_IP_SIZE 16
-#define air720_PING_TIMEO (5 * RT_TICK_PER_SECOND)
+#define air720_PING_TIMEO (10 * RT_TICK_PER_SECOND)
 
 #define air720_PING_ERR_TIME 600
 #define air720_PING_ERR_TTL 255
@@ -558,7 +548,7 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
     inet_aton(ip_addr, &(ping_resp->ip_addr));
     ping_resp->data_len = data_len;
     /* reply time, in units of 100 ms */
-    ping_resp->ticks = time * 100;
+    ping_resp->ticks = time;
     ping_resp->ttl = ttl;
 
 __exit:
@@ -644,8 +634,10 @@ static void air720_init_thread_entry(void *parameter)
 #define CSQ_RETRY 10
 #define CREG_RETRY 10
 #define CGREG_RETRY 30
+#define CGATT_RETRY 10
 
     int i, qimux, retry_num = INIT_RETRY;
+
     char parsed_data[10] = {0};
     rt_err_t result = RT_EOK;
     at_response_t resp = RT_NULL;
@@ -681,7 +673,7 @@ static void air720_init_thread_entry(void *parameter)
         /* show module version */
         for (i = 0; i < (int)resp->line_counts - 1; i++)
         {
-            LOG_E("%s", at_resp_get_line(resp, i + 1));
+            LOG_I("%s", at_resp_get_line(resp, i + 1));
         }
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
@@ -690,10 +682,10 @@ static void air720_init_thread_entry(void *parameter)
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
-                LOG_E("air720 device(%s) SIM card detection success.", device->name);
+                LOG_I("air720 device(%s) SIM card detection success.", device->name);
                 break;
             }
-            rt_thread_mdelay(1000);
+            rt_thread_mdelay(500);
         }
         if (i == CPIN_RETRY)
         {
@@ -702,7 +694,7 @@ static void air720_init_thread_entry(void *parameter)
             goto __exit;
         }
         /* waiting for dirty data to be digested */
-        rt_thread_mdelay(10);
+        rt_thread_mdelay(100);
 
         /* check the GSM network is registered */
         for (i = 0; i < CREG_RETRY; i++)
@@ -712,7 +704,7 @@ static void air720_init_thread_entry(void *parameter)
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                 !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_E("air720 device(%s) GSM network is registered(%s),", device->name, parsed_data);
+                LOG_I("air720 device(%s) GSM network is registered(%s),", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -731,7 +723,7 @@ static void air720_init_thread_entry(void *parameter)
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                 !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-                LOG_E("air720 device(%s) GPRS network is registered(%s).", device->name, parsed_data);
+                LOG_I("air720 device(%s) GPRS network is registered(%s).", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -750,7 +742,7 @@ static void air720_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
             if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
             {
-                LOG_E("air720 device(%s) signal strength: %s", device->name, parsed_data);
+                LOG_I("air720 device(%s) signal strength: %s", device->name, parsed_data);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -762,8 +754,26 @@ static void air720_init_thread_entry(void *parameter)
             goto __exit;
         }
 
+        for (i = 0; i < CGATT_RETRY; i++)
+        {
+            AT_SEND_CMD(client, resp, 0, 300, "AT+CGATT?");
+            at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT: %s", &parsed_data);
+            if (strncmp(parsed_data, "1", sizeof(parsed_data)) == 0)
+            {
+                LOG_I("air720 device(%s) attach GPRS", device->name);
+                break;
+            }
+            rt_thread_mdelay(1000);
+        }
+        if (i == CGATT_RETRY)
+        {
+            LOG_E("air720 device(%s) can't attach GPRS ", device->name);
+            result = -RT_ERROR;
+            goto __exit;
+        }
+
         /* the device default response timeout is 40 seconds, but it set to 15 seconds is convenient to use. */
-        AT_SEND_CMD(client, resp, 2, 20 * 1000, "AT+CIPSHUT");
+        AT_SEND_CMD(client, resp, 2, 2 * 1000, "AT+CIPSHUT");
 
         /* Set to multiple connections */
         AT_SEND_CMD(client, resp, 0, 300, "AT+CIPMUX?");
@@ -773,35 +783,14 @@ static void air720_init_thread_entry(void *parameter)
             AT_SEND_CMD(client, resp, 0, 300, "AT+CIPMUX=1");
         }
 
-        // AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
+        AT_SEND_CMD(client, resp, 0, 300, "AT+CIPQSEND=1"); //fast send mode ,recommend
 
-        AT_SEND_CMD(client, resp, 0, 300, "AT+COPS=3,0");
-        AT_SEND_CMD(client, resp, 0, 300, "AT+COPS?");
-        at_resp_parse_line_args_by_kw(resp, "+COPS:", "+COPS: %*[^\"]\"%[^\"]", &parsed_data);
+        AT_SEND_CMD(client, resp, 0, 300, "AT+CSTT");
 
-        if (rt_strcmp(parsed_data, "CHINA MOBILE") == 0)
-        {
-            /* "CMCC" */
-            LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
-            AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
-        }
-        else if (rt_strcmp(parsed_data, "CHN-UNICOM") == 0)
-        {
-            /* "UNICOM" */
-            LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
-            AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_UNICOM);
-        }
-        else if (rt_strcmp(parsed_data, "CHINA TELECOM") == 0)
-        {
-            AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_TELECOM);
-            /* "CT" */
-            LOG_E("air720 device(%s) network operator: %s", device->name, parsed_data);
-        }
-        //client = device->client;
-        /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+CIICR");
 
         AT_SEND_CMD(client, resp, 2, 300, "AT+CIFSR");
+
         if (at_resp_get_line_by_kw(resp, "ERROR") != RT_NULL)
         {
             LOG_E("air720 device(%s) get the local address failed.", device->name);
@@ -833,8 +822,13 @@ static void air720_init_thread_entry(void *parameter)
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
-        air720_netdev_set_info(device->netdev); 
-        air720_netdev_check_link_status(device->netdev);
+        air720_netdev_set_info(device->netdev);
+
+        if (rt_thread_find(device->netdev->name) == RT_NULL)
+        {
+            air720_netdev_check_link_status(device->netdev);
+        }
+
         LOG_I("air720 device(%s) network initialize success!", device->name);
     }
     else
@@ -926,6 +920,17 @@ static int air720_deinit(struct at_device *device)
     return air720_netdev_set_down(device->netdev);
 }
 
+static int air720_reboot(struct at_device *device)
+{
+    air720_power_off(device);
+    rt_thread_mdelay(2000);
+    air720_power_on(device);
+    device->is_init = RT_FALSE;
+    air720_net_init(device);
+    device->is_init = RT_TRUE;
+    return RT_EOK;
+}
+
 static int air720_reset(struct at_device *device)
 {
     int result = RT_EOK;
@@ -973,6 +978,9 @@ static int air720_control(struct at_device *device, int cmd, void *arg)
         break;
     case AT_DEVICE_CTRL_RESET:
         result = air720_reset(device);
+        break;
+    case AT_DEVICE_CTRL_REBOOT:
+        result = air720_reboot(device);
         break;
     default:
         LOG_E("input error control command(%d).", cmd);

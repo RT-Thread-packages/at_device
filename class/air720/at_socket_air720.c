@@ -27,7 +27,6 @@
 #include <string.h>
 #include <at_device_air720.h>
 
-
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10300
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
@@ -137,7 +136,7 @@ static int air720_socket_connect(struct at_socket *socket, char *ip, int32_t por
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
-    
+
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
@@ -225,7 +224,6 @@ __exit:
 
     if (result != RT_EOK)
     {
-        
     }
 
     return result;
@@ -549,8 +547,10 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     RT_ASSERT(data && size);
 
+    //LOG_I("get +receive data %s", data);
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *)&bfsz);
+    sscanf(data, "%*[^,],%d,%d:", &device_socket, (int *)&bfsz);
+    // sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *)&bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz;
 
@@ -604,6 +604,32 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 }
 
+static void urc_dataaccept_func(struct at_client *client, const char *data, rt_size_t size)
+{
+
+    RT_ASSERT(data && size);
+
+    int device_socket = 0;
+    rt_size_t bfsz = 0;
+    struct at_device *device = RT_NULL;
+    char *client_name = client->device->parent.name;
+
+    RT_ASSERT(data && size);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get air720 device by client name(%s) failed.", client_name);
+        return;
+    }
+
+    /* get the current socket by receive data */
+    sscanf(data, "%*[^:],%d,%d:", &device_socket, (int *)&bfsz);
+
+    air720_socket_event_send(device, SET_EVENT(device_socket, AIR720_EVENT_SEND_OK));
+}
+
+//DATA ACCEPT:
 /* air720 device URC table for the socket data */
 static const struct at_urc urc_table[] =
     {
@@ -613,7 +639,9 @@ static const struct at_urc urc_table[] =
         {"", ", SEND FAIL\r\n", urc_send_func},
         {"", ", CLOSE OK\r\n", urc_close_func},
         {"", ", CLOSED\r\n", urc_close_func},
+        {"ECEIVE,", "\r\n", urc_recv_func},
         {"+RECEIVE,", "\r\n", urc_recv_func},
+        {"DATA ACCEPT:", "\r\n", urc_dataaccept_func},
 };
 
 static const struct at_socket_ops air720_socket_ops =
@@ -621,7 +649,7 @@ static const struct at_socket_ops air720_socket_ops =
         air720_socket_connect,
         air720_socket_close,
         air720_socket_send,
-        air720_domain_resolve, 
+        air720_domain_resolve,
         air720_socket_set_event_cb,
 };
 
