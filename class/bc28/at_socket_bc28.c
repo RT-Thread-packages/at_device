@@ -53,6 +53,12 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
+static struct at_socket_ip_info
+{
+    char ip_addr[IP_ADDR_SIZE_MAX];
+    int  port;
+} bc28_sock_info[AT_DEVICE_BC28_SOCKETS_NUM];
+
 /**
  * convert data from ASCII string to Hex string.
  *
@@ -321,7 +327,14 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
     /* if the protocol is not tcp, no need connect to server */
     if (type != AT_SOCKET_TCP)
+    {
+        if (type == AT_SOCKET_UDP)
+        {
+            rt_strncpy(bc28_sock_info[device_socket].ip_addr, ip, IP_ADDR_SIZE_MAX);
+            bc28_sock_info[device_socket].port = port;
+        }
         return RT_EOK;
+    }
 
     for(i=0; i<CONN_RETRY; i++)
     {
@@ -438,6 +451,10 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
     event = SET_EVENT(device_socket, BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL);
     bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
+    /* only use for UDP socket */
+    const char *ip = bc28_sock_info[device_socket].ip_addr;
+    const int port = bc28_sock_info[device_socket].port;
+
     while (sent_size < bfsz)
     {
         if (bfsz - sent_size < BC28_MODULE_SEND_MAX_SIZE)
@@ -473,12 +490,14 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         case AT_SOCKET_UDP:
             /* UDP: AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,118.31.15.152,8101,%d,%s,1", device_socket, 
-                                (int)cur_pkt_size, hex_data) < 0)
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%s,%d,%d,%s,1", device_socket, 
+                                ip, port, (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
             }
+            LOG_E(">> AT+NSOST=%d,%s,%d,%d,%s,1", device_socket, ip, port, (int)cur_pkt_size, hex_data);
+            break;
         
         default:
             LOG_E("not supported send type %d.", type);
