@@ -850,6 +850,19 @@ static int bc28_init(struct at_device *device)
 {
     struct at_device_bc28 *bc28 = (struct at_device_bc28 *)device->user_data;
 
+    /* configure AT client */
+    rt_device_t serial = rt_device_find(bc28->client_name);
+    struct serial_configure config = RT_SERIAL_CONFIG_DEFAULT;
+
+    config.baud_rate = BC28_AT_CLIENT_BAUD_RATE;
+    config.data_bits = DATA_BITS_8;
+    config.stop_bits = STOP_BITS_1;
+    config.bufsz     = bc28->recv_bufsz;
+    config.parity    = PARITY_NONE;
+
+    rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &config);
+    rt_device_close(serial);
+
     /* initialize AT client */
     at_client_init(bc28->client_name, bc28->recv_bufsz);
 
