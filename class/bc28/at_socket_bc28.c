@@ -46,6 +46,7 @@
 #define BC28_EVENT_CONN_FAIL           (1L << 4)
 #define BC28_EVENT_SEND_FAIL           (1L << 5)
 #define BC28_EVENT_DOMAIN_OK           (1L << 6)
+#define BC28_EVENT_DOMAIN_FAIL         (1L << 7)
 
 static at_evt_cb_t at_evt_cb_set[] = {
 
@@ -160,7 +161,6 @@ static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
     }
 }
 
-
 static int bc28_socket_event_send(struct at_device *device, uint32_t event)
 {
     return (int) rt_event_send(device->socket_event, event);
@@ -197,8 +197,6 @@ static int bc28_socket_close(struct at_socket *socket)
     int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
     struct at_device *device = (struct at_device *) socket->device;
 
-    LOG_E(">> bc28_socket_close()");
-
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(3000));
     if (resp == RT_NULL)
     {
@@ -209,11 +207,11 @@ static int bc28_socket_close(struct at_socket *socket)
     result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
     if (result < 0)
     {
-        LOG_E("%s device close socket(%d) failed [%d]", device->name, device_socket, result);
+        LOG_E("%s device close socket(%d) failed [%d].", device->name, device_socket, result);
     }
     else
     {
-        LOG_E(">> AT+NSOCL=%d", device_socket);
+        LOG_D("%s device close socket(%d).", device->name, device_socket);
     }
     
     at_delete_resp(resp);
@@ -238,7 +236,7 @@ static int bc28_socket_close(struct at_socket *socket)
 static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
                                enum at_socket_type type, rt_bool_t is_client)
 {
-#define CONN_RETRY  2
+#define CONN_RETRY  3
 
     int i = 0;
     const char *type_str = RT_NULL;
@@ -246,14 +244,13 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     at_response_t resp = RT_NULL;
     int result = 0, event_result = 0;
     int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
+    int return_socket = -1;
     struct at_device *device = (struct at_device *) socket->device;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
 
-    LOG_E(">> bc28_socket_connect() &_& @_@ &_& @_@ &_& @_@");
-
-    if ( ! is_client)
+    if (!is_client)
     {
         return -RT_ERROR;
     }
@@ -280,39 +277,34 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         return -RT_ENOMEM;
     }
 
-    /* AT+NSOCR=<type>,<protocol>,<listen port>[,<receive control>[,<af_type>[,<ip address>]]] */
+    /* create socket */
     if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,0,1", type_str, protocol) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
     }
 
-    LOG_E(">> AT+NSOCR=%s,%d,0,1", type_str, protocol);
-
     /* check socket */
-    int return_socket = -1;
     if (at_resp_parse_line_args(resp, 2, "%d", &return_socket) <= 0)
     {
         LOG_E("%s device create %s socket failed.", device->name, type_str);
         result = -RT_ERROR;
         goto __exit;
     }
-
-    LOG_E(">> request socket: %d", device_socket);
-    LOG_E(">> return socket: %d", return_socket);
+    LOG_D("%s device create a %s socket(%d).", device->name, type_str, return_socket);
 
     if (return_socket != device_socket)
     {
-        LOG_E("socket not match");
-        //at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", return_socket);
+        LOG_E("socket not match (request %d, return %d).", device_socket, return_socket);
+
         result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", return_socket);
         if (result < 0)
         {
-            LOG_E("close socket(%d) failed [%d]", return_socket, result);
+            LOG_E("%s device close socket(%d) failed [%d].", device->name, return_socket, result);
         }
         else
         {
-            LOG_E(">> AT+NSOCL=%d !", return_socket);
+            LOG_D("%s device close socket(%d).", device->name, return_socket);
 
             /* notice the socket is disconnect by remote */
             if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
@@ -347,37 +339,24 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = -RT_ERROR;
             continue;
         }
-        LOG_E(">> AT+NSOCO=%d,%s,%d", device_socket, ip, port);
-
-#if 1
-        /* Print response line buffer */
-        const char *line_buffer = RT_NULL;
-
-        for(rt_size_t line_num = 1; line_num <= resp->line_counts; line_num++)
-        {
-            if((line_buffer = at_resp_get_line(resp, line_num)) != RT_NULL)
-                LOG_E("line %d buffer : %s", line_num, line_buffer);
-            else
-                LOG_E("Parse line buffer error!");
-        }
-#endif
+        LOG_D("%s device socket(%d) try connect to %s:%d.", device->name, device_socket, ip, port);
 
         if(!at_resp_get_line_by_kw(resp, "OK"))
         {
             result = -RT_ERROR;
             continue;
         }
-        LOG_E(">> AT OK");
 
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds*/
         if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
                                    30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
-            LOG_E("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
+            LOG_D("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
             /* No news is good news */
             result = RT_EOK;
             break;
         }
+
         /* waiting OK or failed result */
         event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL, 
                                               1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
@@ -392,12 +371,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = RT_EOK;
             break;
         }
-    }
-
-    if (result != RT_EOK)
-    {
-        LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
-        result = -RT_ERROR;
     }
 
 __exit:
@@ -435,8 +408,6 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
     rt_mutex_t lock = device->client->lock;
 
     RT_ASSERT(buff);
-
-    LOG_E(">> bc28_socket_send()");
 
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
@@ -478,25 +449,25 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         switch (type)
         {
         case AT_SOCKET_TCP:
-            /* TCP: AT+NSOSD=<socket>,<length>,<data>[,<flag>[,<sequence>]] */
+            /* AT+NSOSD=<socket>,<length>,<data>[,<flag>[,<sequence>]] */
             if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%s,0x100,1", device_socket, 
                                 (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
             }
-            LOG_E(">> AT+NSOSD=%d,%d,%s,0x100,1", device_socket, (int)cur_pkt_size, hex_data);
+            LOG_D("%s device tcp socket(%d) send %d bytes.\n>> %s", device->name, device_socket, (int)cur_pkt_size, hex_data);
             break;
 
         case AT_SOCKET_UDP:
-            /* UDP: AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
+            /* AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
             if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%s,%d,%d,%s,1", device_socket, 
                                 ip, port, (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
                 goto __exit;
             }
-            LOG_E(">> AT+NSOST=%d,%s,%d,%d,%s,1", device_socket, ip, port, (int)cur_pkt_size, hex_data);
+            LOG_D("%s device udp socket(%d) send %d bytes to %s:%d.\n>> %s", device->name, device_socket, ip, port, (int)cur_pkt_size, hex_data);
             break;
         
         default:
@@ -504,22 +475,11 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             result = -RT_ERROR;
             goto __exit;
         }
-#if 1
-        /* Print response line buffer */
-        const char *line_buffer = RT_NULL;
 
-        for(rt_size_t line_num = 1; line_num <= resp->line_counts; line_num++)
-        {
-            if((line_buffer = at_resp_get_line(resp, line_num)) != RT_NULL)
-                LOG_E("line %d buffer : %s", line_num, line_buffer);
-            else
-                LOG_E("Parse line buffer error!");
-        }
-#endif
         /* check if sent ok */
         if (!at_resp_get_line_by_kw(resp, "OK"))
         {
-            LOG_E("@ %s device socket(%d) send data failed.", device->name, device_socket);
+            LOG_E("%s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -528,14 +488,14 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
         {
-            LOG_E("@@ %s device socket(%d) send data failed.", device->name, device_socket);
+            LOG_E("%s device socket(%d) send data failed.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
 
         if (return_socket != device_socket || return_size != cur_pkt_size)
         {
-            LOG_D("%s device %d socket send data incompletely.", device->name, device_socket);
+            LOG_E("%s device socket(%d) send data incompletely.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -559,7 +519,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         }
         else
         {
-            LOG_E("%s device socket(%d) send success.", device->name, device_socket);
+            LOG_D("%s device socket(%d) send success.", device->name, device_socket);
             sent_size += cur_pkt_size;
             result = sent_size;
         }
@@ -589,7 +549,7 @@ __exit:
  */
 int bc28_domain_resolve(const char *name, char ip[16])
 {
-    #define RESOLVE_RETRY  3
+#define RESOLVE_RETRY  3
 
     int i, result;
     at_response_t resp = RT_NULL;
@@ -598,13 +558,7 @@ int bc28_domain_resolve(const char *name, char ip[16])
 
     RT_ASSERT(name);
     RT_ASSERT(ip);
-#if 0
-    /* must delete ! */
-    rt_memset(ip, 0, 16);
-    rt_memcpy(ip, "118.31.15.152", 13);
-    return RT_EOK;
-    /* must delete ! */
-#endif
+
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
@@ -645,7 +599,8 @@ int bc28_domain_resolve(const char *name, char ip[16])
             if (rt_strlen(ip) < 8)
             {
                 rt_thread_mdelay(100);
-                /* resolve failed, maybe receive an URC CRLF */
+                /* resolve failed, maybe receive an URC CRLF, e.g. +DNS:FAIL */
+                LOG_E("%d device resolve domain name failed.", device->name);
                 result = -RT_ERROR;
                 continue;
             }
@@ -682,7 +637,6 @@ static void bc28_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
     }
 }
 
-#if 0
 static void urc_connect_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int device_socket = 0, result = 0;
@@ -698,7 +652,8 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "+QIOPEN: %d,%d", &device_socket , &result);
+    /* only for firmware version base BC28JAR02xxx */
+    sscanf(data, "+QTCPIND: %d,%d", &device_socket , &result);
 
     if (result == 0)
     {
@@ -710,7 +665,6 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
     }
 }
-#endif
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
 {
@@ -728,8 +682,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    LOG_E(">> %s", data);
-    sscanf(data, "+NSOSTR:%d,%d,%d", &device_socket, &sequence, &status); /* +NSOSTR:1,2,1 */
+    sscanf(data, "+NSOSTR:%d,%d,%d", &device_socket, &sequence, &status);
     
     if (1 == status)
     {
@@ -796,19 +749,14 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    /* 
-     * mode 1 => +NSONMI:<socket>,<length>
-     * mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data>
-     */
-    hex_buf  = (char *) rt_calloc(1, BC28_MODULE_RECV_MAX_SIZE * 2 + 1);
+    hex_buf = (char *) rt_calloc(1, BC28_MODULE_RECV_MAX_SIZE * 2 + 1);
 
     /* get the current socket and receive buffer size by receive data */
-    LOG_E("@ %s", data);
-    //sscanf(data, "+NSONMI:%d,%d", &device_socket, (int *) &bfsz);
+
+    /* mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data> */
     sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
-    //sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,", &device_socket, remote_addr, &remote_port, (int *) &bfsz);
-    LOG_E(">> socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
-    
+    LOG_D("%s device socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
+
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
 
@@ -818,7 +766,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     recv_buf = (char *) rt_calloc(1, bfsz + 1);
-    //hex_buf  = (char *) rt_calloc(1, bfsz * 2 + 1);
+
     if (recv_buf == RT_NULL || hex_buf == RT_NULL)
     {
         LOG_E("no memory for URC receive buffer(%d).", bfsz);
@@ -841,9 +789,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    /* sync receive data */
+    /* convert receive data */
     hex_to_string(hex_buf, recv_buf, bfsz);
-    LOG_E("recv_buf: %s", recv_buf);
     rt_free(hex_buf);
 
     /* get at socket object by device socket descriptor */
@@ -899,8 +846,9 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 /* +NSOSTR:<socket>,<sequence>,<status> */
 static const struct at_urc urc_table[] =
 {
-    {"+NSOSTR:",    "\r\n",       urc_send_func},
     {"+QDNS:",      "\r\n",       urc_dns_func},
+    {"+QTCPIND:",   "\r\n",       urc_connect_func},
+    {"+NSOSTR:",    "\r\n",       urc_send_func},
     {"+NSONMI:",    "\r\n",       urc_recv_func},
     {"+NSOCLI:",    "\r\n",       urc_close_func},
 };
