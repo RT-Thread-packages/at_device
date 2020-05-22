@@ -35,6 +35,10 @@ extern "C" {
 
 /* The maximum number of sockets supported by the BC28 device */
 #define AT_DEVICE_BC28_SOCKETS_NUM  7
+#define IP_ADDR_SIZE_MAX            16
+
+#define AT_DEVICE_BC28_MIN_SOCKET   BC28_SAMPLE_MIN_SOCKET
+#define BC28_AT_CLIENT_BAUD_RATE    BC28_SAMPLE_BAUD_RATE
 
 struct at_device_bc28
 {
