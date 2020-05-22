@@ -220,6 +220,73 @@ static int bc28_socket_close(struct at_socket *socket)
 }
 
 /**
+ * create socket by AT commands.
+ *
+ * @param type connect socket type(tcp, udp)
+ * @param port listen port (range: 0-65535), if 0 means get a random port
+ *
+ * @return >=0: create socket success, return the socket id (0-6)
+ *          -1: send or exec AT commands error
+ *          -5: no memory
+ */
+static int bc28_socket_create(struct at_device *device, enum at_socket_type type, uint32_t port)
+{
+    const char *type_str = RT_NULL;
+    uint32_t protocol = 0;
+    at_response_t resp = RT_NULL;
+    int socket = -1, result = 0;
+
+    switch(type)
+    {
+        case AT_SOCKET_TCP:
+            type_str = "STREAM";
+            protocol = 6;
+            break;
+        case AT_SOCKET_UDP:
+            type_str = "DGRAM";
+            protocol = 17;
+            break;
+        default:
+            return -RT_ERROR;
+    }
+
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return -RT_ENOMEM;
+    }
+
+    /* create socket */
+    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,%d,1", type_str, protocol, port) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    /* check socket */
+    if (at_resp_parse_line_args(resp, 2, "%d", &socket) <= 0)
+    {
+        LOG_E("%s device create %s socket failed.", device->name, type_str);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+    else
+    {
+        LOG_D("%s device create a %s socket(%d).", device->name, type_str, socket);
+        result = socket;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+
+/**
  * create TCP/UDP client or server connect by AT commands.
  *
  * @param socket current socket
@@ -239,8 +306,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 #define CONN_RETRY  3
 
     int i = 0;
-    const char *type_str = RT_NULL;
-    uint32_t event = 0, protocol = 0;
+    uint32_t event = 0;
     at_response_t resp = RT_NULL;
     int result = 0, event_result = 0;
     int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
@@ -255,21 +321,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         return -RT_ERROR;
     }
 
-    switch(type)
-    {
-        case AT_SOCKET_TCP:
-            type_str = "STREAM";
-            protocol = 6;
-            break;
-        case AT_SOCKET_UDP:
-            type_str = "DGRAM";
-            protocol = 17;
-            break;
-        default:
-            LOG_E("%s device socket(%d) connect type error.", device->name, device_socket);
-            return -RT_ERROR;
-    }
-
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -277,21 +328,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         return -RT_ENOMEM;
     }
 
-    /* create socket */
-    if (at_obj_exec_cmd(device->client, resp, "AT+NSOCR=%s,%d,0,1", type_str, protocol) < 0)
-    {
-        result = -RT_ERROR;
-        goto __exit;
-    }
-
-    /* check socket */
-    if (at_resp_parse_line_args(resp, 2, "%d", &return_socket) <= 0)
-    {
-        LOG_E("%s device create %s socket failed.", device->name, type_str);
-        result = -RT_ERROR;
-        goto __exit;
-    }
-    LOG_D("%s device create a %s socket(%d).", device->name, type_str, return_socket);
+    return_socket = bc28_socket_create(device, type, 0);
 
     if (return_socket != device_socket)
     {
@@ -549,9 +586,9 @@ __exit:
  */
 int bc28_domain_resolve(const char *name, char ip[16])
 {
-#define RESOLVE_RETRY  3
+#define RESOLVE_RETRY  1
 
-    int i, result;
+    int i, result, event_result = 0;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
     struct at_device_bc28 *bc28 = RT_NULL;
@@ -589,26 +626,23 @@ int bc28_domain_resolve(const char *name, char ip[16])
     for(i = 0; i < RESOLVE_RETRY; i++)
     {
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds.*/
-        if (bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK, 30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
+        event_result = bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK | BC28_EVENT_DOMAIN_FAIL, 
+                                              30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+        if (event_result < 0)
         {
             result = -RT_ETIMEOUT;
             continue;
         }
+        else if (event_result & BC28_EVENT_DOMAIN_FAIL)
+        {
+            LOG_E("%d device resolve domain name failed.", device->name);
+            result = -RT_ERROR;
+            continue;
+        }
         else
         {
-            if (rt_strlen(ip) < 8)
-            {
-                rt_thread_mdelay(100);
-                /* resolve failed, maybe receive an URC CRLF, e.g. +DNS:FAIL */
-                LOG_E("%d device resolve domain name failed.", device->name);
-                result = -RT_ERROR;
-                continue;
-            }
-            else
-            {
-                result = RT_EOK;
-                break;
-            }
+            result = RT_EOK;
+            break;
         }
     }
 
@@ -831,9 +865,15 @@ static void urc_dns_func(struct at_client *client, const char *data, rt_size_t s
     sscanf(data, "+QDNS:%s", recv_ip);
     recv_ip[15] = '\0';
 
-    rt_memcpy(bc28->socket_data, recv_ip, sizeof(recv_ip));
-
-    bc28_socket_event_send(device, BC28_EVENT_DOMAIN_OK);
+    if (rt_strstr(recv_ip, "FAIL"))
+    {
+        bc28_socket_event_send(device, BC28_EVENT_DOMAIN_FAIL);
+    }
+    else
+    {
+        rt_memcpy(bc28->socket_data, recv_ip, sizeof(recv_ip));
+        bc28_socket_event_send(device, BC28_EVENT_DOMAIN_OK);
+    }
 }
 
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
