@@ -615,8 +615,8 @@ static void bc28_init_thread_entry(void *parameter)
             goto __exit;
         }
 
-        /* search band 8 */
-        if (at_obj_exec_cmd(device->client, resp, "AT+NBAND=8") != RT_EOK)
+        /* search band */
+        if (at_obj_exec_cmd(device->client, resp, "AT+NBAND=%d", AT_DEVICE_BC28_OP_BAND) != RT_EOK)
         {
             result = -RT_ERROR;
             LOG_E(">> AT+NBAND=8");
