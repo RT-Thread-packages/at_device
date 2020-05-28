@@ -36,7 +36,7 @@
 
 #ifdef AT_DEVICE_USING_N21
 
-#define N21_WAIT_CONNECT_TIME 30000
+#define N21_WAIT_CONNECT_TIME 10000
 #define N21_THREAD_STACK_SIZE 2048
 #define N21_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX / 2)
 // #define N21_THREAD_PRIORITY 6
@@ -49,8 +49,8 @@ static void n21_power_on(struct at_device *device)
     n21 = (struct at_device_n21 *)device->user_data;
 
     /* not nead to set pin configuration for n21 device power on */
-#if ( N21_SAMPLE_POWER_PIN != -1)
-    #if ( N21_SAMPLE_STATUS_PIN != -1)
+#if (N21_SAMPLE_POWER_PIN != -1)
+#if (N21_SAMPLE_STATUS_PIN != -1)
     if (n21->power_pin == -1 || n21->power_status_pin == -1)
     {
         return;
@@ -66,14 +66,14 @@ static void n21_power_on(struct at_device *device)
         rt_thread_mdelay(10);
     }
     rt_pin_write(n21->power_pin, PIN_LOW);
-    #else
-    if( n21->power_pin == -1 )
+#else
+    if (n21->power_pin == -1)
     {
         return;
     }
     rt_pin_write(n21->power_pin, PIN_HIGH);
-    
-    #endif
+
+#endif
 #endif
 }
 
@@ -82,9 +82,9 @@ static void n21_power_off(struct at_device *device)
     struct at_device_n21 *n21 = RT_NULL;
 
     n21 = (struct at_device_n21 *)device->user_data;
-    
-#if ( N21_SAMPLE_POWER_PIN != -1)
-    #if ( N21_SAMPLE_STATUS_PIN != -1)
+
+#if (N21_SAMPLE_POWER_PIN != -1)
+#if (N21_SAMPLE_STATUS_PIN != -1)
     /* not nead to set pin configuration for m26 device power on */
     if (n21->power_pin == -1 || n21->power_status_pin == -1)
     {
@@ -101,13 +101,13 @@ static void n21_power_off(struct at_device *device)
         rt_thread_mdelay(10);
     }
     rt_pin_write(n21->power_pin, PIN_LOW);
-    #else
-    if( n21->power_pin == -1 )
+#else
+    if (n21->power_pin == -1)
     {
         return;
     }
     rt_pin_write(n21->power_pin, PIN_LOW);
-    #endif
+#endif
 #endif
 }
 
@@ -120,11 +120,11 @@ static int n21_netdev_set_info(struct netdev *netdev)
 #define N21_INFO_RESP_TIMO rt_tick_from_millisecond(300)
 
     int result = RT_EOK;
-//    int at_result = 0;
+    //    int at_result = 0;
     ip_addr_t addr;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-    
+
     if (netdev == RT_NULL)
     {
         LOG_E("input network interface device is NULL.");
@@ -165,7 +165,7 @@ static int n21_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args_by_kw(resp, "+CGSN:", "+CGSN: %s", iemi) <= 0)
         {
             LOG_E("n21 device(%s) IEMI get fail", device->name);
@@ -186,10 +186,10 @@ static int n21_netdev_set_info(struct netdev *netdev)
                 netdev->hwaddr[i] = (iemi[j] - '0');
             }
         }
-        
-        LOG_D("hwaddr:%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X,IEMI:%s",netdev->hwaddr[0],
-            netdev->hwaddr[1],netdev->hwaddr[2],netdev->hwaddr[3],netdev->hwaddr[4],
-            netdev->hwaddr[5],netdev->hwaddr[6],netdev->hwaddr[7],iemi);
+
+        LOG_D("hwaddr:%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X,IEMI:%s", netdev->hwaddr[0],
+              netdev->hwaddr[1], netdev->hwaddr[2], netdev->hwaddr[3], netdev->hwaddr[4],
+              netdev->hwaddr[5], netdev->hwaddr[6], netdev->hwaddr[7], iemi);
     }
     LOG_D("get IP address");
     /* get network interface device IP address */
@@ -203,21 +203,21 @@ static int n21_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args_by_kw(resp, "+XIIC:    ", "+XIIC:%*[^,],%s", ipaddr) <= 0)
         {
             LOG_E("n21 device(%s) prase \"AT+XIIC?\" commands resposne data error!", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_I("n21 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
-    //n21 不支持设置和查询DNS
+    //n21 not support inquire dns
 
 __exit:
     if (resp)
@@ -238,13 +238,13 @@ static void check_link_status_entry(void *parameter)
     at_response_t resp = RT_NULL;
     int result_code, link_status;
     struct at_device *device = RT_NULL;
-    #if ( N21_SAMPLE_STATUS_PIN != -1 )
+#if (N21_SAMPLE_STATUS_PIN != -1)
     struct at_device_n21 *n21 = RT_NULL;
-    #endif
+#endif
 
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
-    
+
     LOG_D("statrt n21 device(%s) link status check \n");
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
@@ -253,9 +253,9 @@ static void check_link_status_entry(void *parameter)
         LOG_E("get n21 device by netdev name(%s) failed.", netdev->name);
         return;
     }
-    #if ( N21_SAMPLE_STATUS_PIN != -1 )
+#if (N21_SAMPLE_STATUS_PIN != -1)
     n21 = (struct at_device_n21 *)device->user_data;
-    #endif
+#endif
     resp = at_create_resp(N21_LINK_RESP_SIZE, 0, N21_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
@@ -283,26 +283,27 @@ static void check_link_status_entry(void *parameter)
             netdev_low_level_set_link_status(netdev, (N21_LINK_STATUS_OK == link_status));
         }
 
-        #if ( N21_SAMPLE_STATUS_PIN != -1 )
+#if (N21_SAMPLE_STATUS_PIN != -1)
         if (rt_pin_read(n21->power_status_pin) == PIN_HIGH) //check the module_status , if moduble_status is Low, user can do your logic here
         {
-        #endif
+#endif
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == 0)
             {
                 at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
                 if (strncmp(parsed_data, "99,99", sizeof(parsed_data)))
                 {
-                    LOG_D("n21 device(%s) signal strength: %s", device->name, parsed_data);
+                    LOG_W("n21 device(%s) signal strength: %s", device->name, parsed_data);
                 }
             }
-        #if ( N21_SAMPLE_STATUS_PIN != -1 )    
+#if (N21_SAMPLE_STATUS_PIN != -1)
         }
         else
         {
-                //LTE down
-            LOG_E("the lte pin is low");
+            LOG_E("netdev name(%s) status pin is low", device->name);
+            netdev_low_level_set_link_status(netdev, RT_FALSE);
+            return;
         }
-        #endif
+#endif
         rt_thread_mdelay(N21_LINK_DELAY_TIME);
     }
 }
@@ -385,7 +386,7 @@ static int n21_netdev_set_down(struct netdev *netdev)
 
 #ifdef NETDEV_USING_PING
 static int n21_netdev_ping(struct netdev *netdev, const char *host,
-                              size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+                           size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define N21_PING_RESP_SIZE 512
 #define N21_PING_IP_SIZE 16
@@ -423,7 +424,7 @@ static int n21_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* send "AT+PING=<ip>[,<timeout>,<size>,<num>]" commond to send ping request */
-    /* n21 ping命令 size 取值范围 ipv4(36-1500) ipv6(56-1500) */
+    /* n21 ping <size> ranges of ipv4(36-1500), ipv6(56-1500) */
     if (at_obj_exec_cmd(device->client, resp, "AT+PING=%s,%d,%d,1",
                         host, N21_PING_TIMEO / (RT_TICK_PER_SECOND / 10), data_len + 4) < 0)
     {
@@ -474,7 +475,7 @@ const struct netdev_ops n21_netdev_ops =
         n21_netdev_set_down,
 
         RT_NULL, /* not support set ip, netmask, gatway address */
-        RT_NULL,/* not support set dns server */
+        RT_NULL, /* not support set dns server */
         RT_NULL, /* not support set DHCP status */
 
 #ifdef NETDEV_USING_PING
@@ -534,7 +535,7 @@ static void n21_init_thread_entry(void *parameter)
 #define CSQ_RETRY 10
 #define CREG_RETRY 10
 #define CEREG_RETRY 30
-#define CCID_SIZE   20
+#define CCID_SIZE 20
 
     int i, retry_num = INIT_RETRY;
     char ccid[CCID_SIZE] = {0};
@@ -554,7 +555,7 @@ static void n21_init_thread_entry(void *parameter)
     while (retry_num--)
     {
         rt_memset(parsed_data, 0, sizeof(parsed_data));
-//        rt_thread_mdelay(1000);
+
         n21_power_on(device);
         rt_thread_mdelay(5000); //check the n21 hardware manual, when we use the pow_key to start n21, it takes about 20s,so we put 25s here to ensure starting n21 normally.
 
@@ -578,18 +579,18 @@ static void n21_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND); 
-            if (at_obj_exec_cmd(client, resp, "AT+CCID") < 0)                                       
-            {   
-                LOG_E("AT+CCID ERROR! retry:%d.",i);
+            at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND);
+            if (at_obj_exec_cmd(client, resp, "AT+CCID") < 0)
+            {
+                LOG_E("AT+CCID ERROR! retry:%d.", i);
                 rt_thread_mdelay(1000);
-                continue;                                                                      
-            }      
+                continue;
+            }
 
-            if (at_resp_parse_line_args_by_kw(resp, "+CCID:", "+CCID: %s",ccid))
+            if (at_resp_parse_line_args_by_kw(resp, "+CCID:", "+CCID: %s", ccid))
             {
                 LOG_I("n21 device(%s) SIM card detection success.", device->name);
-                LOG_I("CCID: %s",ccid);
+                LOG_I("CCID: %s", ccid);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -600,7 +601,7 @@ static void n21_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* waiting for dirty data to be digested */
         rt_thread_mdelay(10);
         LOG_I("register network!");
@@ -681,9 +682,10 @@ static void n21_init_thread_entry(void *parameter)
         {
             /* "CT" */
             LOG_I("n21 device(%s) network operator: %s", device->name, parsed_data);
-        }else
+        }
+        else
         {
-            LOG_E("n21 device(%s) Unknown carrier:%s",device->name, parsed_data);
+            LOG_E("n21 device(%s) Unknown carrier:%s", device->name, parsed_data);
         }
         /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+XIIC=1");
@@ -696,9 +698,9 @@ static void n21_init_thread_entry(void *parameter)
             goto __exit;
         }
         result = RT_EOK;
-        
-        AT_SEND_CMD(client, resp, 0, 300, "AT+RECVMODE=1"); //设置直接接收
-        
+
+        AT_SEND_CMD(client, resp, 0, 300, "AT+RECVMODE=1"); //set direct receive
+
     __exit:
         if (result == RT_EOK)
         {
@@ -722,8 +724,12 @@ static void n21_init_thread_entry(void *parameter)
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
-        n21_netdev_set_info(device->netdev); 
-        n21_netdev_check_link_status(device->netdev);
+        n21_netdev_set_info(device->netdev);
+        /* check and create link staus sync thread  */
+        if (rt_thread_find(device->netdev->name) == RT_NULL)
+        {
+            n21_netdev_check_link_status(device->netdev);
+        }
         LOG_I("n21 device(%s) network initialize success!", device->name);
     }
     else
@@ -763,7 +769,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 
 /* n21 device URC table for the device control */
 static const struct at_urc urc_table[] =
-{
+    {
         {"+PBREADY", "\r\n", urc_func},
         {"CLOSED", "\r\n", urc_func},
 };
@@ -823,15 +829,14 @@ static int n21_reset(struct at_device *device)
 
     /* n21 only poweroff cmd,not support reboot.*/
     /* use power pin reboot */
-    //result = at_obj_exec_cmd(client, RT_NULL, "AT+RESET");
-    #if (N21_SAMPLE_POWER_PIN != -1)
-    rt_pin_write(N21_SAMPLE_POWER_PIN,0);
+#if (N21_SAMPLE_POWER_PIN != -1)
+    rt_pin_write(N21_SAMPLE_POWER_PIN, 0);
     rt_thread_mdelay(500);
-    rt_pin_write(N21_SAMPLE_POWER_PIN,1);
-    
+    rt_pin_write(N21_SAMPLE_POWER_PIN, 1);
+
     rt_thread_mdelay(1000);
 
-    /* waiting 10 seconds for mw31 device reset */
+    /* waiting 10 seconds for n21 device reset */
     device->is_init = RT_FALSE;
     if (at_client_obj_wait_connect(client, N21_WAIT_CONNECT_TIME))
     {
@@ -842,10 +847,10 @@ static int n21_reset(struct at_device *device)
     n21_net_init(device);
 
     device->is_init = RT_TRUE;
-    #else
+#else
     result = -RT_ERROR;
-    #endif
-    
+#endif
+
     return result;
 }
 

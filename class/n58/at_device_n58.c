@@ -36,7 +36,7 @@
 
 #ifdef AT_DEVICE_USING_N58
 
-#define N58_WAIT_CONNECT_TIME 30000
+#define N58_WAIT_CONNECT_TIME 10000
 #define N58_THREAD_STACK_SIZE 2048
 #define N58_THREAD_PRIORITY (RT_THREAD_PRIORITY_MAX / 2)
 // #define N58_THREAD_PRIORITY 6
@@ -49,8 +49,8 @@ static void n58_power_on(struct at_device *device)
     n58 = (struct at_device_n58 *)device->user_data;
 
     /* not nead to set pin configuration for n58 device power on */
-#if ( N58_SAMPLE_POWER_PIN != -1)
-    #if ( N58_SAMPLE_STATUS_PIN != -1)
+#if (N58_SAMPLE_POWER_PIN != -1)
+#if (N58_SAMPLE_STATUS_PIN != -1)
     if (n58->power_pin == -1 || n58->power_status_pin == -1)
     {
         return;
@@ -66,14 +66,13 @@ static void n58_power_on(struct at_device *device)
         rt_thread_mdelay(10);
     }
     rt_pin_write(n58->power_pin, PIN_LOW);
-    #else
-    if( n58->power_pin == -1 )
+#else
+    if (n58->power_pin == -1)
     {
         return;
     }
     rt_pin_write(n58->power_pin, PIN_HIGH);
-    
-    #endif
+#endif
 #endif
 }
 
@@ -82,10 +81,10 @@ static void n58_power_off(struct at_device *device)
     struct at_device_n58 *n58 = RT_NULL;
 
     n58 = (struct at_device_n58 *)device->user_data;
-    
-#if ( N58_SAMPLE_POWER_PIN != -1)
-    #if ( N58_SAMPLE_STATUS_PIN != -1)
-    /* not nead to set pin configuration for m26 device power on */
+
+#if (N58_SAMPLE_POWER_PIN != -1)
+#if (N58_SAMPLE_STATUS_PIN != -1)
+    /* not nead to set pin configuration for n58 device power on */
     if (n58->power_pin == -1 || n58->power_status_pin == -1)
     {
         return;
@@ -101,13 +100,13 @@ static void n58_power_off(struct at_device *device)
         rt_thread_mdelay(10);
     }
     rt_pin_write(n58->power_pin, PIN_LOW);
-    #else
-    if( n58->power_pin == -1 )
+#else
+    if (n58->power_pin == -1)
     {
         return;
     }
     rt_pin_write(n58->power_pin, PIN_LOW);
-    #endif
+#endif
 #endif
 }
 
@@ -124,7 +123,7 @@ static int n58_netdev_set_info(struct netdev *netdev)
     ip_addr_t addr;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-    
+
     if (netdev == RT_NULL)
     {
         LOG_E("input network interface device is NULL.");
@@ -165,7 +164,7 @@ static int n58_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args_by_kw(resp, "+CGSN:", "+CGSN: %s", iemi) <= 0)
         {
             LOG_E("n58 device(%s) IEMI get fail", device->name);
@@ -186,10 +185,10 @@ static int n58_netdev_set_info(struct netdev *netdev)
                 netdev->hwaddr[i] = (iemi[j] - '0');
             }
         }
-        
-        LOG_D("hwaddr:%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X,IEMI:%s",netdev->hwaddr[0],
-            netdev->hwaddr[1],netdev->hwaddr[2],netdev->hwaddr[3],netdev->hwaddr[4],
-            netdev->hwaddr[5],netdev->hwaddr[6],netdev->hwaddr[7],iemi);
+
+        LOG_D("hwaddr:%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X-%.2X,IEMI:%s", netdev->hwaddr[0],
+              netdev->hwaddr[1], netdev->hwaddr[2], netdev->hwaddr[3], netdev->hwaddr[4],
+              netdev->hwaddr[5], netdev->hwaddr[6], netdev->hwaddr[7], iemi);
     }
     LOG_D("get IP address");
     /* get network interface device IP address */
@@ -197,22 +196,20 @@ static int n58_netdev_set_info(struct netdev *netdev)
 #define IP_ADDR_SIZE_MAX 32
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
-        //at_resp_set_info(resp, N58_SET_INFO_RESP_SIZE, 0, N58_INFO_RESP_TIMO);
-
         /* send "AT+XIIC?" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+XIIC?") < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args_by_kw(resp, "+XIIC:    ", "+XIIC:%*[^,],%s", ipaddr) <= 0)
         {
             LOG_E("n58 device(%s) prase \"AT+XIIC?\" commands resposne data error!", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_I("n58 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
@@ -225,30 +222,28 @@ static int n58_netdev_set_info(struct netdev *netdev)
 #define DNS_ADDR_SIZE_MAX 16
         char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
 
-        //at_resp_set_info(resp, N58_DNS_RESP_SIZE, 0, N58_INFO_RESP_TIMO);
-
         /* send "AT+DNSSERVER?" commond to get DNS servers address */
-       if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER?") < 0)
-       {
-           result = -RT_ERROR;
-           goto __exit;
-       }
+        if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER?") < 0)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
 
-       if (at_resp_parse_line_args_by_kw(resp, "+DNSSERVER: ", "+DNSSERVER: dns1:%[^,],dns2:%s\r\n", dns_server1, dns_server2) <= 0 )
-       {
-           LOG_E("Prase \"AT+DNSSERVER?\" commands resposne data error!");
-           result = -RT_ERROR;
-           goto __exit;
-       }
+        if (at_resp_parse_line_args_by_kw(resp, "+DNSSERVER: ", "+DNSSERVER: dns1:%[^,],dns2:%s\r\n", dns_server1, dns_server2) <= 0)
+        {
+            LOG_E("Prase \"AT+DNSSERVER?\" commands resposne data error!");
+            result = -RT_ERROR;
+            goto __exit;
+        }
 
-       LOG_D("n58 device(%s) primary DNS server address: %s", device->name, dns_server1);
-       LOG_D("n58 device(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("n58 device(%s) primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("n58 device(%s) secondary DNS server address: %s", device->name, dns_server2);
 
-       inet_aton(dns_server1, &addr);
-       netdev_low_level_set_dns_server(netdev, 0, &addr);
+        inet_aton(dns_server1, &addr);
+        netdev_low_level_set_dns_server(netdev, 0, &addr);
 
-       inet_aton(dns_server2, &addr);
-       netdev_low_level_set_dns_server(netdev, 1, &addr);
+        inet_aton(dns_server2, &addr);
+        netdev_low_level_set_dns_server(netdev, 1, &addr);
     }
 
 __exit:
@@ -270,14 +265,14 @@ static void check_link_status_entry(void *parameter)
     at_response_t resp = RT_NULL;
     int result_code, link_status;
     struct at_device *device = RT_NULL;
-    
-    #if ( N58_SAMPLE_STATUS_PIN != -1 )
+
+#if (N58_SAMPLE_STATUS_PIN != -1)
     struct at_device_n58 *n58 = RT_NULL;
-    #endif
-    
+#endif
+
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
-    
+
     LOG_D("statrt n58 device(%s) link status check \n");
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
@@ -286,11 +281,11 @@ static void check_link_status_entry(void *parameter)
         LOG_E("get n58 device by netdev name(%s) failed.", netdev->name);
         return;
     }
-    
-    #if ( N58_SAMPLE_STATUS_PIN != -1 )
+
+#if (N58_SAMPLE_STATUS_PIN != -1)
     n58 = (struct at_device_n58 *)device->user_data;
-    #endif
-    
+#endif
+
     resp = at_create_resp(N58_LINK_RESP_SIZE, 0, N58_LINK_RESP_TIMO);
     if (resp == RT_NULL)
     {
@@ -314,14 +309,13 @@ static void check_link_status_entry(void *parameter)
         /* check the network interface device link status  */
         if ((N58_LINK_STATUS_OK == link_status) != netdev_is_link_up(netdev))
         {
-
             netdev_low_level_set_link_status(netdev, (N58_LINK_STATUS_OK == link_status));
         }
 
-       #if ( N58_SAMPLE_STATUS_PIN != -1 )
-       if (rt_pin_read(n58->power_status_pin) == PIN_HIGH) //check the module_status , if moduble_status is Low, user can do your logic here
-       {
-       #endif
+#if (N58_SAMPLE_STATUS_PIN != -1)
+        if (rt_pin_read(n58->power_status_pin) == PIN_HIGH) //check the module_status , if moduble_status is Low, user can do your logic here
+        {
+#endif
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == 0)
             {
                 at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
@@ -330,14 +324,15 @@ static void check_link_status_entry(void *parameter)
                     LOG_D("n58 device(%s) signal strength: %s", device->name, parsed_data);
                 }
             }
-       #if ( N58_SAMPLE_STATUS_PIN != -1 )
-       }
-       else
-       {
-               //LTE down
-           LOG_E("the lte pin is low,one pin set (status_pin == power_pin)");
-       }
-       #endif
+#if (N58_SAMPLE_STATUS_PIN != -1)
+        }
+        else
+        {
+            LOG_E("netdev name(%s) status pin is low", device->name);
+            netdev_low_level_set_link_status(netdev, RT_FALSE);
+            return;
+        }
+#endif
         rt_thread_mdelay(N58_LINK_DELAY_TIME);
     }
 }
@@ -423,51 +418,49 @@ static int n58_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_
 #define N58_DNS_RESP_LEN 128
 #define N58_DNS_RESP_TIMEO rt_tick_from_millisecond(300)
 
-   int result = RT_EOK;
-   at_response_t resp = RT_NULL;
-   struct at_device *device = RT_NULL;
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
 
-   RT_ASSERT(netdev);
-   RT_ASSERT(dns_server);
-   
-   device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
-   if (device == RT_NULL)
-   {
-       LOG_E("get n58 device by netdev name(%s) failed.", netdev->name);
-       
+    RT_ASSERT(netdev);
+    RT_ASSERT(dns_server);
 
-   }
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get n58 device by netdev name(%s) failed.", netdev->name);
+    }
 
-   resp = at_create_resp(N58_DNS_RESP_LEN, 0, N58_DNS_RESP_TIMEO);
-   if (resp == RT_NULL)
-   {
-       LOG_D("n58 set dns server failed, no memory for response object.");
-       result = -RT_ENOMEM;
-       goto __exit;
-   }
-   LOG_D("dns_num:%d,dns_server:%s", dns_num, inet_ntoa(*dns_server));
-   /* send "AT+CDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-   if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER=%d,%s", dns_num + 1, inet_ntoa(*dns_server)) < 0)
-   {
-       result = -RT_ERROR;
-       goto __exit;
-   }
+    resp = at_create_resp(N58_DNS_RESP_LEN, 0, N58_DNS_RESP_TIMEO);
+    if (resp == RT_NULL)
+    {
+        LOG_D("n58 set dns server failed, no memory for response object.");
+        result = -RT_ENOMEM;
+        goto __exit;
+    }
+    LOG_D("dns_num:%d,dns_server:%s", dns_num, inet_ntoa(*dns_server));
+    /* send "AT+CDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER=%d,%s", dns_num + 1, inet_ntoa(*dns_server)) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
 
-   netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
+    netdev_low_level_set_dns_server(netdev, dns_num, dns_server);
 
 __exit:
-   if (resp)
-   {
-       at_delete_resp(resp);
-   }
-   result = -RT_ERROR;
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    result = -RT_ERROR;
 
-   return result;
+    return result;
 }
 
 #ifdef NETDEV_USING_PING
 static int n58_netdev_ping(struct netdev *netdev, const char *host,
-                              size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+                           size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define N58_PING_RESP_SIZE 512
 #define N58_PING_IP_SIZE 16
@@ -505,7 +498,7 @@ static int n58_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* send "AT+PING=<ip>[,<timeout>,<size>,<num>]" commond to send ping request */
-    /* n58 ping命令 size 取值范围 ipv4(36-1500) ipv6(56-1500) */
+    /* n58 ping <size> ranges of ipv4(36-1500), ipv6(56-1500) */
     if (at_obj_exec_cmd(device->client, resp, "AT+PING=%s,%d,%d,1",
                         host, N58_PING_TIMEO / (RT_TICK_PER_SECOND / 10), data_len + 4) < 0)
     {
@@ -555,9 +548,9 @@ const struct netdev_ops n58_netdev_ops =
         n58_netdev_set_up,
         n58_netdev_set_down,
 
-        RT_NULL, /* not support set ip, netmask, gatway address */
-        n58_netdev_set_dns_server,//n58_netdev_set_dns_server,
-        RT_NULL, /* not support set DHCP status */
+        RT_NULL,                   /* not support set ip, netmask, gatway address */
+        n58_netdev_set_dns_server, //n58_netdev_set_dns_server,
+        RT_NULL,                   /* not support set DHCP status */
 
 #ifdef NETDEV_USING_PING
         n58_netdev_ping,
@@ -616,7 +609,7 @@ static void n58_init_thread_entry(void *parameter)
 #define CSQ_RETRY 10
 #define CREG_RETRY 60
 #define CEREG_RETRY 30
-#define CCID_SIZE   20
+#define CCID_SIZE 20
 
     int i, retry_num = INIT_RETRY;
     char ccid[CCID_SIZE] = {0};
@@ -660,18 +653,18 @@ static void n58_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND); 
-            if (at_obj_exec_cmd(client, resp, "AT+CCID") < 0)                                       
-            {   
-                LOG_E("AT+CCID ERROR! retry:%d.",i);
+            at_resp_set_info(resp, 128, 2, 5 * RT_TICK_PER_SECOND);
+            if (at_obj_exec_cmd(client, resp, "AT+CCID") < 0)
+            {
+                LOG_E("AT+CCID ERROR! retry:%d.", i);
                 rt_thread_mdelay(1000);
-                continue;                                                                      
+                continue;
             }
 
-            if (at_resp_parse_line_args_by_kw(resp, "+CCID:", "+CCID: %s",ccid))
+            if (at_resp_parse_line_args_by_kw(resp, "+CCID:", "+CCID: %s", ccid))
             {
                 LOG_I("n58 device(%s) SIM card detection success.", device->name);
-                LOG_I("CCID: %s",ccid);
+                LOG_I("CCID: %s", ccid);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -682,7 +675,7 @@ static void n58_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* waiting for dirty data to be digested */
         rt_thread_mdelay(500);
         LOG_I("register network!");
@@ -764,9 +757,10 @@ static void n58_init_thread_entry(void *parameter)
         {
             /* "CT" */
             LOG_I("n58 device(%s) network operator: %s", device->name, parsed_data);
-        }else
+        }
+        else
         {
-            LOG_E("n58 device(%s) Unknown carrier:%s",device->name, parsed_data);
+            LOG_E("n58 device(%s) Unknown carrier:%s", device->name, parsed_data);
         }
         /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+XIIC=1");
@@ -779,11 +773,11 @@ static void n58_init_thread_entry(void *parameter)
             goto __exit;
         }
         result = RT_EOK;
-        
-        AT_SEND_CMD(client, resp, 0, 300, "AT+RECVMODE=1"); //设置直接接收
-        
-        rt_thread_mdelay(2000); //延时等待模块处理完成
-        
+
+        AT_SEND_CMD(client, resp, 0, 300, "AT+RECVMODE=1"); //set direct receive
+
+        rt_thread_mdelay(2000); //wait for the module to process
+
     __exit:
         if (result == RT_EOK)
         {
@@ -807,7 +801,7 @@ static void n58_init_thread_entry(void *parameter)
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
-        n58_netdev_set_info(device->netdev); 
+        n58_netdev_set_info(device->netdev);
         n58_netdev_check_link_status(device->netdev);
         LOG_I("n58 device(%s) network initialize success!", device->name);
     }
@@ -848,7 +842,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 
 /* n58 device URC table for the device control */
 static const struct at_urc urc_table[] =
-{
+    {
         {"+PBREADY", "\r\n", urc_func},
         {"CLOSED", "\r\n", urc_func},
 };
@@ -883,10 +877,9 @@ static int n58_init(struct at_device *device)
     }
 
     /* initialize n58 pin configuration */
-    if (n58->power_pin != -1 )
+    if (n58->power_pin != -1)
     {
         rt_pin_mode(n58->power_pin, PIN_MODE_OUTPUT);
-        
     }
 
     if (n58->power_status_pin != -1)
@@ -908,17 +901,16 @@ static int n58_reset(struct at_device *device)
     int result = RT_EOK;
     struct at_client *client = device->client;
 
-    /* n58 only poweroff cmd,not support reboot.*/
-    /* use power pin reboot */
-    //result = at_obj_exec_cmd(client, RT_NULL, "AT+RESET");
-    #if (N58_SAMPLE_POWER_PIN != -1)
-    rt_pin_write(N58_SAMPLE_POWER_PIN,0);
+/* n58 only poweroff cmd,not support reboot.*/
+/* use power pin reboot */
+#if (N58_SAMPLE_POWER_PIN != -1)
+    rt_pin_write(N58_SAMPLE_POWER_PIN, 0);
     rt_thread_mdelay(500);
-    rt_pin_write(N58_SAMPLE_POWER_PIN,1);
-    
+    rt_pin_write(N58_SAMPLE_POWER_PIN, 1);
+
     rt_thread_mdelay(1000);
 
-    /* waiting 10 seconds for mw31 device reset */
+    /* waiting 10 seconds for n58 device reset */
     device->is_init = RT_FALSE;
     if (at_client_obj_wait_connect(client, N58_WAIT_CONNECT_TIME))
     {
@@ -929,10 +921,10 @@ static int n58_reset(struct at_device *device)
     n58_net_init(device);
 
     device->is_init = RT_TRUE;
-    #else
+#else
     result = -RT_ERROR;
-    #endif
-    
+#endif
+
     return result;
 }
 

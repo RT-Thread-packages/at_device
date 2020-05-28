@@ -26,7 +26,6 @@
 #include <string.h>
 #include <at_device_n58.h>
 
-
 #if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10300
 #error "This AT Client version is older, please check and update latest AT Client!"
 #endif
@@ -88,14 +87,14 @@ static int n58_socket_close(struct at_socket *socket)
     uint32_t event = 0;
     int result = RT_EOK;
     int device_socket = (int)socket->user_data;
-    enum at_socket_type type_socket  = socket->type;
+    enum at_socket_type type_socket = socket->type;
     struct at_device *device = (struct at_device *)socket->device;
 
     /* clear socket close event */
     event = SET_EVENT(device_socket, N58_EVNET_CLOSE_OK);
     n58_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
-    if(type_socket == AT_SOCKET_TCP)
+
+    if (type_socket == AT_SOCKET_TCP)
     {
         if (at_obj_exec_cmd(device->client, NULL, "AT+TCPCLOSE=%d", device_socket) < 0)
         {
@@ -103,7 +102,7 @@ static int n58_socket_close(struct at_socket *socket)
             goto __exit;
         }
     }
-    else if(type_socket == AT_SOCKET_UDP)
+    else if (type_socket == AT_SOCKET_UDP)
     {
         if (at_obj_exec_cmd(device->client, NULL, "AT+UDPCLOSE=%d", device_socket) < 0)
         {
@@ -148,7 +147,7 @@ static int n58_socket_connect(struct at_socket *socket, char *ip, int32_t port, 
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
-    
+
     resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
@@ -175,7 +174,7 @@ __retry:
                 goto __exit;
             }
             break;
-           /* send AT commands(eg: AT+UDPSETUP=<n>,<ip>,<port>) to connect TCP server */
+            /* send AT commands(eg: AT+UDPSETUP=<n>,<ip>,<port>) to connect TCP server */
         case AT_SOCKET_UDP:
             if (at_obj_exec_cmd(device->client, RT_NULL,
                                 "AT+UDPSETUP=%d,%s,%d", device_socket, ip, port) < 0)
@@ -201,7 +200,7 @@ __retry:
     }
     /* waiting OK or failed result */
     event_result = n58_socket_event_recv(device,
-                                            N58_EVENT_CONN_OK | N58_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+                                         N58_EVENT_CONN_OK | N58_EVENT_CONN_FAIL, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
     if (event_result < 0)
     {
         LOG_E("n58 device(%s) socket(%d) connect failed, wait connect OK|FAIL timeout.", device->name, device_socket);
@@ -227,16 +226,11 @@ __retry:
         result = -RT_ERROR;
         goto __exit;
     }
-    
+
 __exit:
     if (resp)
     {
         at_delete_resp(resp);
-    }
-
-    if (result != RT_EOK)
-    {
-        
     }
 
     return result;
@@ -295,7 +289,7 @@ static int n58_socket_send(struct at_socket *socket, const char *buff, size_t bf
         }
 
         /* send the "AT+QISEND" commands to AT server than receive the '>' response on the first line. */
-        if(type == AT_SOCKET_TCP)
+        if (type == AT_SOCKET_TCP)
         {
             if (at_obj_exec_cmd(device->client, resp, "AT+TCPSEND=%d,%d", device_socket, cur_pkt_size) < 0)
             {
@@ -303,7 +297,7 @@ static int n58_socket_send(struct at_socket *socket, const char *buff, size_t bf
                 goto __exit;
             }
         }
-        else if(type == AT_SOCKET_UDP)
+        else if (type == AT_SOCKET_UDP)
         {
             if (at_obj_exec_cmd(device->client, resp, "AT+UDPSEND=%d,%d", device_socket, cur_pkt_size) < 0)
             {
@@ -329,7 +323,7 @@ static int n58_socket_send(struct at_socket *socket, const char *buff, size_t bf
         }
         /* waiting OK or failed result */
         event_result = n58_socket_event_recv(device,
-                                                N58_EVENT_SEND_OK | N58_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
+                                             N58_EVENT_SEND_OK | N58_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
             LOG_E("n58 device(%s) socket(%d) send failed, wait connect OK|FAIL timeout.", device->name, device_socket);
@@ -482,20 +476,20 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*[^ ]%d,%s", &device_socket,constat);
-    
-    LOG_D("data:%s",data);
-    
-    LOG_D("socket:%d,constat:%s",device_socket,constat);
+    sscanf(data, "%*[^ ]%d,%s", &device_socket, constat);
+
+    LOG_D("data:%s", data);
+
+    LOG_D("socket:%d,constat:%s", device_socket, constat);
 
     if (strstr(constat, "OK"))
     {
-        LOG_D("socket %d:connect ok!",device_socket);
+        LOG_D("socket %d:connect ok!", device_socket);
         n58_socket_event_send(device, SET_EVENT(device_socket, N58_EVENT_CONN_OK));
     }
     else if (strstr(constat, "FAIL"))
     {
-        LOG_D("socket %d:connect fail!",device_socket);
+        LOG_D("socket %d:connect fail!", device_socket);
         n58_socket_event_send(device, SET_EVENT(device_socket, N58_EVENT_CONN_FAIL));
     }
 }
@@ -518,16 +512,16 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     /* get the current socket by receive data */
     sscanf(data, "%*[^ ] %d,%*d\r\n", &device_socket);
 
-    if(rt_strstr(data, "OPERATION"))
+    if (rt_strstr(data, "OPERATION"))
     {
         LOG_E("input data timeout!");
         n58_socket_event_send(device, SET_EVENT(device_socket, N58_EVENT_SEND_FAIL));
     }
-    else if (rt_strstr(data, "ERROR"))  //链路号错误
+    else if (rt_strstr(data, "ERROR")) //链路号错误
     {
         n58_socket_event_send(device, SET_EVENT(device_socket, N58_EVENT_SEND_FAIL));
     }
-    else  //没有错误就是成功
+    else //没有错误就是成功
     {
         n58_socket_event_send(device, SET_EVENT(device_socket, N58_EVENT_SEND_OK));
     }
@@ -575,42 +569,42 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 {
     int device_socket = 0;
     rt_size_t bfsz = 0;
-    int data_index = size -1;
+    int data_index = size - 1;
     char *recv_buf = RT_NULL;
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
-    
+
     /* get the current socket and receive buffer size by receive data */
     sscanf(data, "%*[^ ] %d,%d,", &device_socket, (int *)&bfsz);
-    
+
     recv_buf = (char *)rt_calloc(1, bfsz + 1);
-	
-	if(recv_buf == RT_NULL)
+
+    if (recv_buf == RT_NULL)
     {
         LOG_E("no memory for n58 device(%s) URC receive buffer (%d).", device->name, bfsz);
         return;
     }
-	
-    data_index -= 2;  //"\r\n"移除
-	recv_buf[bfsz] = '\0';
-    for(int i=bfsz-1;i>=0;i--)
+
+    data_index -= 2; //"\r\n"移除
+    recv_buf[bfsz] = '\0';
+    for (int i = bfsz - 1; i >= 0; i--)
     {
         recv_buf[i] = data[data_index];
         data_index--;
     }
-   
+
     /* get receive timeout by receive buffer length */
-    
-    LOG_D("recv socket:%d",device_socket);
+
+    LOG_D("recv socket:%d", device_socket);
 
     if (device_socket < 0 || bfsz == 0)
     {
         return;
     }
-    
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -631,16 +625,16 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 /* n58 device URC table for the socket data */
 static const struct at_urc urc_table[] =
     {
-         
+
         {"+TCPSETUP:", "\r\n", urc_connect_func},
         {"+UDPSETUP:", "\r\n", urc_connect_func},
-        {"+TCPSEND:",  "\r\n", urc_send_func},
-        {"+UDPSEND:",  "\r\n", urc_send_func},
+        {"+TCPSEND:", "\r\n", urc_send_func},
+        {"+UDPSEND:", "\r\n", urc_send_func},
         {"+TCPCLOSE:", "\r\n", urc_close_func},
         {"+UDPCLOSE:", "\r\n", urc_close_func},
-        {"+TCPRECV:",  "\r\n", urc_recv_func},
-        {"+UDPRECV:",  "\r\n", urc_recv_func},
-        
+        {"+TCPRECV:", "\r\n", urc_recv_func},
+        {"+UDPRECV:", "\r\n", urc_recv_func},
+
 };
 
 static const struct at_socket_ops n58_socket_ops =
@@ -648,7 +642,7 @@ static const struct at_socket_ops n58_socket_ops =
         n58_socket_connect,
         n58_socket_close,
         n58_socket_send,
-        n58_domain_resolve, 
+        n58_domain_resolve,
         n58_socket_set_event_cb,
 };
 
