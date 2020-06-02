@@ -147,6 +147,24 @@ if GetDepend(['AT_DEVICE_USING_EC200X']):
         src += Glob('class/ec200x/at_socket_ec200x.c')
     if GetDepend(['AT_DEVICE_EC200X_SAMPLE']):
         src += Glob('samples/at_sample_ec200x.c')
+
+# N21
+if GetDepend(['AT_DEVICE_USING_N21']):
+    path += [cwd + '/class/n21']
+    src += Glob('class/n21/at_device_n21.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/n21/at_socket_n21.c')
+    if GetDepend(['AT_DEVICE_N21_SAMPLE']):
+        src += Glob('samples/at_sample_n21.c')
+
+# N58
+if GetDepend(['AT_DEVICE_USING_N58']):
+    path += [cwd + '/class/n58']
+    src += Glob('class/n58/at_device_n58.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/n58/at_socket_n58.c')
+    if GetDepend(['AT_DEVICE_N58_SAMPLE']):
+        src += Glob('samples/at_sample_n58.c')
         
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 

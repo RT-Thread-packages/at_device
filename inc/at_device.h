@@ -60,6 +60,8 @@ extern "C" {
 #define AT_DEVICE_CLASS_M6315          0x0EU
 #define AT_DEVICE_CLASS_BC28           0x0FU
 #define AT_DEVICE_CLASS_EC200X         0x10U
+#define AT_DEVICE_CLASS_N21            0x11U
+#define AT_DEVICE_CLASS_N58            0x12U
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L
