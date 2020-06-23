@@ -1,5 +1,5 @@
 /*
- * File      : at_sample_me3616.c
+ * File      : at_sample_m5311.c
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
  *
@@ -34,7 +34,6 @@ static struct at_device_m5311 nb_m5311 = {
 		M5311_SAMPLE_CLIENT_NAME,
 
 		M5311_SAMPLE_POWER_PIN,
-		M5311_SAMPLE_STATUS_PIN,
 		M5311_SAMPLE_RECIEVE_BUFF_LEN,
 };
 
