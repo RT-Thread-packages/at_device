@@ -1,5 +1,5 @@
 /*
- * File      : at_device_me3616.c
+ * File      : at_device_m5311.c
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
  *

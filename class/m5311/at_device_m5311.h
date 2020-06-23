@@ -33,19 +33,19 @@ extern "C" {
 
 #include <at_device.h>
 
-/*	Max number of sockets supported by the m5311 device	*/
-#define AT_DEVICE_M5311_SOCKETS_NUM		5
+/* Max number of sockets supported by the m5311 device */
+#define AT_DEVICE_M5311_SOCKETS_NUM     5
 
 struct at_device_m5311{
-		char *device_name;
-		char *client_name;
+        char *device_name;
+        char *client_name;
 
-		int power_pin;
-		size_t recieve_line_num;
-		struct at_device device;
-		
-		void *socket_data;
-		void *user_data;
+        int power_pin;
+        size_t recieve_line_num;
+        struct at_device device;
+        
+        void *socket_data;
+        void *user_data;
 };
 
 #ifdef AT_USING_SOCKET
