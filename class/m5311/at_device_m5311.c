@@ -747,10 +747,10 @@ static int m5311_init(struct at_device *device)
     }
 
     /* initialize m5311 pin configuration */
-    if (m5311->power_pin != -1 && m5311->power_status_pin != -1)
+    if (m5311->power_pin != -1)
     {
         rt_pin_mode(m5311->power_pin, PIN_MODE_OUTPUT);
-        rt_pin_mode(m5311->power_status_pin, PIN_MODE_INPUT);
+        rt_pin_write(m5311->power_pin, PIN_LOW);
     }
 
     /* initialize m5311 device network */
@@ -817,6 +817,6 @@ static int m5311_device_class_register(void)
 }
 
 INIT_DEVICE_EXPORT(m5311_device_class_register);
-MSH_CMD_EXPORT(m5311_ori_ping, nbiot ping);
+
 #endif /* AT_DEVICE_USING_M5311 */
 
