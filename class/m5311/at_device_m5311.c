@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <at_device_m5311.h>
 
 #define LOG_TAG                          "at.dev.m5311"
 #include <at_log.h>
@@ -76,7 +77,7 @@ static int m5311_netdev_set_info(struct netdev *netdev)
 {
 #define M5311_IMEI_RESP_SIZE      512
 #define M5311_IPADDR_RESP_SIZE    16
-#define M5311_DNS_RESP_SIZE       96
+#define M5311_DNS_RESP_SIZE       128
 #define M5311_INFO_RESP_TIMO      rt_tick_from_millisecond(1000)
 
     int result = RT_EOK;
@@ -148,7 +149,6 @@ static int m5311_netdev_set_info(struct netdev *netdev)
     }
 
     /* set network interface device IP address
-     * 
      * */
     {
         #define IP_ADDR_SIZE_MAX    16
@@ -160,11 +160,10 @@ static int m5311_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        /* 解析响应的数据
-         * parse response data "+CGPADDR: 1,<IP_address>"
+        /* parse response data "+CGPADDR: 1,<IP_address>"
          * eg: +CGPADDR: 1,"100.66.19.177"
          * */
-        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) <= 0)
         {
             LOG_E("%s device run \"AT+CGPADDR=1\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -172,9 +171,7 @@ static int m5311_netdev_set_info(struct netdev *netdev)
         }
         LOG_D("%s device IP address: %s", device->name, ipaddr);
 
-        /*  set network interface address information
-         * 
-         * */
+        /*  set network interface address information  */
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
@@ -184,32 +181,32 @@ static int m5311_netdev_set_info(struct netdev *netdev)
      * */
     {
         #define DNS_ADDR_SIZE_MAX   16
-        char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+        char dns_server0[DNS_ADDR_SIZE_MAX] = {0}, dns_server1[DNS_ADDR_SIZE_MAX] = {0};
 
-        at_resp_set_info(resp, M5311_DNS_RESP_SIZE, 0, M5311_INFO_RESP_TIMO);
+        at_resp_set_info(resp, M5311_DNS_RESP_SIZE, 3, M5311_INFO_RESP_TIMO);
 
-        /* send "AT+QIDNSCFG?" commond to get DNS servers address */
+        /* send "AT+DNSSER?" commond to get DNS servers address */
         if (at_obj_exec_cmd(client, resp, "AT+DNSSER?") < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
-        if (at_resp_parse_line_args_by_kw(resp, "+DNSSER: 0,\"%[^\"]\"", dns_server1) <= 0 ||
-                at_resp_parse_line_args_by_kw(resp, "+DNSSER: 1,\"%[^\"]\"", dns_server2) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+DNSSER: 0", "+DNSSER: 0,%[^\r]", dns_server0) <= 0 ||
+                at_resp_parse_line_args_by_kw(resp,  "+DNSSER: 1", "+DNSSER: 1,%[^\r]", dns_server1) <= 0)
         {
             LOG_E("%s device prase \"AT+DNSSER?\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("%s device primary DNS server address: %s", device->name, dns_server0);
+        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server1);
 
-        inet_aton(dns_server1, &addr);
+        inet_aton(dns_server0, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
 
-        inet_aton(dns_server2, &addr);
+        inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 1, &addr);
     }
 
@@ -345,9 +342,13 @@ static int m5311_netdev_set_down(struct netdev *netdev)
 
     return RT_EOK;
 }
-/*
+/**
  * set DNS server
- * */
+ * @param netdev
+ * @param dns_num
+ * @param dns_server
+ * @return
+ */
 static int m5311_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
 #define M5311_DNS_RESP_LEN          8
@@ -375,7 +376,7 @@ static int m5311_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, i
     }
 
     /* send "AT+DNSSER=<server_ip>[,<dns_id>[,<iptype>]]" commond to set dns servers
-     * 设置DNS地址
+     *
      * */
     if (at_exec_cmd(resp, "AT+DNSSER=\"%s\",%d,0", inet_ntoa(*dns_server), dns_num) < 0)
     {
@@ -406,14 +407,14 @@ __exit:
 static int m5311_netdev_ping(struct netdev *netdev, const char *host,
         size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
-#define M5311_PING_RESP_SIZE       256
+#define M5311_PING_RESP_SIZE       512
 #define M5311_PING_IP_SIZE         16
 #define M5311_PING_TIMEO           (15 * RT_TICK_PER_SECOND)
 
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
     char ip_addr[M5311_PING_IP_SIZE] = {0};
-    int response = -1, time, ttl;
+    int response = -1, time, ping_time, ttl;
     struct at_device *device = RT_NULL;
 
     RT_ASSERT(netdev);
@@ -434,50 +435,40 @@ static int m5311_netdev_ping(struct netdev *netdev, const char *host,
         return  -RT_ENOMEM;
     }
     /* send "AT+PING=<remote addr>[,<p_size>[,<timeout>[,<p_count>[,<type>]]]]" commond to send ping request */
-    if (at_obj_exec_cmd(device->client, resp, "AT+PING=\"%s\",64,5000,1", host) < 0)
+    if (at_obj_exec_cmd(device->client, resp, "AT+PING=\"%s\",64,800,1", host) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+PING:","+PING: %d", &response) <= 0)
-    {
-        if (at_resp_parse_line_args_by_kw(resp, "+PINGERR:", "+PINGERR: %d", &response) <= 0){
-
-            LOG_D("PING timeout");
-        }
-    }
-
     /* Received the ping response from the server */
-    if (response == 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+PINGERR: ", "+PINGERR: %d", &response) > 0)
     {
-        if (at_resp_parse_line_args_by_kw(resp, "+PING:", "+PING: %s,%d,%d",
-                                          ip_addr,
-                                          &ttl,
-                                          &time) <= 0)
+        switch (response)
         {
-            rt_thread_mdelay(500);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-    }
-
-    /* prase response number */
-    switch (response)
-    {
-        case 0:
-            inet_aton(ip_addr, &(ping_resp->ip_addr));
-            ping_resp->data_len = data_len;
-            ping_resp->ticks = time;
-            ping_resp->ttl = ttl;
-            result = RT_EOK;
-            break;
         case 1:
             result = -RT_ETIMEOUT;
             break;
+
         default:
             result = -RT_ERROR;
             break;
+        }
+    }
+    else if (at_resp_parse_line_args_by_kw(resp, "+PING: ", "+PING: %[^,],%d,%d",
+                                            ip_addr, &ttl, &time) > 0 )
+    {
+        ping_time = time / 10;
+        inet_aton(ip_addr, &(ping_resp->ip_addr));
+        ping_resp->data_len = data_len;
+        ping_resp->ticks = rt_tick_from_millisecond(ping_time);
+        ping_resp->ttl = ttl;
+        result = RT_EOK;
+    }
+    else
+    {
+        result = -RT_ERROR;
+        goto __exit;
     }
 
  __exit:
@@ -489,7 +480,6 @@ static int m5311_netdev_ping(struct netdev *netdev, const char *host,
     return result;
 }
 #endif /* NETDEV_USING_PING */
-
 
 const struct netdev_ops m5311_netdev_ops ={
     m5311_netdev_set_up,
@@ -537,7 +527,6 @@ static struct netdev *m5311_netdev_add(const char *netdev_name)
 /* =============================  m5311 device operations =============================
  * 
  */
-
 #define AT_SEND_CMD(client, resp, resp_line, timeout, cmd)                                          \
     do {                                                                                            \
         (resp) = at_resp_set_info((resp), 128, (resp_line), rt_tick_from_millisecond(timeout));     \
@@ -547,14 +536,13 @@ static struct netdev *m5311_netdev_add(const char *netdev_name)
         }                                                                                           \
     } while(0);                                                                                     \
 
-
 /* initialize for m5311 */
 static void m5311_init_thread_entry(void *parameter)
 {
-#define INIT_RETRY                     5     //初始化尝试次数
-#define CPIN_RETRY                     5     //设备插卡检测尝试次数
-#define CSQ_RETRY                      10    //信号强度
-#define CREG_RETRY                     10    //网络注册状态查询
+#define INIT_RETRY                     5
+#define CPIN_RETRY                     5
+#define CSQ_RETRY                      10
+#define CREG_RETRY                     10
 
     at_response_t resp = RT_NULL;
     int i;
@@ -593,7 +581,7 @@ static void m5311_init_thread_entry(void *parameter)
         /* LED Status reg:slow, not reg:fast
          * AT+CMSYSCTRL=<op>,<mode>[,<nonreg_h>,<reg_h>,<nonreg_l>,<reg_l>]
          * */
-        AT_SEND_CMD(client, resp, 0, 300, "AT+CMSYSCTRL=0,2,50,80,50,700");
+        /* AT_SEND_CMD(client, resp, 0, 300, "AT+CMSYSCTRL=0,2,50,80,50,700"); */
         /* Turn off sleep */
         AT_SEND_CMD(client,resp,0,300,"AT+SM=LOCK");
         /* show module version */
@@ -770,21 +758,19 @@ static int m5311_control(struct at_device *device, int cmd, void *arg)
 
     switch (cmd)
     {
-        case AT_DEVICE_CTRL_POWER_ON:
-        case AT_DEVICE_CTRL_POWER_OFF:
-        case AT_DEVICE_CTRL_RESET:
-        case AT_DEVICE_CTRL_LOW_POWER:
-        case AT_DEVICE_CTRL_SLEEP:
-        case AT_DEVICE_CTRL_WAKEUP:
-        case AT_DEVICE_CTRL_NET_CONN:
-        case AT_DEVICE_CTRL_NET_DISCONN:
-        case AT_DEVICE_CTRL_GET_SIGNAL:
-        case AT_DEVICE_CTRL_GET_VER:
-            LOG_W("not support the control command(%d).", cmd);
-            break;
-        default:
-            LOG_E("input error control command(%d).", cmd);
-            break;
+    case AT_DEVICE_CTRL_POWER_ON:
+    case AT_DEVICE_CTRL_POWER_OFF:
+    case AT_DEVICE_CTRL_RESET:
+    case AT_DEVICE_CTRL_LOW_POWER:
+    case AT_DEVICE_CTRL_SLEEP:
+    case AT_DEVICE_CTRL_WAKEUP:
+    case AT_DEVICE_CTRL_NET_CONN:
+    case AT_DEVICE_CTRL_NET_DISCONN:
+    case AT_DEVICE_CTRL_GET_SIGNAL:
+    case AT_DEVICE_CTRL_GET_VER:
+    default:
+        LOG_E("input error control command(%d).", cmd);
+        break;
     }
 
     return result;
@@ -819,4 +805,3 @@ static int m5311_device_class_register(void)
 INIT_DEVICE_EXPORT(m5311_device_class_register);
 
 #endif /* AT_DEVICE_USING_M5311 */
-
