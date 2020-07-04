@@ -344,6 +344,7 @@ static int m5311_netdev_set_down(struct netdev *netdev)
 }
 /**
  * set DNS server
+ *
  * @param netdev
  * @param dns_num
  * @param dns_server
@@ -524,9 +525,7 @@ static struct netdev *m5311_netdev_add(const char *netdev_name)
     return netdev;
 }
 
-/* =============================  m5311 device operations =============================
- * 
- */
+/* =============================  m5311 device operations ============================= */
 #define AT_SEND_CMD(client, resp, resp_line, timeout, cmd)                                          \
     do {                                                                                            \
         (resp) = at_resp_set_info((resp), 128, (resp_line), rt_tick_from_millisecond(timeout));     \
