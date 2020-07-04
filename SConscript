@@ -165,16 +165,16 @@ if GetDepend(['AT_DEVICE_USING_N58']):
         src += Glob('class/n58/at_socket_n58.c')
     if GetDepend(['AT_DEVICE_N58_SAMPLE']):
         src += Glob('samples/at_sample_n58.c')
-		
+
 # M5311
 if GetDepend(['AT_DEVICE_USING_M5311']):
-	path += [cwd + '/class/m5311']
-	src += Glob('class/m5311/at_device_m5311.c')
-	if GetDepend(['AT_USING_SOCKET']):
-		src +=Glob('class/m5311/at_socket_m5311.c')
-	if GetDepend(['AT_DEVICE_M5311_SAMPLE']):
-		src +=Glob('samples/at_sample_m5311.c')
-        
+    path += [cwd + '/class/m5311']
+    src += Glob('class/m5311/at_device_m5311.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src +=Glob('class/m5311/at_socket_m5311.c')
+    if GetDepend(['AT_DEVICE_M5311_SAMPLE']):
+        src +=Glob('samples/at_sample_m5311.c')
+
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
