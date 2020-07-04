@@ -27,14 +27,19 @@
 #define LOG_TAG              "at.sample.m5311"
 #include <at_log.h>
 
-#define M5311_DEVICE_NAME    "nb_m5311"
+/* Requirement:
+ * AT_CMD_MAX_LEN     -> 2048
+ * RT_SERIAL_RB_BUFSZ -> 4096
+ */
+ 
+#define M5311_SAMPLE_DEVICE_NAME    "m5311"
 
 static struct at_device_m5311 nb_m5311 = {
         M5311_SAMPLE_DEVICE_NAME,
         M5311_SAMPLE_CLIENT_NAME,
 
         M5311_SAMPLE_POWER_PIN,
-        M5311_SAMPLE_RECIEVE_BUFF_LEN,
+        M5311_SAMPLE_RECV_BUFF_LEN,
 };
 
 static int m5311_device_register(void)
