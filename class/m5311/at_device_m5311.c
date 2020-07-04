@@ -228,7 +228,7 @@ static void check_link_status_entry(void *parameter)
 #define M5311_LINK_STATUS_OK   1
 #define M5311_LINK_RESP_SIZE   64
 #define M5311_LINK_RESP_TIMO   (3 * RT_TICK_PER_SECOND)
-#define M5311_LINK_DELAY_TIME  (30 * RT_TICK_PER_SECOND)
+#define M5311_LINK_DELAY_TIME  (60 * RT_TICK_PER_SECOND)
 
     struct netdev *netdev = (struct netdev *)parameter;
     struct at_device *device = RT_NULL;
@@ -578,12 +578,17 @@ static void m5311_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, 0, 300, "ATE0");
         /* get module version */
         AT_SEND_CMD(client, resp, 0, 300, "ATI");
-        /* LED Status reg:slow, not reg:fast
-         * AT+CMSYSCTRL=<op>,<mode>[,<nonreg_h>,<reg_h>,<nonreg_l>,<reg_l>]
-         * */
-        /* AT_SEND_CMD(client, resp, 0, 300, "AT+CMSYSCTRL=0,2,50,80,50,700"); */
+        /* LED Status reg:slow, not reg:fast */
+        /* AT+CMSYSCTRL=<op>,<mode>[,<nonreg_h>,<reg_h>,<nonreg_l>,<reg_l>] */
+#ifdef M5311_SAMPLE_CLIENT_USE_STATUSLED
+        AT_SEND_CMD(client, resp, 0, 300, "AT+CMSYSCTRL=0,2,50,80,50,700");
+#endif /* M5311_SAMPLE_CLIENT_USE_STATUSLED */
         /* Turn off sleep */
         AT_SEND_CMD(client,resp,0,300,"AT+SM=LOCK");
+#ifdef AT_USING_SOCKET
+        /* Set URC mode */
+        AT_SEND_CMD(client, resp, 0,300, "AT+IPRCFG=1,2,1");
+#endif /* AT_USING_SOCKET */
         /* show module version */
         for (i = 0; i < (int) resp->line_counts - 1; i++)
         {
