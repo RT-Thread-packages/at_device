@@ -1,4 +1,4 @@
-	/*
+/*
  * File      : at_device.h
  * This file is part of RT-Thread RTOS
  * COPYRIGHT (C) 2006 - 2018, RT-Thread Development Team
@@ -62,6 +62,7 @@ extern "C" {
 #define AT_DEVICE_CLASS_EC200X         0x10U
 #define AT_DEVICE_CLASS_N21            0x11U
 #define AT_DEVICE_CLASS_N58            0x12U
+#define AT_DEVICE_CLASS_M5311          0X13U
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L
