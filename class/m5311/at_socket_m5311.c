@@ -20,6 +20,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2020-03-17     LXGMAX       the first version
+ * 2020-07-12     LXGMAX       fix parameters and remove redundant content
  */
  
 #include <stdio.h>
@@ -29,12 +30,9 @@
 
 #define LOG_TAG                        "at.skt.m5311"
 #include <at_log.h>
-/* Note:socket need increase AT_CMD_MAX_LEN and RT_SERIAL_RB_BUFSZ */
+/* socket require increase AT_CMD_MAX_LEN and RT_SERIAL_RB_BUFSZ */
 
 #if defined(AT_DEVICE_USING_M5311) && defined(AT_USING_SOCKET)
-
-#define M5311_MODULE_SEND_MAX_SIZE       1024
-#define M5311_MODULE_RECV_MAX_SIZE       4096
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -49,7 +47,6 @@
 
 /**
  * convert data from string to ASCII string.
- *
  * @param source
  * @param dest
  * @param max_dest_len
@@ -67,12 +64,12 @@ static int str_to_hex(const char *source, char *dest, int max_dest_len)
 
         if(ch1 <= 9)
             *(dest + j) = ch1 + '0';
-        else
+		else
             *(dest + j) = ch1 + 'A' - 10;
 
         if(ch2 <= 9)
             *(dest + j + 1) = ch2 + '0';
-        else
+		else
             *(dest + j + 1) = ch2 + 'A' - 10;
 
         i++;
@@ -81,7 +78,7 @@ static int str_to_hex(const char *source, char *dest, int max_dest_len)
 
     *(dest + j) = '\0';
 
-    return j;
+	return j;
 }
 
 /**
@@ -180,12 +177,12 @@ static int m5311_socket_close(struct at_socket *socket)
     result = at_obj_exec_cmd(device->client, resp, "AT+IPCLOSE=%d", device_socket);
     if (result == 0)
     {
-        LOG_I("%s device close socket(%d).", device->name, device_socket);
+    	LOG_I("%s device close socket(%d).", device->name, device_socket);
     }
     else
     {
-        LOG_E("%s device socket(%d) close failed, wait close OK timeout.", device->name, device_socket);
-    }
+    	LOG_E("%s device socket(%d) close failed, wait close OK timeout.", device->name, device_socket);
+	}
 
     at_delete_resp(resp);
 
@@ -225,52 +222,51 @@ static int m5311_socket_connect(struct at_socket *socket, char *ip, int32_t port
     RT_ASSERT(port >= 0);
 
     if (!is_client)
-    {
         return -RT_ERROR;
-    }
 
-    if (type == AT_SOCKET_UDP)
-    {
-        rt_strncpy(m5311_sock_info[device_socket].ip_addr, ip, 16);
-        m5311_sock_info[device_socket].port = port;
-    }
+	if (type == AT_SOCKET_UDP)
+	{
+		rt_strncpy(m5311_sock_info[device_socket].ip_addr, ip, 16);
+		m5311_sock_info[device_socket].port = port;
+	}
 
 __retry:
     /* clear socket connect event */
     event_result = SET_EVENT(device_socket, M5311_EVENT_CONN_OK | M5311_EVENT_CONN_FAIL);
     m5311_socket_event_recv(device, event_result, 0, RT_EVENT_FLAG_OR);
 
-    switch (type)
-    {
-    case AT_SOCKET_TCP:
-    /* send AT commands(eg: AT+IPSTART=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-    /* AT+IPSTART=<sockid>,<type>,<addr>,<port>[,<cid>[,<domian>[,<protocol>]]] */
-        if (at_obj_exec_cmd(device->client, resp,
-                "AT+IPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-        resp = at_resp_set_info(resp, 128, 3, 10 * RT_TICK_PER_SECOND);
-        if (at_resp_parse_line_args(resp, 3, "CONNECT OK") < 0)
-        {
-            result = -RT_ERROR;
-        }
-        break;
+	switch (type)
+	{
+	case AT_SOCKET_TCP:
+	/* send AT commands(eg: AT+IPSTART=0,"TCP","x.x.x.x", 1234) to connect TCP server */
+	/* AT+IPSTART=<sockid>,<type>,<addr>,<port>[,<cid>[,<domian>[,<protocol>]]] */
+		if (at_obj_exec_cmd(device->client, resp,
+				"AT+IPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
+		{
+			result = -RT_ERROR;
+			goto __exit;
+		}
+		resp = at_resp_set_info(resp, 128, 3, 10 * RT_TICK_PER_SECOND);
 
-    case AT_SOCKET_UDP:
-        if (at_obj_exec_cmd(device->client, resp,
-                "AT+IPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-        break;
+	    if (at_resp_parse_line_args(resp, 3, "CONNECT OK") < 0)
+	    {
+	        result = -RT_ERROR;
+	    }
+		break;
 
-    default:
-        LOG_E("%s device not supported connect type : %d.", device->name, type);
-        return -RT_ERROR;
-    }
+	case AT_SOCKET_UDP:
+		if (at_obj_exec_cmd(device->client, resp,
+				"AT+IPSTART=%d,\"UDP\",\"%s\",%d", device_socket, ip, port) < 0)
+		{
+			result = -RT_ERROR;
+			goto __exit;
+		}
+		break;
+
+	default:
+		LOG_E("%s device not supported connect type : %d.", device->name, type);
+		return -RT_ERROR;
+	}
 
     if(!at_resp_get_line_by_kw(resp, "OK"))
     {
@@ -279,13 +275,13 @@ __retry:
 
     if (result != RT_EOK && retryed == RT_FALSE)
     {
-        LOG_D("%s device socket(%d) connect failed, now retry(m5311).",
-              device->name, device_socket);
-        if (m5311_socket_close(socket) < 0)
-        {
-            goto __exit;
-        }
-        retryed = RT_TRUE;
+    	LOG_D("%s device socket(%d) connect failed, now retry.",
+    		  device->name, device_socket);
+    	if (m5311_socket_close(socket) < 0)
+    	{
+    		goto __exit;
+    	}
+    	retryed = RT_TRUE;
         result = RT_EOK;
         goto __retry;
     }
@@ -353,19 +349,18 @@ static int m5311_socket_send(struct at_socket *socket, const char *buff,
             cur_pkt_size = M5311_MODULE_SEND_MAX_SIZE;
         }
 
-        //size_t i = 0, ind = 0;
-        char hex_data[bfsz * 2];
-        rt_memset(hex_data, 0, sizeof(hex_data));
-        str_to_hex(buff, hex_data, bfsz * 2);
+		char hex_data[bfsz * 2];
+		rt_memset(hex_data, 0, sizeof(hex_data));
+		str_to_hex(buff, hex_data, bfsz * 2);
 
         switch (type)
         {
         case AT_SOCKET_TCP:
             /* TCP : AT+IPSEND=<socket_id>,[<data_len>],<data>[,<pri_flag>] */
             if (at_obj_exec_cmd(device->client, resp, "AT+IPSEND=%d,%d,%s",
-                                device_socket, (int)cur_pkt_size, hex_data) < 0)
+            		            device_socket, (int)cur_pkt_size, hex_data) < 0)
             {
-                LOG_D("%s", buff);
+            	LOG_D("%s", buff);
                 result = -RT_ERROR;
                 goto __exit;
             }
@@ -466,7 +461,7 @@ static int m5311_domain_resolve(const char *name, char ip[16])
     }
 
     /* The maximum response time is 3 seconds, affected by network status */
-    resp = at_create_resp(256, 4, 2 * RT_TICK_PER_SECOND);
+    resp = at_create_resp(256, 4, 3 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -528,7 +523,6 @@ static void m5311_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
     }
 }
 
-
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int device_socket = 0, data_size = 0;
@@ -552,7 +546,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
     else
     {
-        m5311_socket_event_send(device, SET_EVENT(device_socket, M5311_EVENT_SEND_FAIL));
+    	m5311_socket_event_send(device, SET_EVENT(device_socket, M5311_EVENT_SEND_FAIL));
     }
 }
 
@@ -576,9 +570,9 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     socket = &(device->sockets[device_socket]);
 
     if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
-    {
-        at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, RT_NULL, 0);
-    }
+	{
+		at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, RT_NULL, 0);
+	}
 }
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
@@ -608,7 +602,6 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* get the current socket and receive buffer size by receive data */
     /* mode 2 => +IPRD: <socket>,<remote_addr>, <remote_port>,<length>,<data> */
     sscanf(data, "+IPRD: %d,\"%[0-9.]\",%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
-    //LOG_D("%s device socket(%d) recv %d bytes from %s:%d\n>>%s", device->name, device_socket, bfsz, remote_addr, remote_port, hex_buf);
 
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
