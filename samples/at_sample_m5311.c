@@ -28,8 +28,9 @@
 #include <at_log.h>
 
 /* Requirement:
- * AT_CMD_MAX_LEN     -> 2048
- * RT_SERIAL_RB_BUFSZ -> 4096
+ * AT_CMD_MAX_LEN              -> 2048
+ * RT_SERIAL_RB_BUFSZ          -> 4096
+ * M5311_SAMPLE_RECV_BUFF_LEN  -> 2048
  */
  
 #define M5311_SAMPLE_DEVICE_NAME    "m5311"
