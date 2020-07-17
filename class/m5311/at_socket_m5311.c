@@ -20,6 +20,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2020-03-17     LXGMAX       the first version
+ * 2020-07-12     LXGMAX       fix parameters and remove redundant content
  */
  
 #include <stdio.h>
@@ -29,12 +30,9 @@
 
 #define LOG_TAG                        "at.skt.m5311"
 #include <at_log.h>
-/* Note:socket need increase AT_CMD_MAX_LEN and RT_SERIAL_RB_BUFSZ */
+/* socket require increase AT_CMD_MAX_LEN and RT_SERIAL_RB_BUFSZ */
 
 #if defined(AT_DEVICE_USING_M5311) && defined(AT_USING_SOCKET)
-
-#define M5311_MODULE_SEND_MAX_SIZE       1024
-#define M5311_MODULE_RECV_MAX_SIZE       4096
 
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -49,7 +47,6 @@
 
 /**
  * convert data from string to ASCII string.
- *
  * @param source
  * @param dest
  * @param max_dest_len
@@ -225,9 +222,7 @@ static int m5311_socket_connect(struct at_socket *socket, char *ip, int32_t port
     RT_ASSERT(port >= 0);
 
     if (!is_client)
-    {
         return -RT_ERROR;
-    }
 
     if (type == AT_SOCKET_UDP)
     {
@@ -252,6 +247,7 @@ __retry:
             goto __exit;
         }
         resp = at_resp_set_info(resp, 128, 3, 10 * RT_TICK_PER_SECOND);
+
         if (at_resp_parse_line_args(resp, 3, "CONNECT OK") < 0)
         {
             result = -RT_ERROR;
@@ -279,7 +275,7 @@ __retry:
 
     if (result != RT_EOK && retryed == RT_FALSE)
     {
-        LOG_D("%s device socket(%d) connect failed, now retry(m5311).",
+        LOG_D("%s device socket(%d) connect failed, now retry.",
               device->name, device_socket);
         if (m5311_socket_close(socket) < 0)
         {
@@ -353,7 +349,6 @@ static int m5311_socket_send(struct at_socket *socket, const char *buff,
             cur_pkt_size = M5311_MODULE_SEND_MAX_SIZE;
         }
 
-        //size_t i = 0, ind = 0;
         char hex_data[bfsz * 2];
         rt_memset(hex_data, 0, sizeof(hex_data));
         str_to_hex(buff, hex_data, bfsz * 2);
@@ -466,7 +461,7 @@ static int m5311_domain_resolve(const char *name, char ip[16])
     }
 
     /* The maximum response time is 3 seconds, affected by network status */
-    resp = at_create_resp(256, 4, 2 * RT_TICK_PER_SECOND);
+    resp = at_create_resp(256, 4, 3 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -527,7 +522,6 @@ static void m5311_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
         at_evt_cb_set[event] = cb;
     }
 }
-
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
 {
@@ -608,7 +602,6 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* get the current socket and receive buffer size by receive data */
     /* mode 2 => +IPRD: <socket>,<remote_addr>, <remote_port>,<length>,<data> */
     sscanf(data, "+IPRD: %d,\"%[0-9.]\",%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
-    //LOG_D("%s device socket(%d) recv %d bytes from %s:%d\n>>%s", device->name, device_socket, bfsz, remote_addr, remote_port, hex_buf);
 
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
