@@ -387,6 +387,7 @@ static void rw007_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops rw007_socket_ops =
 {
+    RT_NULL,
     rw007_socket_connect,
     rw007_socket_close,
     rw007_socket_send,

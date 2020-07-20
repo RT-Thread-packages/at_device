@@ -645,12 +645,13 @@ static const struct at_urc urc_table[] =
 };
 
 static const struct at_socket_ops air720_socket_ops =
-    {
-        air720_socket_connect,
-        air720_socket_close,
-        air720_socket_send,
-        air720_domain_resolve,
-        air720_socket_set_event_cb,
+{
+    RT_NULL,
+    air720_socket_connect,
+    air720_socket_close,
+    air720_socket_send,
+    air720_domain_resolve,
+    air720_socket_set_event_cb,
 };
 
 int air720_socket_init(struct at_device *device)

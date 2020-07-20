@@ -351,6 +351,7 @@ static void w60x_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops w60x_socket_ops =
 {
+    RT_NULL,
     w60x_socket_connect,
     w60x_socket_close,
     w60x_socket_send,

@@ -611,6 +611,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops sim800c_socket_ops =
 {
+    RT_NULL,
     sim800c_socket_connect,
     sim800c_socket_close,
     sim800c_socket_send,

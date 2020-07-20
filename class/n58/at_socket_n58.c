@@ -638,12 +638,13 @@ static const struct at_urc urc_table[] =
 };
 
 static const struct at_socket_ops n58_socket_ops =
-    {
-        n58_socket_connect,
-        n58_socket_close,
-        n58_socket_send,
-        n58_domain_resolve,
-        n58_socket_set_event_cb,
+{
+    RT_NULL,
+    n58_socket_connect,
+    n58_socket_close,
+    n58_socket_send,
+    n58_domain_resolve,
+    n58_socket_set_event_cb,
 };
 
 int n58_socket_init(struct at_device *device)

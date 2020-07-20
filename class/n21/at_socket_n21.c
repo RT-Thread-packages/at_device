@@ -630,12 +630,13 @@ static const struct at_urc urc_table[] =
 };
 
 static const struct at_socket_ops n21_socket_ops =
-    {
-        n21_socket_connect,
-        n21_socket_close,
-        n21_socket_send,
-        n21_domain_resolve,
-        n21_socket_set_event_cb,
+{
+    RT_NULL,
+    n21_socket_connect,
+    n21_socket_close,
+    n21_socket_send,
+    n21_domain_resolve,
+    n21_socket_set_event_cb,
 };
 
 int n21_socket_init(struct at_device *device)

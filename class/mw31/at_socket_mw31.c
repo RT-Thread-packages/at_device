@@ -361,6 +361,7 @@ static void mw31_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops mw31_socket_ops =
 {
+    RT_NULL,
     mw31_socket_connect,
     mw31_socket_close,
     mw31_socket_send,

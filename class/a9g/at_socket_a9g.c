@@ -593,6 +593,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops a9g_socket_ops = 
 {
+    RT_NULL,
     a9g_socket_connect,
     a9g_socket_close,
     a9g_socket_send,

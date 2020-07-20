@@ -759,6 +759,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops bc26_socket_ops =
 {
+    RT_NULL,
     bc26_socket_connect,
     bc26_socket_close,
     bc26_socket_send,

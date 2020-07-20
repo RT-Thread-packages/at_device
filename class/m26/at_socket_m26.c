@@ -654,6 +654,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops m26_socket_ops =
 {
+    RT_NULL,
     m26_socket_connect,
     m26_socket_close,
     m26_socket_send,

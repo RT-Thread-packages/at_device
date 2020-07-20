@@ -656,6 +656,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops m5311_socket_ops =
 {
+    RT_NULL,
     m5311_socket_connect,
     m5311_socket_close,
     m5311_socket_send,

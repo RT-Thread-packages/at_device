@@ -388,6 +388,7 @@ static void esp32_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops esp32_socket_ops =
 {
+    RT_NULL,
     esp32_socket_connect,
     esp32_socket_close,
     esp32_socket_send,

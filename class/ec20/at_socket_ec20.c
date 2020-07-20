@@ -978,6 +978,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops ec20_socket_ops =
 {
+    RT_NULL,
     ec20_socket_connect,
     ec20_socket_close,
     ec20_socket_send,

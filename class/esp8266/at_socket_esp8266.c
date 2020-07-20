@@ -388,6 +388,7 @@ static void esp8266_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops esp8266_socket_ops =
 {
+    RT_NULL,
     esp8266_socket_connect,
     esp8266_socket_close,
     esp8266_socket_send,

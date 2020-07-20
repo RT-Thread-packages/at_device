@@ -772,6 +772,7 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops ec200x_socket_ops =
 {
+    RT_NULL,
     ec200x_socket_connect,
     ec200x_socket_close,
     ec200x_socket_send,
