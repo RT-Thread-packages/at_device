@@ -25,8 +25,11 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <at_device_bc28.h>
+
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10301
+#error "This AT Client version is older, please check and update latest AT Client!"
+#endif
 
 #define LOG_TAG                        "at.skt.bc28"
 #include <at_log.h>
@@ -870,12 +873,14 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops bc28_socket_ops =
 {
-    bc28_socket_create,
     bc28_socket_connect,
     bc28_socket_close,
     bc28_socket_send,
     bc28_domain_resolve,
     bc28_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    bc28_socket_create,
+#endif
 };
 
 int bc28_socket_init(struct at_device *device)

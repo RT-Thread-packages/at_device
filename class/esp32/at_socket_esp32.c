@@ -388,12 +388,14 @@ static void esp32_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops esp32_socket_ops =
 {
-    RT_NULL,
     esp32_socket_connect,
     esp32_socket_close,
     esp32_socket_send,
     esp32_domain_resolve,
     esp32_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)

@@ -593,12 +593,14 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops a9g_socket_ops = 
 {
-    RT_NULL,
     a9g_socket_connect,
     a9g_socket_close,
     a9g_socket_send,
     a9g_domain_resolve,
     a9g_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int a9g_socket_init(struct at_device *device)

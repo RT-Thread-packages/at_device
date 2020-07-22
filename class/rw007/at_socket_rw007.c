@@ -387,12 +387,14 @@ static void rw007_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops rw007_socket_ops =
 {
-    RT_NULL,
     rw007_socket_connect,
     rw007_socket_close,
     rw007_socket_send,
     rw007_domain_resolve,
     rw007_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)

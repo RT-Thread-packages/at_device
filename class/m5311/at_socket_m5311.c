@@ -656,12 +656,14 @@ static const struct at_urc urc_table[] =
 
 static const struct at_socket_ops m5311_socket_ops =
 {
-    RT_NULL,
     m5311_socket_connect,
     m5311_socket_close,
     m5311_socket_send,
     m5311_domain_resolve,
     m5311_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int m5311_socket_init(struct at_device *device)

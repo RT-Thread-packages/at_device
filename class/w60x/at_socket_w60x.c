@@ -351,12 +351,14 @@ static void w60x_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
 
 static const struct at_socket_ops w60x_socket_ops =
 {
-    RT_NULL,
     w60x_socket_connect,
     w60x_socket_close,
     w60x_socket_send,
     w60x_domain_resolve,
     w60x_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)

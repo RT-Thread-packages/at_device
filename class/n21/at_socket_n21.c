@@ -617,26 +617,27 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
 /* n21 device URC table for the socket data */
 static const struct at_urc urc_table[] =
-    {
-        {"+TCPSETUP:", "\r\n", urc_connect_func},
-        {"+UDPSETUP:", "\r\n", urc_connect_func},
-        {"+TCPSEND:", "\r\n", urc_send_func},
-        {"+UDPSEND:", "\r\n", urc_send_func},
-        {"+TCPCLOSE:", "\r\n", urc_close_func},
-        {"+UDPCLOSE:", "\r\n", urc_close_func},
-        {"+TCPRECV:", "\r\n", urc_recv_func},
-        {"+UDPRECV:", "\r\n", urc_recv_func},
-
+{
+    {"+TCPSETUP:", "\r\n", urc_connect_func},
+    {"+UDPSETUP:", "\r\n", urc_connect_func},
+    {"+TCPSEND:", "\r\n", urc_send_func},
+    {"+UDPSEND:", "\r\n", urc_send_func},
+    {"+TCPCLOSE:", "\r\n", urc_close_func},
+    {"+UDPCLOSE:", "\r\n", urc_close_func},
+    {"+TCPRECV:", "\r\n", urc_recv_func},
+    {"+UDPRECV:", "\r\n", urc_recv_func},
 };
 
 static const struct at_socket_ops n21_socket_ops =
 {
-    RT_NULL,
     n21_socket_connect,
     n21_socket_close,
     n21_socket_send,
     n21_domain_resolve,
     n21_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int n21_socket_init(struct at_device *device)
