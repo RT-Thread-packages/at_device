@@ -20,12 +20,16 @@
  * Change Logs:
  * Date           Author            Notes
  * 2020-02-13     luhuadong         first version
+ * 2020-07-19     luhuadong         support alloc socket
  */
 
 #include <stdio.h>
 #include <string.h>
-
 #include <at_device_bc28.h>
+
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10301
+#error "This AT Client version is older, please check and update latest AT Client!"
+#endif
 
 #define LOG_TAG                        "at.skt.bc28"
 #include <at_log.h>
@@ -194,7 +198,7 @@ static int bc28_socket_close(struct at_socket *socket)
 {
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
+    int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
 
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(3000));
@@ -223,16 +227,16 @@ static int bc28_socket_close(struct at_socket *socket)
  * create socket by AT commands.
  *
  * @param type connect socket type(tcp, udp)
- * @param port listen port (range: 0-65535), if 0 means get a random port
  *
  * @return >=0: create socket success, return the socket id (0-6)
  *          -1: send or exec AT commands error
  *          -5: no memory
  */
-static int bc28_socket_create(struct at_device *device, enum at_socket_type type, uint32_t port)
+static int bc28_socket_create(struct at_device *device, enum at_socket_type type)
 {
     const char *type_str = RT_NULL;
     uint32_t protocol = 0;
+    uint32_t port = 0; /* range: 0-65535, if 0 means get a random port */
     at_response_t resp = RT_NULL;
     int socket = -1, result = 0;
 
@@ -309,7 +313,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     uint32_t event = 0;
     at_response_t resp = RT_NULL;
     int result = 0, event_result = 0;
-    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
+    int device_socket = (int) socket->user_data;
     int return_socket = -1;
     struct at_device *device = (struct at_device *) socket->device;
 
@@ -326,32 +330,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     {
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
-    }
-
-    return_socket = bc28_socket_create(device, type, 0);
-
-    if (return_socket != device_socket)
-    {
-        LOG_E("socket not match (request %d, return %d).", device_socket, return_socket);
-
-        result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", return_socket);
-        if (result < 0)
-        {
-            LOG_E("%s device close socket(%d) failed [%d].", device->name, return_socket, result);
-        }
-        else
-        {
-            LOG_D("%s device close socket(%d).", device->name, return_socket);
-
-            /* notice the socket is disconnect by remote */
-            if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
-            {
-                at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, NULL, 0);
-            }
-        }
-        
-        result = -RT_ERROR;
-        goto __exit;
     }
 
     /* if the protocol is not tcp, no need connect to server */
@@ -439,7 +417,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
     int result = 0, event_result = 0;
     size_t cur_pkt_size = 0, sent_size = 0;
     at_response_t resp = RT_NULL;
-    int device_socket = (int) socket->user_data + AT_DEVICE_BC28_MIN_SOCKET;
+    int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_bc28 *bc28 = (struct at_device_bc28 *) device->user_data;
     rt_mutex_t lock = device->client->lock;
@@ -748,10 +726,10 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
 
     bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
     
-    if (device_socket - AT_DEVICE_BC28_MIN_SOCKET >= 0)
+    if (device_socket >= 0)
     {
         /* get at socket object by device socket descriptor */
-        socket = &(device->sockets[device_socket - AT_DEVICE_BC28_MIN_SOCKET]);
+        socket = &(device->sockets[device_socket]);
 
         /* notice the socket is disconnect by remote */
         if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
@@ -828,7 +806,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_free(hex_buf);
 
     /* get at socket object by device socket descriptor */
-    socket = &(device->sockets[device_socket - AT_DEVICE_BC28_MIN_SOCKET]);
+    socket = &(device->sockets[device_socket]);
 
     /* notice the receive buffer and buffer size */
     if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
@@ -900,6 +878,9 @@ static const struct at_socket_ops bc28_socket_ops =
     bc28_socket_send,
     bc28_domain_resolve,
     bc28_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    bc28_socket_create,
+#endif
 };
 
 int bc28_socket_init(struct at_device *device)
@@ -916,7 +897,7 @@ int bc28_socket_class_register(struct at_device_class *class)
 {
     RT_ASSERT(class);
 
-    class->socket_num = AT_DEVICE_BC28_SOCKETS_NUM - AT_DEVICE_BC28_MIN_SOCKET;
+    class->socket_num = AT_DEVICE_BC28_SOCKETS_NUM;
     class->socket_ops = &bc28_socket_ops;
 
     return RT_EOK;

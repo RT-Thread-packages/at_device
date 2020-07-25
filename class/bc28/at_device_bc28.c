@@ -24,8 +24,11 @@
 
 #include <stdio.h>
 #include <string.h>
-
 #include <at_device_bc28.h>
+
+#if !defined(AT_SW_VERSION_NUM) || AT_SW_VERSION_NUM < 0x10301
+#error "This AT Client version is older, please check and update latest AT Client!"
+#endif
 
 #define LOG_TAG                        "at.dev.bc28"
 #include <at_log.h>

@@ -356,6 +356,9 @@ static const struct at_socket_ops w60x_socket_ops =
     w60x_socket_send,
     w60x_domain_resolve,
     w60x_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
