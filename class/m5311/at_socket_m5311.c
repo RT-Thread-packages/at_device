@@ -21,6 +21,7 @@
  * Date           Author       Notes
  * 2020-03-17     LXGMAX       the first version
  * 2020-07-12     LXGMAX       fix parameters and remove redundant content
+ * 2020-07-31     LXGMAX       fix a bug of connect function
  */
  
 #include <stdio.h>
@@ -211,7 +212,7 @@ static int m5311_socket_connect(struct at_socket *socket, char *ip, int32_t port
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
 
-    resp = at_create_resp(128, 0, 1 * RT_TICK_PER_SECOND);
+    resp = at_create_resp(128, 0, 3 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -238,15 +239,15 @@ __retry:
     switch (type)
     {
     case AT_SOCKET_TCP:
-    /* send AT commands(eg: AT+IPSTART=0,"TCP","x.x.x.x", 1234) to connect TCP server */
-    /* AT+IPSTART=<sockid>,<type>,<addr>,<port>[,<cid>[,<domian>[,<protocol>]]] */
+        resp = at_resp_set_info(resp, 128, 3, 10 * RT_TICK_PER_SECOND);
+        /* send AT commands(eg: AT+IPSTART=0,"TCP","x.x.x.x", 1234) to connect TCP server */
+        /* AT+IPSTART=<sockid>,<type>,<addr>,<port>[,<cid>[,<domian>[,<protocol>]]] */
         if (at_obj_exec_cmd(device->client, resp,
                 "AT+IPSTART=%d,\"TCP\",\"%s\",%d", device_socket, ip, port) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        resp = at_resp_set_info(resp, 128, 3, 10 * RT_TICK_PER_SECOND);
 
         if (at_resp_parse_line_args(resp, 3, "CONNECT OK") < 0)
         {
