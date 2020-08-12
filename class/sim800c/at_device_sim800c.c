@@ -21,6 +21,7 @@
  * Date           Author       Notes
  * 2018-06-12     malongwei    first version
  * 2019-05-13     chenyong     multi AT socket client support
+ * 2020-07-24     awenchen     fix the stack overflow when parse cops
  */
 
 #include <stdio.h>
@@ -612,7 +613,7 @@ static void sim800c_init_thread_entry(void *parameter)
 #define CGREG_RETRY                    20
 
     int i, qimux, retry_num = INIT_RETRY;
-    char parsed_data[10] = {0};
+    char parsed_data[32] = {0};
     rt_err_t result = RT_EOK;
     at_response_t resp = RT_NULL;
     struct at_device *device = (struct at_device *)parameter;

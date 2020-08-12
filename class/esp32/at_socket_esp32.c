@@ -393,6 +393,9 @@ static const struct at_socket_ops esp32_socket_ops =
     esp32_socket_send,
     esp32_domain_resolve,
     esp32_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
