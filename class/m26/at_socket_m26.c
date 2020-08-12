@@ -659,6 +659,9 @@ static const struct at_socket_ops m26_socket_ops =
     m26_socket_send,
     m26_domain_resolve,
     m26_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int m26_socket_init(struct at_device *device)

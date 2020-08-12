@@ -764,6 +764,9 @@ static const struct at_socket_ops bc26_socket_ops =
     bc26_socket_send,
     bc26_domain_resolve,
     bc26_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 int bc26_socket_init(struct at_device *device)

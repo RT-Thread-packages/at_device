@@ -1,7 +1,7 @@
- /*
- * File      : at_device_bc28.h
+/*
+ * File      : at_device_n21.h
  * This file is part of RT-Thread RTOS
- * Copyright (c) 2020, RudyLo <luhuadong@163.com>
+ * COPYRIGHT (C) 2006 - 2020, RT-Thread Development Team
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Change Logs:
- * Date           Author            Notes
- * 2020-02-12     luhuadong         first version
+ * Date           Author         Notes
+ * 2020-05-22     shuobatian     first version
  */
 
-#ifndef __AT_DEVICE_BC28_H__
-#define __AT_DEVICE_BC28_H__
+#ifndef __AT_DEVICE_N21_H__
+#define __AT_DEVICE_N21_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,37 +33,29 @@ extern "C" {
 
 #include <at_device.h>
 
-/* The maximum number of sockets supported by the BC28 device */
-#define AT_DEVICE_BC28_SOCKETS_NUM  7
-#define IP_ADDR_SIZE_MAX            16
+/* The maximum number of sockets supported by the N21 device */
+#define AT_DEVICE_N21_SOCKETS_NUM      4
 
-#define AT_DEVICE_BC28_MIN_SOCKET   BC28_SAMPLE_MIN_SOCKET
-#define BC28_AT_CLIENT_BAUD_RATE    BC28_SAMPLE_BAUD_RATE
-
-struct at_device_bc28
-{
+struct at_device_n21
+{     
     char *device_name;
     char *client_name;
 
-    int power_pin;          /* BC28 has not power_en, it should be reset pin */
-    int power_status_pin;   /* ADC */
-    size_t recv_bufsz;
+    int power_pin;
+    int power_status_pin;
+    size_t recv_line_num;
     struct at_device device;
 
-    void *socket_data;
     void *user_data;
-
-    rt_bool_t power_status;
-    rt_bool_t sleep_status;
 };
 
 #ifdef AT_USING_SOCKET
 
-/* bc28 device socket initialize */
-int bc28_socket_init(struct at_device *device);
+/* n21 device socket initialize */
+int n21_socket_init(struct at_device *device);
 
-/* bc28 device class socket register */
-int bc28_socket_class_register(struct at_device_class *class);
+/* n21 device class socket register */
+int n21_socket_class_register(struct at_device_class *class);
 
 #endif /* AT_USING_SOCKET */
 
@@ -71,4 +63,4 @@ int bc28_socket_class_register(struct at_device_class *class);
 }
 #endif
 
-#endif /* __AT_DEVICE_BC28_H__ */
+#endif /* __AT_DEVICE_N21_H__ */

@@ -676,6 +676,9 @@ static const struct at_socket_ops sim76xx_socket_ops =
     sim76xx_socket_send,
     sim76xx_domain_resolve,
     sim76xx_socket_set_event_cb,
+#if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
+    RT_NULL,
+#endif
 };
 
 /* initialize sim76xx device network URC feature */
