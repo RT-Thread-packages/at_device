@@ -624,8 +624,8 @@ static void urc_dataaccept_func(struct at_client *client, const char *data, rt_s
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*[^:],%d,%d:", &device_socket, (int *)&bfsz);
-
+	sscanf(data, "DATA ACCEPT:%d,%d", &device_socket, (int *)&bfsz);
+	
     air720_socket_event_send(device, SET_EVENT(device_socket, AIR720_EVENT_SEND_OK));
 }
 
