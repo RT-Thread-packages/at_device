@@ -508,6 +508,12 @@ static struct netdev *m6315_netdev_add(const char *netdev_name)
 
     RT_ASSERT(netdev_name);
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *) rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
