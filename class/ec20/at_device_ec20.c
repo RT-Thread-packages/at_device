@@ -648,6 +648,12 @@ static struct netdev *ec20_netdev_add(const char *netdev_name)
 #define HWADDR_LEN          8
     struct netdev *netdev = RT_NULL;
 
+    netdev = netdev_get_by_name(netdev_name);
+    if (netdev != RT_NULL)
+    {
+        return (netdev);
+    }
+
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {

@@ -635,7 +635,6 @@ static struct netdev *ec200x_netdev_add(const char *netdev_name)
     struct netdev *netdev = RT_NULL;
 
     netdev = netdev_get_by_name(netdev_name);
-
     if(netdev != RT_NULL)
     {
         return netdev;
