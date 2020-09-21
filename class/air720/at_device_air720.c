@@ -926,7 +926,7 @@ static int air720_deinit(struct at_device *device)
     return air720_netdev_set_down(device->netdev);
 }
 
-static int air720_reboot(struct at_device *device)
+int air720_reboot(struct at_device *device)
 {
     air720_power_off(device);
     rt_thread_mdelay(2000);
@@ -985,9 +985,9 @@ static int air720_control(struct at_device *device, int cmd, void *arg)
     case AT_DEVICE_CTRL_RESET:
         result = air720_reset(device);
         break;
-    case AT_DEVICE_CTRL_REBOOT:
-        result = air720_reboot(device);
-        break;
+    //case AT_DEVICE_CTRL_REBOOT:
+    //    result = air720_reboot(device);
+    //    break;
     default:
         LOG_E("input error control command(%d).", cmd);
         break;
