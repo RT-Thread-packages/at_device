@@ -57,7 +57,7 @@ AT device 软件包目前已经发布多个版本，各个版本之间选项配�
 - **V1.5.0**：适用于 RT-Thread 版本小于 V3.1.3 或等于 V4.0.0， AT 组件版本等于 V1.2.0；
 - **V1.6.0**：适用于 RT-Thread 版本等于 V3.1.3 或等于 V4.0.1， AT 组件版本等于 V1.2.0；
 - **V2.0.0/V2.0.1**：适用于 RT-Thread 版本大于 V4.0.1 或者大于 3.1.3， AT 组件版本等于 V1.3.0；
-- **laster**：只适用于 RT-Thread 版本大于 V4.0.1 或者大于 3.1.3， AT 组件版本等于 V1.3.0；
+- **latest**：只适用于 RT-Thread 版本大于 V4.0.1 或者大于 3.1.3， AT 组件版本等于 V1.3.0；
 
 >  上述 版本判断在 menuconfig 中自动完成，at_device 软件包选择版本时会根据当前系统环境给出最佳版本支持，这里版本介绍作为运行环境参考。
 
@@ -78,7 +78,7 @@ AT device 软件包目前已经发布多个版本，各个版本之间选项配�
 - **AT socket device modules**: AT 设备选择，目前支持 RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX、A9/A9G、BC26 、air720、ME3616、M6315、BC28、EC200X、M5311等设备；
 - **Version**: 下载软件包版本；
 
-**V2.X.X (laster) 版本配置选项介绍**
+**V2.X.X (latest) 版本配置选项介绍**
 
 开启 AT device 软件包，该版本支持**同时开启多种 AT 设备**配置选项具体如下所示：
 
@@ -188,7 +188,7 @@ RT-Thread Components  --->
 
 - AT device 软件包适配的模块暂时不支持作为 TCP Server 完成服务器相关操作（如 accept 等）；
 - AT device 软件包默认设备类型为未选择，使用时需要指定使用设备型号；
-- `laster` 版本支持多个选中多个 AT 设备接入实现 AT Socket 功能，`V1.X.X` 版本只支持单个 AT 设备接入。
+- `latest` 版本支持多个选中多个 AT 设备接入实现 AT Socket 功能，`V1.X.X` 版本只支持单个 AT 设备接入。
 - AT device 软件包目前多个版本主要用于适配 AT 组件和系统的改动，推荐使用最新版本  RT-Thread 系统，并在 menuconfig 选项中选择 `latest` 版本；
 - 请参考 `at_sample_xxx.c` 中说明，部分功能需要增加`AT_CMD_MAX_LEN`、`RT_SERIAL_RB_BUFSZ`设定值大小。
 
