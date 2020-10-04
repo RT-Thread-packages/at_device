@@ -221,7 +221,7 @@ __exit:
     return result;
 }
 
-int air720_reboot(struct at_device *device);
+static int air720_reboot(struct at_device *device);
 
 static void check_link_status_entry(void *parameter)
 {
@@ -926,7 +926,7 @@ static int air720_deinit(struct at_device *device)
     return air720_netdev_set_down(device->netdev);
 }
 
-int air720_reboot(struct at_device *device)
+static int air720_reboot(struct at_device *device)
 {
     air720_power_off(device);
     rt_thread_mdelay(2000);
