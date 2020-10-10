@@ -20,6 +20,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2019-05-08     chenyong     first version
+ * 2020-09-30     DENGs        add at device probe
  */
 
 #ifndef __AT_DEVICE_H__
@@ -44,6 +45,7 @@ extern "C" {
 #define AT_DEVICE_SW_VERSION_NUM       0x20004
 
 /* AT device class ID */
+#define AT_DEVICE_CLASS_PROBE          0x00U
 #define AT_DEVICE_CLASS_ESP8266        0x01U
 #define AT_DEVICE_CLASS_M26_MC20       0x02U
 #define AT_DEVICE_CLASS_EC20           0x03U
@@ -77,6 +79,7 @@ extern "C" {
 #define AT_DEVICE_CTRL_GET_SIGNAL      0x0AL
 #define AT_DEVICE_CTRL_GET_GPS         0x0BL
 #define AT_DEVICE_CTRL_GET_VER         0x0CL
+#define AT_DEVICE_CTRL_REBOOT          0x0DL
 
 /* Name type */
 #define AT_DEVICE_NAMETYPE_DEVICE      0x01
@@ -109,6 +112,10 @@ struct at_device_class
     const struct at_socket_ops *socket_ops;      /* AT device socket operations */
 #endif
     rt_slist_t list;                             /* AT device class list */
+
+#ifdef AT_DEVICE_USING_PROBE
+    const char *compatible[4];
+#endif /* AT_DEVICE_USING_PROBE */
 };
 
 struct at_device
@@ -127,6 +134,9 @@ struct at_device
     void *user_data;                             /* User-specific data */
 };
 
+/* Get AT class object */
+struct at_device_class *at_device_class_get_by_name(const char *name);
+
 /* Get AT device object */
 struct at_device *at_device_get_first_initialized(void);
 struct at_device *at_device_get_by_name(int type, const char *name);
@@ -141,6 +151,10 @@ int at_device_class_register(struct at_device_class *class, uint16_t class_id);
 /* Register AT device object */
 int at_device_register(struct at_device *device, const char *device_name,
                         const char *at_client_name, uint16_t class_id, void *user_data);
+#ifdef AT_DEVICE_USING_PROBE
+/* Probe AT device object */
+int at_device_probe(void *user_data);
+#endif /* AT_DEVICE_USING_PROBE */
 
 #ifdef __cplusplus
 }

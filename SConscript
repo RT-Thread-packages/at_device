@@ -4,6 +4,13 @@ cwd = GetCurrentDir()
 path = [cwd + '/inc']
 src  = Glob('src/*.c')
 
+# PROBE
+if GetDepend(['AT_DEVICE_USING_PROBE']):
+    path += [cwd + '/class/probe']
+    src += Glob('class/probe/at_device_probe.c')
+    if GetDepend(['AT_DEVICE_PROBE_SAMPLE']):
+        src += Glob('samples/at_sample_probe.c')
+
 # A9G
 if GetDepend(['AT_DEVICE_USING_A9G']):
     path += [cwd + '/class/a9g']

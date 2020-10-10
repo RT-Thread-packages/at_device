@@ -902,14 +902,18 @@ static int ec200x_init(struct at_device *device)
     ec200x->power_status = RT_FALSE;//default power is off.
     ec200x->sleep_status = RT_FALSE;//default sleep is disabled.
 
-    /* initialize AT client */
-    at_client_init(ec200x->client_name, ec200x->recv_line_num);
-
     device->client = at_client_get(ec200x->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", ec200x->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(ec200x->client_name, ec200x->recv_line_num);
+
+        device->client = at_client_get(ec200x->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", ec200x->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */
@@ -1009,6 +1013,17 @@ static int ec200x_device_class_register(void)
     ec200x_socket_class_register(class);
 #endif
     class->device_ops = &ec200x_device_ops;
+
+#ifdef AT_DEVICE_USING_PROBE
+    {
+        /* Revision: EC200TCNDAR02A09M16 */
+        static struct at_device_probe_kw ec200x_kw = {"Revision: ", "Revision: %s"};
+    
+        class->compatible[0] = "EC200T";
+        class->compatible[1] = "EC20";
+        at_device_class_probe_kw_ati_register(&ec200x_kw);
+    }
+#endif /* __AT_DEVICE_PROBE_H__ */
 
     return at_device_class_register(class, AT_DEVICE_CLASS_EC200X);
 }

@@ -885,14 +885,18 @@ static int air720_init(struct at_device *device)
 {
     struct at_device_air720 *air720 = (struct at_device_air720 *)device->user_data;
 
-    /* initialize AT client */
-    at_client_init(air720->client_name, air720->recv_line_num);
-
     device->client = at_client_get(air720->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("air720 device(%s) initialize failed, get AT client(%s) failed.", air720->device_name, air720->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(air720->client_name, air720->recv_line_num);
+
+        device->client = at_client_get(air720->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("air720 device(%s) initialize failed, get AT client(%s) failed.", air720->device_name, air720->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */
@@ -1019,6 +1023,17 @@ static int air720_device_class_register(void)
     air720_socket_class_register(class);
 #endif
     class->device_ops = &air720_device_ops;
+
+#ifdef AT_DEVICE_USING_PROBE
+    {
+        /* AirM2M_Air724UG_V907_LTE_AT */
+        static struct at_device_probe_kw air720_kw = {"AirM2M_", "AirM2M_%[^_]"};
+    
+        class->compatible[0] = "Air720";
+        class->compatible[1] = "Air724UG";
+        at_device_class_probe_kw_ati_register(&air720_kw);
+    }
+#endif /* __AT_DEVICE_PROBE_H__ */
 
     return at_device_class_register(class, AT_DEVICE_CLASS_AIR720);
 }

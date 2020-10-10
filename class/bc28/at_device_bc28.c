@@ -872,14 +872,18 @@ static int bc28_init(struct at_device *device)
     rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &config);
     rt_device_close(serial);
 
-    /* initialize AT client */
-    at_client_init(bc28->client_name, bc28->recv_bufsz);
-
     device->client = at_client_get(bc28->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", bc28->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(bc28->client_name, bc28->recv_bufsz);
+
+        device->client = at_client_get(bc28->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", bc28->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

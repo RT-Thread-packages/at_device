@@ -107,7 +107,7 @@ static int a9g_netdev_set_info(struct netdev *netdev)
     ip_addr_t addr;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-	
+    
     RT_ASSERT(netdev);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
@@ -175,7 +175,7 @@ static int a9g_netdev_set_info(struct netdev *netdev)
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
         at_resp_set_info(resp, A9G_IPADDR_RESP_SIZE, 2, A9G_INFO_RESP_TIMO);
-		
+        
         /* send "AT+CIFSR" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CIFSR") < 0)
         {
@@ -429,7 +429,7 @@ static int a9g_ping_domain_resolve(struct at_device *device, const char *name, c
         result = -RT_ERROR;
         goto __exit;
     }
-	
+    
     if (at_resp_parse_line_args_by_kw(resp, "+CDNSGIP:", "%*[^,],%*[^,],\"%[^\"]", recv_ip) < 0)
     {
         rt_thread_mdelay(100);
@@ -602,15 +602,15 @@ static void a9g_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-		
-		/* make the device restart */
+        
+        /* make the device restart */
         AT_SEND_CMD(client, resp, 0, 300, "AT+RST=1");
         for(i = 0; i<=30; i++)
         {
             i++;
             rt_thread_mdelay(1000);
         }
-		
+        
         /* waiting for dirty data to be digested */
         rt_thread_mdelay(1000);
 
@@ -658,14 +658,14 @@ static void a9g_init_thread_entry(void *parameter)
                 }
                 rt_thread_mdelay(1000);
             }
-			
+            
             AT_SEND_CMD(client, resp, 0, 1000, "AT+CGDCONT=1,\"IP\",\"CMNET\"");
             rt_thread_mdelay(10);
             AT_SEND_CMD(client, resp, 0, 5 * 1000, "AT+CGACT=1,1");
             rt_thread_mdelay(10);
             at_resp_parse_line_args_by_kw(resp, "OK", "%s", &parsed_data);
             
-			if (!strncmp(parsed_data, "OK", sizeof(parsed_data)))
+            if (!strncmp(parsed_data, "OK", sizeof(parsed_data)))
             {
                 LOG_D("a9g device(%s) GPRS network is registered(%s).", device->name, parsed_data);
                 break;
@@ -736,7 +736,7 @@ static void a9g_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-#ifdef	AT_USING_A9G_GPS
+#ifdef  AT_USING_A9G_GPS
         AT_SEND_CMD(client, resp, 0, 300, "AT+GPS?");
         at_resp_parse_line_args_by_kw(resp, "+GPS:", "+GPS: %d", &qimux);
         if (qimux == 0)
@@ -827,14 +827,18 @@ static int a9g_init(struct at_device *device)
 {
     struct at_device_a9g *a9g = (struct at_device_a9g *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(a9g->client_name, a9g->recv_line_num);
-
     device->client = at_client_get(a9g->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("a9g device(%s) initialize failed, get AT client(%s) failed.", a9g->device_name, a9g->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(a9g->client_name, a9g->recv_line_num);
+
+        device->client = at_client_get(a9g->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("a9g device(%s) initialize failed, get AT client(%s) failed.", a9g->device_name, a9g->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */
@@ -851,8 +855,8 @@ static int a9g_init(struct at_device *device)
         LOG_E("a9g device(%s) initialize failed, get network interface device failed.", a9g->device_name);
         return -RT_ERROR;
     }
-	
-	/* initialize a9g pin configuration */
+    
+    /* initialize a9g pin configuration */
     if (a9g->power_pin != -1 && a9g->power_status_pin != -1)
     {
         rt_pin_mode(a9g->power_pin, PIN_MODE_OUTPUT);

@@ -858,14 +858,18 @@ static int sim800c_init(struct at_device *device)
 {
     struct at_device_sim800c *sim800c = (struct at_device_sim800c *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(sim800c->client_name, sim800c->recv_line_num);
-
     device->client = at_client_get(sim800c->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", sim800c->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(sim800c->client_name, sim800c->recv_line_num);
+
+        device->client = at_client_get(sim800c->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", sim800c->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

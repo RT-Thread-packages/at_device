@@ -244,14 +244,18 @@ static int rw007_init(struct at_device *device)
 {
     struct at_device_rw007 *rw007 = (struct at_device_rw007 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(rw007->client_name, rw007->recv_line_num);
-
     device->client = at_client_get(rw007->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", rw007->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(rw007->client_name, rw007->recv_line_num);
+
+        device->client = at_client_get(rw007->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", rw007->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

@@ -910,14 +910,18 @@ static int bc26_init(struct at_device *device)
     bc26->power_status = RT_FALSE; //default power is off.
     bc26->sleep_status = RT_FALSE; //default sleep is disabled.
 
-    /* initialize AT client */
-    at_client_init(bc26->client_name, bc26->recv_line_num);
-
     device->client = at_client_get(bc26->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", bc26->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(bc26->client_name, bc26->recv_line_num);
+
+        device->client = at_client_get(bc26->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", bc26->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

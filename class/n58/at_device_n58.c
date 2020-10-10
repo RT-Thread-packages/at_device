@@ -857,14 +857,18 @@ static int n58_init(struct at_device *device)
 {
     struct at_device_n58 *n58 = (struct at_device_n58 *)device->user_data;
 
-    /* initialize AT client */
-    at_client_init(n58->client_name, n58->recv_line_num);
-
     device->client = at_client_get(n58->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("n58 device(%s) initialize failed, get AT client(%s) failed.", n58->device_name, n58->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(n58->client_name, n58->recv_line_num);
+
+        device->client = at_client_get(n58->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("n58 device(%s) initialize failed, get AT client(%s) failed.", n58->device_name, n58->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

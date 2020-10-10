@@ -768,14 +768,18 @@ static int m26_init(struct at_device *device)
 {
     struct at_device_m26 *m26 = (struct at_device_m26 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(m26->client_name, m26->recv_line_num);
-
     device->client = at_client_get(m26->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", m26->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(m26->client_name, m26->recv_line_num);
+
+        device->client = at_client_get(m26->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", m26->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

@@ -840,14 +840,18 @@ static int me3616_init(struct at_device *device)
     me3616->power_status = RT_FALSE;//default power is off.
     me3616->sleep_status = RT_FALSE;//default sleep is disabled.
 
-    /* initialize AT client */
-    at_client_init(me3616->client_name, me3616->recv_line_num);
-
     device->client = at_client_get(me3616->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", me3616->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(me3616->client_name, me3616->recv_line_num);
+
+        device->client = at_client_get(me3616->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", me3616->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

@@ -792,14 +792,18 @@ static int w60x_init(struct at_device *device)
 {
     struct at_device_w60x *w60x = (struct at_device_w60x *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(w60x->client_name, w60x->recv_line_num);
-
     device->client = at_client_get(w60x->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", w60x->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(w60x->client_name, w60x->recv_line_num);
+
+        device->client = at_client_get(w60x->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", w60x->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

@@ -20,6 +20,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2019-05-08     chenyong     first version
+ * 2020-09-30     DENGs        add at device probe
  */
 
 #include <stdlib.h>
@@ -220,6 +221,40 @@ static struct at_device_class *at_device_class_get(uint16_t class_id)
     return RT_NULL;
 }
 
+#ifdef AT_DEVICE_USING_PROBE
+/* Get AT device class by name */
+struct at_device_class *at_device_class_get_by_name(const char *name)
+{
+    rt_base_t level;
+    rt_slist_t *node = RT_NULL;
+    struct at_device_class *class = RT_NULL;
+	int i;
+
+    level = rt_hw_interrupt_disable();
+
+    /* Get AT device class by class compatible */
+    rt_slist_for_each(node, &at_device_class_list)
+    {
+        class = rt_slist_entry(node, struct at_device_class, list);
+        if (class)
+        {
+			for (i = 0; i < sizeof(class->compatible)/sizeof((class->compatible)[0]); i++)
+			{
+				if (class->compatible[i] && rt_strstr(name, class->compatible[i]))
+				{
+					rt_hw_interrupt_enable(level);
+					return class;
+				}
+			}
+        }
+    }
+
+    rt_hw_interrupt_enable(level);
+
+    return RT_NULL;
+}
+#endif /* AT_DEVICE_USING_PROBE */
+
 /**
  * This function registers an AT device with specified device name and AT client name.
  *
@@ -240,6 +275,25 @@ int at_device_register(struct at_device *device, const char *device_name,
     static int device_counts = 0;
     char name[RT_NAME_MAX] = {0};
     struct at_device_class *class = RT_NULL;
+
+#ifdef AT_DEVICE_USING_PROBE
+	/* AT device probe */
+	if (class_id == AT_DEVICE_CLASS_PROBE)
+	{
+		class = at_device_class_get(class_id);
+		RT_ASSERT(class);
+
+		device = rt_calloc(1, sizeof(struct at_device));
+		if (device == NULL)
+		{
+			LOG_E("no memory for probe device");
+			return -RT_ERROR;
+		}
+		device->user_data = user_data;
+
+		return class->device_ops->init(device);
+	}
+#endif /* AT_DEVICE_USING_PROBE */
 
     RT_ASSERT(device);
     RT_ASSERT(device_name);
@@ -274,7 +328,7 @@ int at_device_register(struct at_device *device, const char *device_name,
     }
 #endif /* AT_USING_SOCKET */
 
-    rt_memcpy(device->name, device_name, rt_strlen(device_name));
+    rt_strncpy(device->name, device_name, sizeof(device->name));
     device->class = class;
     device->user_data = user_data;
 
@@ -307,3 +361,10 @@ __exit:
 
     return RT_EOK;
 }
+
+#ifdef AT_DEVICE_USING_PROBE
+int at_device_probe(void *user_data)
+{
+	return at_device_register(RT_NULL, "", "", AT_DEVICE_CLASS_PROBE, user_data);
+}
+#endif /* AT_DEVICE_USING_PROBE */

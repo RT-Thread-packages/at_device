@@ -413,7 +413,7 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
     int sent, recv, lost, min, max, avg;
-		
+        
     RT_ASSERT(netdev);
     RT_ASSERT(host);
     RT_ASSERT(ping_resp);
@@ -588,7 +588,7 @@ static void m6315_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-								
+                                
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, 300, "ATE0");
         /* get module version */
@@ -873,14 +873,18 @@ static int m6315_init(struct at_device *device)
 {
     struct at_device_m6315 *m6315 = (struct at_device_m6315 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(m6315->client_name, m6315->recv_line_num);
-
     device->client = at_client_get(m6315->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", m6315->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(m6315->client_name, m6315->recv_line_num);
+
+        device->client = at_client_get(m6315->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", m6315->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

@@ -318,7 +318,7 @@ static int esp32_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, i
         return -RT_ENOMEM;
     }
 
-    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
+    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS    server0>,<DNS   server1>]" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         LOG_E("%s device set DNS failed.", device->name);
@@ -789,14 +789,17 @@ static int esp32_init(struct at_device *device)
 {
     struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(esp32->client_name, esp32->recv_line_num);
-
-    device->client = at_client_get(esp32->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", esp32->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(esp32->client_name, esp32->recv_line_num);
+
+        device->client = at_client_get(esp32->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", esp32->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

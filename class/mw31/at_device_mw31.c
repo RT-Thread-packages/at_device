@@ -595,14 +595,18 @@ static int mw31_init(struct at_device *device)
 {
     struct at_device_mw31 *mw31 = (struct at_device_mw31 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(mw31->client_name, mw31->recv_line_num);
-
     device->client = at_client_get(mw31->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", mw31->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(mw31->client_name, mw31->recv_line_num);
+
+        device->client = at_client_get(mw31->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", mw31->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */

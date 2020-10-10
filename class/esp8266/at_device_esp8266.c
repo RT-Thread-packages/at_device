@@ -319,7 +319,7 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
         return -RT_ENOMEM;
     }
 
-    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS	server0>,<DNS	server1>]" and wait response */
+    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS    server0>,<DNS   server1>]" and wait response */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         LOG_E("%s device set DNS failed.", device->name);
@@ -790,14 +790,18 @@ static int esp8266_init(struct at_device *device)
 {
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
 
-    /* initialize AT client */
-    at_client_init(esp8266->client_name, esp8266->recv_line_num);
-
     device->client = at_client_get(esp8266->client_name);
     if (device->client == RT_NULL)
     {
-        LOG_E("get AT client(%s) failed.", esp8266->client_name);
-        return -RT_ERROR;
+        /* initialize AT client */
+        at_client_init(esp8266->client_name, esp8266->recv_line_num);
+        
+        device->client = at_client_get(esp8266->client_name);
+        if (device->client == RT_NULL)
+        {
+            LOG_E("get AT client(%s) failed.", esp8266->client_name);
+            return -RT_ERROR;
+        }
     }
 
     /* register URC data execution function  */
@@ -925,6 +929,24 @@ static const struct at_device_ops esp8266_device_ops =
     esp8266_control,
 };
 
+static int esp8266_probe_callback(at_client_t client, at_response_t resp, char model[32])
+{
+    if (at_obj_exec_cmd(client, at_resp_set_info(resp, 256, 0, rt_tick_from_millisecond(1000)), "AT+GMR") < 0)
+    {
+        return -1;
+    }
+
+    /* AT version:1.2.0.0(Jul  1 2016 20:04:45) */
+    if (at_resp_parse_line_args_by_kw(resp, "AT version:", "AT version:%[^(]", model) != 1)
+    {
+        return -2;
+    }
+
+    rt_strncpy(model, "ESP8266", 32);
+
+    return 0;
+}
+
 static int esp8266_device_class_register(void)
 {
     struct at_device_class *class = RT_NULL;
@@ -941,6 +963,15 @@ static int esp8266_device_class_register(void)
     esp8266_socket_class_register(class);
 #endif
     class->device_ops = &esp8266_device_ops;
+
+#ifdef AT_DEVICE_USING_PROBE
+    {
+        static struct at_device_probe_kw esp8266_kw = {RT_NULL, RT_NULL, esp8266_probe_callback};
+    
+        class->compatible[0] = "ESP8266";
+        at_device_class_probe_kw_user_func_register(&esp8266_kw);
+    }
+#endif /* __AT_DEVICE_PROBE_H__ */
 
     return at_device_class_register(class, AT_DEVICE_CLASS_ESP8266);
 }
