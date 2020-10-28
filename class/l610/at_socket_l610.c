@@ -27,7 +27,7 @@
 
 #include <at_device_l610.h>
 
-#define LOG_TAG                        "at.skt.l610"
+#define LOG_TAG                     "at.skt.l610"
 #include <at_log.h>
 
 #define AT_USING_SOCKET
@@ -60,12 +60,12 @@ static at_evt_cb_t at_evt_cb_set[] = {
 static int l610_get_socket_idx(int sock)
 {
     int i;
-    
+
     if (sock < 0)
     {
         return(-1);
     }
-    
+
     for (i=0; i<AT_DEVICE_L610_SOCKETS_NUM; i++)
     {
         if (l610_socket_fd[i] == sock)
@@ -133,7 +133,7 @@ static int l610_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-__exit:    
+__exit:
     return result;
 }
 
@@ -157,7 +157,7 @@ __exit:
 static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,enum at_socket_type type, rt_bool_t is_client)
 {
     #define CONN_RESP_SIZE  128
-    
+
     int type_code = 0;
     int result = RT_EOK;
     at_response_t resp = RT_NULL;
@@ -176,10 +176,10 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     switch(type)
     {
         case AT_SOCKET_TCP:
-					type_code = 0;  //0:tcp
+            type_code = 0;  //0:tcp
             break;
         case AT_SOCKET_UDP:
-					type_code = 1;   //:1udp
+            type_code = 1;   //:1udp
             break;
         default:
             LOG_E("%s device socket(%d)  connect type error.", device->name, device_socket);
@@ -198,9 +198,9 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         at_obj_exec_cmd(device->client, resp, "AT+MIPCLOSE=%d", l610_socket_fd[device_socket]);
         l610_socket_fd[device_socket] = -1;
     }
-		
-		
-    
+
+
+
     if (at_obj_exec_cmd(device->client, resp, "AT+MIPOPEN?") < 0)
     {
         result = -RT_ERROR;
@@ -225,7 +225,7 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 
     l610_socket_fd[device_socket] = sock;
-    
+
 __exit:
     if (resp)
     {
@@ -257,14 +257,14 @@ static int l610_socket_send(struct at_socket *socket, const char *buff, size_t b
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     rt_mutex_t lock = device->client->lock;
-	int sock = -1;
-	
-	   sock=l610_socket_fd[device_socket];
-		if(sock<=0)
-		{
-			LOG_E("error socket ");
-					return -RT_ERROR;
-		}
+    int sock = -1;
+
+       sock=l610_socket_fd[device_socket];
+        if(sock<=0)
+        {
+            LOG_E("error socket ");
+            return -RT_ERROR;
+        }
 
     RT_ASSERT(buff);
 
@@ -316,7 +316,7 @@ static int l610_socket_send(struct at_socket *socket, const char *buff, size_t b
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-        
+
         /* waiting OK or failed result */
         event_result = l610_socket_event_recv(device,
                 L610_EVENT_SEND_OK | L610_EVENT_SEND_FAIL, 5 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
@@ -367,7 +367,7 @@ static int l610_domain_resolve(const char *name, char ip[16])
     int result;
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-    
+
     RT_ASSERT(name);
     RT_ASSERT(ip);
 
@@ -384,10 +384,10 @@ static int l610_domain_resolve(const char *name, char ip[16])
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
-		//		0: IPV4 address
-		//		1: IPV6 address
-		//		2:	IPV4/IPV6 address
-		//		<IP>: resolved IPV4 or IPV6 address (string without double quotes)
+        //      0: IPV4 address
+        //      1: IPV6 address
+        //      2: IPV4/IPV6 address
+        //      <IP>: resolved IPV4 or IPV6 address (string without double quotes)
     result = at_obj_exec_cmd(device->client, resp, "AT+MIPDNS=\"%s\",2", name);
     if (result != RT_EOK)
     {
@@ -462,12 +462,12 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         {
             l610_socket_event_send(device, SET_EVENT(device_socket, L610_EVENT_SEND_OK));
         }
-        else 
+        else
         {
             l610_socket_event_send(device, SET_EVENT(device_socket, L610_EVENT_SEND_FAIL));
         }
     }
-    
+
 }
 
 static void urc_close_func(struct at_client *client, const char *data, rt_size_t size)
@@ -478,7 +478,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     int result;
 
     RT_ASSERT(data && size);
-  
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -488,11 +488,11 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     /* get the current socket by receive data */
     sscanf(data, "+MIPCLOSE: %d,%d", &device_socket,&result);
 
-	if(result==0)
+    if(result==0)
     {
         l610_socket_event_send(device, SET_EVENT(device_socket, L610_EVNET_CLOSE_OK));
     }
-    else 
+    else
     {
         struct at_socket *socket = RT_NULL;
 
@@ -523,7 +523,6 @@ static void urc_recv_cmd(struct at_client *client, const char *data, rt_size_t s
     if (device == RT_NULL)
     {
         LOG_E("get device(%s) failed.", client_name);
-
         return;
     }
 
@@ -534,7 +533,7 @@ static void urc_recv_cmd(struct at_client *client, const char *data, rt_size_t s
         if (at_obj_exec_cmd(client, NULL, "AT+MIPREAD=%d,%d", sock,bfsz) < 0)
             {
                 LOG_E("send (%s) failed.", client_name);
-                return; 
+                return;
             }
     }
 }
@@ -554,10 +553,10 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_size_t data_len;
     RT_ASSERT(data && size);
 
-   
+
     /* get the current socket and receive buffer size by receive data */
     sscanf(data,"+MIPDATA: %d,%d", &sock, (int *) &bfsz);
-        
+
     device_socket = l610_get_socket_idx(sock);
 
     if (device_socket < 0)
@@ -599,7 +598,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         }
         return;
     }
- 
+
     /* sync receive data */
     data_len=at_client_obj_recv(client, recv_buf, bfsz, timeout);
     if (data_len != bfsz)
@@ -611,7 +610,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     /* get AT socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
-    
+
     /* notice the receive buffer and buffer size */
     if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
     {
@@ -624,11 +623,11 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 static const struct at_urc urc_table[] =
 {
 
-    {"+MIPPUSH: ",   "\r\n",             urc_send_func},
-    {"+MIPCLOSE: ",  "\r\n",             urc_close_func},
-    {"+MIPREAD: ",    "\r\n",            urc_recv_cmd},
-    {"+MIPDATA: ",    "\r\n",            urc_recv_func},
- 
+    {"+MIPPUSH: ",      "\r\n",             urc_send_func},
+    {"+MIPCLOSE: ",     "\r\n",             urc_close_func},
+    {"+MIPREAD: ",      "\r\n",             urc_recv_cmd},
+    {"+MIPDATA: ",      "\r\n",             urc_recv_func},
+
 };
 
 static const struct at_socket_ops l610_socket_ops =

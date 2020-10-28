@@ -29,13 +29,13 @@
 
 #include <at_device_l610.h>
 
-#define LOG_TAG                        "at.dev.l610"
+#define LOG_TAG                     "at.dev.l610"
 #include <at_log.h>
 
 
 
 #ifndef L610_DEEP_SLEEP_EN
-#define L610_DEEP_SLEEP_EN              0//module support  sleep mode
+#define L610_DEEP_SLEEP_EN          0//module support  sleep mode
 #endif
 
 #ifdef AT_DEVICE_USING_L610
@@ -56,15 +56,15 @@ static int l610_power_on(struct at_device *device)
     struct at_device_l610 *l610= RT_NULL;
 
         l610 = (struct at_device_l610 *) device->user_data;
-		l610->power_status = RT_TRUE;
+        l610->power_status = RT_TRUE;
 
-	 /* not nead to set pin configuration for me3616 device power on */
+     /* not nead to set pin configuration for me3616 device power on */
     if (l610->power_pin == -1)
     {
         return(RT_EOK);
     }
-		
-	rt_pin_write(l610->power_pin, PIN_LOW);
+
+    rt_pin_write(l610->power_pin, PIN_LOW);
     rt_thread_mdelay(2000);
     rt_pin_write(l610->power_pin, PIN_HIGH);
     LOG_D("power on success.");
@@ -85,36 +85,36 @@ static int l610_power_off(struct at_device *device)
     }
 
     rt_pin_write(l610->power_pin, PIN_LOW);
-	rt_thread_mdelay(2000);
+    rt_thread_mdelay(2000);
     rt_pin_write(l610->power_pin, PIN_HIGH);
-		
-		 l610->power_status = RT_FALSE;
-		 LOG_D("power off success.");
-		 return(RT_EOK);
+
+        l610->power_status = RT_FALSE;
+        LOG_D("power off success.");
+        return(RT_EOK);
 }
 
 static int l610_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_l610 *l610 = RT_NULL;
-    
+
     l610 = (struct at_device_l610 *)device->user_data;
     if ( ! l610->power_status)//power off
     {
         return(RT_EOK);
     }
-    if (l610->sleep_status)//is sleep status 
+    if (l610->sleep_status)//is sleep status
     {
         return(RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+GTWAKE=1,2") != RT_EOK)
     {
         LOG_D("enable sleep fail.");
@@ -132,9 +132,9 @@ static int l610_sleep(struct at_device *device)
     #endif
     at_delete_resp(resp);
     l610->sleep_status = RT_TRUE;
-    
+
     LOG_D("sleep success.");
-    
+
     return(RT_EOK);
 }
 
@@ -152,16 +152,16 @@ static int l610_wakeup(struct at_device *device)
     }
     if ( ! l610->sleep_status)//no sleep status
     {
-        return(RT_EOK);
+    return(RT_EOK);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     #if L610_DEEP_SLEEP_EN
     if (l610->power_pin != -1)
     {
@@ -171,19 +171,19 @@ static int l610_wakeup(struct at_device *device)
         rt_thread_mdelay(200);
     }
     #endif
-		
+
     if (at_obj_exec_cmd(device->client, resp, "AT+GTWAKE=0,2") != RT_EOK)
     {
         LOG_D("wake up fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
-    
+
     at_delete_resp(resp);
     l610->sleep_status = RT_FALSE;
-    
+
     LOG_D("wake up success.");
-    
+
     return(RT_EOK);
 }
 
@@ -203,7 +203,7 @@ static int l610_check_link_status(struct at_device *device)
         LOG_D("the power is off.");
         return(-RT_ERROR);
     }
-    
+
     #if L610_DEEP_SLEEP_EN
     if (l610->sleep_status)//is sleep status
     {
@@ -216,7 +216,7 @@ static int l610_check_link_status(struct at_device *device)
         }
     }
     #endif
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -236,7 +236,7 @@ static int l610_check_link_status(struct at_device *device)
             }
         }
     }
-    
+
     #if L610_DEEP_SLEEP_EN
     if (l610->sleep_status)//is sleep status
     {
@@ -246,9 +246,9 @@ static int l610_check_link_status(struct at_device *device)
         }
     }
     #endif
-    
+
     at_delete_resp(resp);
-    
+
     return(result);
 }
 
@@ -311,7 +311,7 @@ static int l610_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-	
+
         LOG_D("%s IMEI : %s", device->name, imei);
 
         netdev->hwaddr_len = L610_NETDEV_HWADDR_LEN;
@@ -344,7 +344,6 @@ static int l610_netdev_set_info(struct netdev *netdev)
         }
 
         /* parse response data "+MIPCALL: 1,<IP_address>" */
-
         if (at_resp_parse_line_args_by_kw(resp, "+MIPCALL: ","%*[^,],%s",ipaddr) <= 0)
         {
             LOG_E("%s device \"AT+MIPCALL?\" cmd error.", device->name);
@@ -367,10 +366,10 @@ __exit:
 
 static void l610_check_link_status_entry(void *parameter)
 {
-	
+
 #define L610_LINK_DELAY_TIME  (30 * RT_TICK_PER_SECOND)
 
-	rt_bool_t is_link_up;
+    rt_bool_t is_link_up;
     struct at_device *device = RT_NULL;
     struct netdev *netdev = (struct netdev *)parameter;
 
@@ -384,8 +383,8 @@ static void l610_check_link_status_entry(void *parameter)
     while (1)
     {
         /* send "AT+CGREG?" commond  to check netweork interface device link status */
-		is_link_up = (l610_check_link_status(device) == RT_EOK);
-       
+        is_link_up = (l610_check_link_status(device) == RT_EOK);
+
         netdev_low_level_set_link_status(netdev, is_link_up);
         rt_thread_mdelay(L610_LINK_DELAY_TIME);
     }
@@ -476,10 +475,10 @@ static int l610_ping_domain_resolve(struct at_device *device, const char *name, 
         return -RT_ENOMEM;
     }
 
-    //		0: IPV4 address
-    //		1: IPV6 address
-    //		2:	IPV4/IPV6 address
-    //		<IP>: resolved IPV4 or IPV6 address (string without double quotes)
+    //0: IPV4 address
+    //1: IPV6 address
+    //2: IPV4/IPV6 address
+    //<IP>: resolved IPV4 or IPV6 address (string without double quotes)
     result = at_obj_exec_cmd(device->client, resp, "AT+MIPDNS=\"%s\",0", name);
     if (result != RT_EOK)
     {
@@ -547,7 +546,7 @@ static int l610_netdev_ping(struct netdev *netdev, const char *host,
         LOG_D("get device(%s) failed.", netdev->name);
         return -RT_ERROR;
     }
- 
+
     for (i = 0; i < rt_strlen(host) && !isalpha(host[i]); i++);
 
     if (i < strlen(host))
@@ -568,7 +567,7 @@ static int l610_netdev_ping(struct netdev *netdev, const char *host,
         return -RT_ENOMEM;
 
     }
-	
+
    // +MPING=<mode>[,<Destination_IP/hostname>[,<count>[,<size>[,<TTL>[,<TOS>[,<TimeOut>]]]]]]
     if (at_obj_exec_cmd(device->client, resp, "AT+MPING=1,\"%s\",1,%d,%d,0,%d", host,data_len,ttl,L610_PING_TIMEO) != RT_EOK)
     {
@@ -652,7 +651,7 @@ static struct netdev *l610_netdev_add(const char *netdev_name)
 
     netdev->mtu = L610_NETDEV_MTU;
     netdev->ops = &l610_netdev_ops;
-		netdev->hwaddr_len = HWADDR_LEN;
+        netdev->hwaddr_len = HWADDR_LEN;
 
 #ifdef SAL_USING_AT
     extern int sal_at_netdev_set_pf_info(struct netdev *netdev);
@@ -684,11 +683,11 @@ static struct netdev *l610_netdev_add(const char *netdev_name)
 
 static void l610_init_thread_entry(void *parameter)
 {
-#define INIT_RETRY                     5
-#define CPIN_RETRY                     10
-#define CSQ_RETRY                      10
-#define CREG_RETRY                     10
-#define CGREG_RETRY                    20
+#define INIT_RETRY                      5
+#define CPIN_RETRY                      10
+#define CSQ_RETRY                       10
+#define CREG_RETRY                      10
+#define CGREG_RETRY                     20
 
     int i, qimux, retry_num = INIT_RETRY;
     char parsed_data[32] = {0};
@@ -696,8 +695,8 @@ static void l610_init_thread_entry(void *parameter)
     at_response_t resp = RT_NULL;
     struct at_device *device = (struct at_device *)parameter;
     struct at_client *client = device->client;
-		
-		 
+
+
     resp = at_create_resp(128, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -710,7 +709,7 @@ static void l610_init_thread_entry(void *parameter)
         rt_memset(parsed_data, 0, sizeof(parsed_data));
         rt_thread_mdelay(500);
         l610_power_on(device);
-	
+
         rt_thread_mdelay(1000);
 
         /* wait l610 startup finish */
@@ -731,7 +730,7 @@ static void l610_init_thread_entry(void *parameter)
         }
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
-        {				
+        {
           AT_SEND_CMD(client, resp, 2, 5 * RT_TICK_PER_SECOND, "AT+CPIN?");
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
@@ -753,12 +752,12 @@ static void l610_init_thread_entry(void *parameter)
         for (i = 0; i < CREG_RETRY; i++)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+CREG?");
-					
-            at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);		
+
+            at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
             if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
                 !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
             {
-							
+
                 LOG_D("%s device GSM is registered(%s),", device->name, parsed_data);
                 break;
             }
@@ -817,24 +816,24 @@ static void l610_init_thread_entry(void *parameter)
         /* */
         AT_SEND_CMD(client, resp, 2, 5 * 1000, "AT+GTSET=\"IPRFMT\",5");
         rt_thread_mdelay(100);
-				
+
         /* Set to multiple connections */
         AT_SEND_CMD(client, resp, 0, 300, "AT+MIPCALL?");
-				
-					
+
+
         at_resp_parse_line_args_by_kw(resp, "+MIPCALL:", "+MIPCALL: %d", &qimux);
-				
+
         if (qimux == 0)
         {
         AT_SEND_CMD(client, resp, 0, 300, "AT+COPS?");
         at_resp_parse_line_args_by_kw(resp, "+COPS:", "+COPS: %*[^\"]\"%[^\"]", &parsed_data);
-					
+
         if (rt_strcmp(parsed_data, "CHINA MOBILE") == 0)
         {
             /* "CMCC" */
             LOG_I("%s device network operator: %s", device->name, parsed_data);
             AT_SEND_CMD(client, resp, 0, 300, CSTT_CHINA_MOBILE);
-								
+
         }
         else if (rt_strcmp(parsed_data, "CHN-UNICOM") == 0)
         {
@@ -849,14 +848,14 @@ static void l610_init_thread_entry(void *parameter)
             LOG_I("%s device network operator: %s", device->name, parsed_data);
         }
 
-			}
+            }
   /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
             AT_SEND_CMD(client, resp, 0, 300, "AT+MIPCALL?");
-					
+
             at_resp_parse_line_args_by_kw(resp, "+MIPCALL: ", "+MIPCALL: %s", &parsed_data);
-			
+
             if(parsed_data!=NULL)
             {
                 LOG_D("%s device GPRS is registered(%s).", device->name, parsed_data);
@@ -890,7 +889,7 @@ static void l610_init_thread_entry(void *parameter)
     {
         at_delete_resp(resp);
     }
-		
+
     if (result == RT_EOK)
     {
         /* set network interface device status and address information */
@@ -943,7 +942,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 /* l610 device URC table for the device control */
 static const struct at_urc urc_table[] =
 {
-        {"RDY",         "\r\n",                 urc_func},
+        {"RDY",         "\r\n",             urc_func},
 };
 
 static int l610_init(struct at_device *device)
@@ -1000,13 +999,13 @@ static int l610_control(struct at_device *device, int cmd, void *arg)
 
     switch (cmd)
     {
-	case AT_DEVICE_CTRL_SLEEP:
+    case AT_DEVICE_CTRL_SLEEP:
         result = l610_sleep(device);
         break;
     case AT_DEVICE_CTRL_WAKEUP:
         result = l610_wakeup(device);
         break;
-		
+
     case AT_DEVICE_CTRL_POWER_ON:
     case AT_DEVICE_CTRL_POWER_OFF:
     case AT_DEVICE_CTRL_RESET:

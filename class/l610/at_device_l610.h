@@ -33,7 +33,7 @@ extern "C" {
 #include <at_device.h>
 
 /* The maximum number of sockets supported by the l610 device */
-#define AT_DEVICE_L610_SOCKETS_NUM      6
+#define AT_DEVICE_L610_SOCKETS_NUM    6
 
 struct at_device_l610
 {
@@ -45,11 +45,11 @@ struct at_device_l610
     size_t recv_line_num;
     struct at_device device;
 
-		void *socket_data;
+    void *socket_data;
     void *user_data;
-	
-		rt_bool_t power_status;
-		rt_bool_t sleep_status;
+  
+    rt_bool_t power_status;
+    rt_bool_t sleep_status;
 };
 
 #ifdef AT_USING_SOCKET
