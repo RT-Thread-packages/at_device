@@ -3,7 +3,7 @@
 ## 1. 简介 ##
 
 
-AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、ESP32、M26、MC20、RW007、MW31、SIM800C、W60X 、SIM76XX、A9/A9G、BC26 、AIR720、ME3616、M6315、BC28、EC200X、M5311系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
+AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文件和示例代码组成，目前支持的 AT 设备有：ESP8266、ESP32、M26、MC20、RW007、MW31、SIM800C、W60X 、SIM76XX、A9/A9G、BC26 、AIR720、ME3616、M6315、BC28、EC200X、M5311、L610系列设备等，目前上述设备都完成对 `AT socket` 功能的移植，及设备通过 AT 命令实现标准 socket 编程接口，完成 socket 通讯的功能，具体功能介绍可参考 [《RT-Thread 编程指南》](https://www.rt-thread.org/document/site/programming-manual/at/at/)AT 命令章节 。 
 
 ### 1.1. 目录结构 ###
 
@@ -32,6 +32,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/n21 | N21 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/n58 | N58 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/m5311 | M5311 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
+| class/l610 | L610 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 ### 1.2 许可证 ###
 
 at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
