@@ -58,6 +58,7 @@ static struct at_device_n720 _dev =
     N720_SAMPLE_STATUS_PIN,
     N720_SAMPLE_WAKEUP_PIN,
     N720_SAMPLE_RECV_BUFF_LEN,
+    RT_NULL,
 };
 
 static int n720_device_register(void)

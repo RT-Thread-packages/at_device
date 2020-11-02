@@ -34,7 +34,7 @@ extern "C" {
 #include <at_device.h>
 
 /* The maximum number of sockets supported by the ec200x device */
-#define AT_DEVICE_N720_SOCKETS_NUM  5
+#define AT_DEVICE_N720_SOCKETS_NUM  6
 
 struct at_device_n720
 {
@@ -45,6 +45,7 @@ struct at_device_n720
     int power_status_pin;
     int wakeup_pin;
     size_t recv_line_num;
+    void (*power_ctrl)(int is_on);
     struct at_device device;
 
     void *socket_data;

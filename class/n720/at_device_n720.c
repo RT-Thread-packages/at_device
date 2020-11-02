@@ -32,7 +32,7 @@
 
 #ifdef AT_DEVICE_USING_N720
 
-#define N720_WAIT_CONNECT_TIME          10000
+#define N720_WAIT_CONNECT_TIME          15000
 #define N720_THREAD_STACK_SIZE          2048
 #define N720_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
 
@@ -42,6 +42,11 @@ static int n720_power_on(struct at_device *device)
 
     n720 = (struct at_device_n720 *)device->user_data;
 
+    if (n720->power_ctrl)
+    {
+        (n720->power_ctrl)(1);
+        rt_thread_mdelay(2000);
+    }
     if (n720->power_pin == -1)//no power on pin
     {
         return(RT_EOK);
@@ -65,7 +70,7 @@ static int n720_power_on(struct at_device *device)
         }
     }
     
-    rt_thread_mdelay(500);
+    rt_thread_mdelay(1000);
     
     rt_pin_write(n720->power_pin, PIN_LOW);
     
@@ -79,6 +84,14 @@ static int n720_power_off(struct at_device *device)
     struct at_device_n720 *n720 = RT_NULL;
 
     n720 = (struct at_device_n720 *)device->user_data;
+    
+    if (n720->power_ctrl)
+    {
+        n720->power_status = RT_FALSE;
+        (n720->power_ctrl)(0);
+        rt_thread_mdelay(2*1000);
+        return(RT_EOK);
+    }
 
     if (n720->power_pin == -1)//no power on pin
     {
@@ -106,7 +119,7 @@ static int n720_power_off(struct at_device *device)
     }
     else
     {
-        at_obj_exec_cmd(device->client, RT_NULL, "AT+QPOWD=0");
+        at_obj_exec_cmd(device->client, RT_NULL, "$MYPOWEROFF");
         rt_thread_mdelay(5*1000);
     }
     
@@ -298,7 +311,7 @@ static int n720_netdev_set_info(struct netdev *netdev)
             goto __exit;
         }
         
-        if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+GSN:", "%*[^\"]\"%[^\"]", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
@@ -327,17 +340,15 @@ static int n720_netdev_set_info(struct netdev *netdev)
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
         
-        /* send "AT+CGPADDR=1" commond to get IP address */
-        if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") != RT_EOK)
+        /* Get IP address */
+        if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT?") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-
-        /* parse response data "+CGPADDR: 1,<IP_address>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*[^\"]\"%[^\"]", ipaddr) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "$MYNETACT:", "$MYNETACT: %*[^\"]\"%[^\"]", ipaddr) <= 0)
         {
-            LOG_E("%s device \"AT+CGPADDR=1\" cmd error.", device->name);
+            LOG_E("%s device \"AT$MYNETACT?\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -351,27 +362,26 @@ static int n720_netdev_set_info(struct netdev *netdev)
     
     /* set network interface device dns server */
     {
-        #define DNS_ADDR_SIZE_MAX   16
+        #define DNS_ADDR_SIZE_MAX 16
         char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
-        
-        /* send "AT+QIDNSCFG=1" commond to get DNS servers address */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=1") != RT_EOK)
+
+        at_resp_set_info(resp, N720_INFO_RESP_SIZE, 2, N720_INFO_RESP_TIMO);
+        /* send "AT+DNSSERVER?" commond to get DNS servers address */
+        if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER?") < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
 
-        /* parse response data "+QIDNSCFG: <contextID>,<pridnsaddr>,<secdnsaddr>" */
-        if (at_resp_parse_line_args_by_kw(resp, "+QIDNSCFG:", "+QIDNSCFG: 1,\"%[^\"]\",\"%[^\"]\"",
-                dns_server1, dns_server2) <= 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+DNSSERVER:", "+DNSSERVER: dns1:%[^;];dns2:%s\r\n", dns_server1, dns_server2) <= 0)
         {
-            LOG_E("%s device prase \"AT+QIDNSCFG=1\" cmd error.", device->name);
+            LOG_E("Prase \"AT+DNSSERVER?\" commands resposne data error!");
             result = -RT_ERROR;
             goto __exit;
         }
 
-        LOG_D("%s device primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("%s device secondary DNS server address: %s", device->name, dns_server2);
+        LOG_D("n58 device(%s) primary DNS server address: %s", device->name, dns_server1);
+        LOG_D("n58 device(%s) secondary DNS server address: %s", device->name, dns_server2);
 
         inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
@@ -488,7 +498,7 @@ static int n720_netdev_set_down(struct netdev *netdev)
 
 static int n720_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip_addr_t *dns_server)
 {
-#define N720_DNS_RESP_LEN    64
+#define N720_DNS_RESP_LEN    128
 #define N720_DNS_RESP_TIMEO  rt_tick_from_millisecond(300)
 
     int result = RT_EOK;
@@ -514,8 +524,7 @@ static int n720_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, ip
     }
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
-        dns_num, inet_ntoa(*dns_server)) != RT_EOK)
+    if (at_obj_exec_cmd(device->client, resp, "AT+DNSSERVER=%d,%s", dns_num, inet_ntoa(*dns_server)) != RT_EOK)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -565,17 +574,17 @@ static int n720_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* send "AT+QPING=<contextID>"<host>"[,[<timeout>][,<pingnum>]]" commond to send ping request */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QPING=1,%s,%d,1", host, timeout / RT_TICK_PER_SECOND) < 0)
+    if (at_obj_exec_cmd(device->client, resp, "AT+PING=1,%s,%d,1", host, timeout / RT_TICK_PER_SECOND) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
     }
 
-    at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d", &response);
+    at_resp_parse_line_args_by_kw(resp, "+PING:", "+PING:%d", &response);
     /* Received the ping response from the server */
     if (response == 0)
     {
-        if (at_resp_parse_line_args_by_kw(resp, "+QPING:", "+QPING:%d,\"%[^\"]\",%d,%d,%d",
+        if (at_resp_parse_line_args_by_kw(resp, "+PING:", "+PING:%d,\"%[^\"]\",%d,%d,%d",
                                           &response, ip_addr, &recv_data_len, &ping_time, &ttl) <= 0)
         {
             result = -RT_ERROR;
@@ -673,7 +682,6 @@ static void n720_init_thread_entry(void *parameter)
 #define CPIN_RETRY                     10
 #define CSQ_RETRY                      20
 #define CGREG_RETRY                    50
-#define IPADDR_RETRY                   10
 
     int i;
     int retry_num = INIT_RETRY;
@@ -703,6 +711,7 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
+        rt_thread_mdelay(5000);
         
         /* disable echo */
         if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
@@ -798,37 +807,42 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-
+        
         if (((struct at_device_n720 *)(device->user_data))->wakeup_pin != -1)//use wakeup pin
         {
-            if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)// enable sleep mode fail
+            if (at_obj_exec_cmd(device->client, resp, "AT+ENPWRSAVE=1") != RT_EOK)// enable sleep mode fail
             {
                 result = -RT_ERROR;
                 goto __exit;
             }
         }
-
-        /* Close Echo the Data */
-        if (at_obj_exec_cmd(device->client, resp, "AT+QISDE=0") != RT_EOK)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
-        
-        /* Deactivate context profile */
-        resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(40*1000));
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIDEACT=1") != RT_EOK)
-        {
-            result = -RT_ERROR;
-            goto __exit;
-        }
         
         /* Activate context profile */
-        resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(150*1000));
-        if (at_obj_exec_cmd(device->client, resp, "AT+QIACT=1") != RT_EOK)
+        resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(30*1000));
+        if (at_obj_exec_cmd(device->client, resp, "AT+CGATT=1") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
+        }
+        
+        /* Activate PPP */
+        resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(30*1000));
+        if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT=0,1") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+        
+        /* Get IP address */
+        if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT?") == RT_EOK)
+        {
+            char ip_str[20];
+            
+            if (at_resp_parse_line_args_by_kw(resp, "$MYNETACT:", "$MYNETACT: %*[^\"]\"%[^\"]", ip_str) <= 0)
+            {
+                result = -RT_ERROR;
+                goto __exit;
+            }
         }
 
         /* initialize successfully  */
