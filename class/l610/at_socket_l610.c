@@ -164,6 +164,7 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     int sock = -1;
+	int connect_result;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
@@ -186,7 +187,7 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             return -RT_ERROR;
     }
 
-    resp = at_create_resp(CONN_RESP_SIZE, 0, rt_tick_from_millisecond(300));
+    resp = at_create_resp(CONN_RESP_SIZE, 0, rt_tick_from_millisecond(2000));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -195,7 +196,6 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
     if (l610_socket_fd[device_socket] != -1)
     {
-        at_obj_exec_cmd(device->client, resp, "AT+MIPCLOSE=%d", l610_socket_fd[device_socket]);
         l610_socket_fd[device_socket] = -1;
     }
 
@@ -214,12 +214,25 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     }
 
 
-    at_resp_set_info(resp, CONN_RESP_SIZE, 0, (45*RT_TICK_PER_SECOND));
+    at_resp_set_info(resp, CONN_RESP_SIZE, 4, (45*RT_TICK_PER_SECOND));
 
-    if(at_obj_exec_cmd(device->client, RT_NULL,"AT+MIPOPEN=%d,,\"%s\",%d,%d",sock, ip, port,type_code) < 0)
+    if(at_obj_exec_cmd(device->client, resp,"AT+MIPOPEN=%d,,\"%s\",%d,%d",sock, ip, port,type_code) < 0)
     {
-        at_resp_set_info(resp, CONN_RESP_SIZE, 0, rt_tick_from_millisecond(300));
-        at_obj_exec_cmd(device->client, resp, "AT+MIPCLOSE=%d", sock);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    if (at_resp_parse_line_args_by_kw(resp, "+MIPOPEN: ", "+MIPOPEN: %d,%d", &sock,&connect_result)>0)
+    {
+        if(connect_result!=1)
+        {
+            result = -RT_ERROR;
+            goto __exit;
+        }
+       
+    }
+    else
+    {
         result = -RT_ERROR;
         goto __exit;
     }

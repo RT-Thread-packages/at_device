@@ -165,10 +165,10 @@ static int l610_wakeup(struct at_device *device)
     #if L610_DEEP_SLEEP_EN
     if (l610->power_pin != -1)
     {
-        rt_pin_write(me3616->power_pin, PIN_HIGH);
+        rt_pin_write(l610->power_pin, PIN_LOW);
+        rt_thread_mdelay(2000);
+        rt_pin_write(l610->power_pin, PIN_HIGH);
         rt_thread_mdelay(100);
-        rt_pin_write(me3616->power_pin, PIN_LOW);
-        rt_thread_mdelay(200);
     }
     #endif
 
@@ -209,10 +209,10 @@ static int l610_check_link_status(struct at_device *device)
     {
         if (l610->power_pin != -1)
         {
+            rt_pin_write(l610->power_pin, PIN_LOW);
+            rt_thread_mdelay(2000);
             rt_pin_write(l610->power_pin, PIN_HIGH);
             rt_thread_mdelay(100);
-            rt_pin_write(l610->power_pin, PIN_LOW);
-            rt_thread_mdelay(200);
         }
     }
     #endif
@@ -259,7 +259,7 @@ static int l610_check_link_status(struct at_device *device)
 /* set l610 network interface device status and address information */
 static int l610_netdev_set_info(struct netdev *netdev)
 {
-#define L610_IMEI_RESP_SIZE      32
+#define L610_IMEI_RESP_SIZE      64
 #define L610_IPADDR_RESP_SIZE    32
 #define L610_DNS_RESP_SIZE       96
 #define L610_INFO_RESP_TIMO      rt_tick_from_millisecond(300)
