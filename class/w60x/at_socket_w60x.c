@@ -119,6 +119,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         result = -RT_ERROR;
         goto __exit;
     }
+    rt_thread_mdelay(20);
 
     switch (type)
     {
