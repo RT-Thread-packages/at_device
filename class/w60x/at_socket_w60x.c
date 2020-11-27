@@ -425,6 +425,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
+    /* "\n\r\n" left in SERIAL */
+    at_client_obj_recv(client, temp, 3, timeout);
+
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
     {
