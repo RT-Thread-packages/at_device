@@ -148,6 +148,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     if ((result != RT_EOK) || !rt_strstr(at_resp_get_line(resp, 1), "+OK="))
     {
         LOG_D("%s device socket connect failed.", device->name);
+        result = -1;
         goto __exit;
     }
 
