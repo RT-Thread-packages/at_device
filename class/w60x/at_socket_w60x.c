@@ -119,6 +119,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         result = -RT_ERROR;
         goto __exit;
     }
+    rt_thread_mdelay(20);
 
     switch (type)
     {
@@ -148,6 +149,7 @@ static int w60x_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     if ((result != RT_EOK) || !rt_strstr(at_resp_get_line(resp, 1), "+OK="))
     {
         LOG_D("%s device socket connect failed.", device->name);
+        result = -1;
         goto __exit;
     }
 
@@ -422,6 +424,9 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         }
         return;
     }
+
+    /* "\n\r\n" left in SERIAL */
+    at_client_obj_recv(client, temp, 3, timeout);
 
     /* sync receive data */
     if (at_client_obj_recv(client, recv_buf, bfsz, timeout) != bfsz)
