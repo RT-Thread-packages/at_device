@@ -784,7 +784,6 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 
 static const struct at_urc urc_table[] =
 {
-    {"+OK=",  "\r\n", urc_func},
     {"+ERR=", "\r\n", urc_func},
 };
 
