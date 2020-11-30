@@ -218,6 +218,7 @@ static int w60x_socket_send(struct at_socket *socket, const char *buff, size_t b
             cur_pkt_size = W60X_MODULE_SEND_MAX_SIZE;
         }
 
+        rt_thread_mdelay(5);
         /* send the "AT+SKSND" commands */
         if (at_obj_exec_cmd(device->client, resp, "AT+SKSND=%d,%d", w60x_socket_fd[device_socket], cur_pkt_size) < 0)
         {
