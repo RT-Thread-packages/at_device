@@ -58,7 +58,9 @@ static int w60x_socket_close(struct at_socket *socket)
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
+    int wsk = w60x_socket_fd[device_socket];
 
+    w60x_socket_fd[device_socket] = -1;
     resp = at_create_resp(64, 1, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -68,8 +70,7 @@ static int w60x_socket_close(struct at_socket *socket)
 
     at_obj_set_end_sign(device->client, '\r');
 
-    result = at_obj_exec_cmd(device->client, resp, "AT+SKCLS=%d", w60x_socket_fd[device_socket]);
-    w60x_socket_fd[device_socket] = -1;
+    result = at_obj_exec_cmd(device->client, resp, "AT+SKCLS=%d", wsk);
 
     if (resp)
     {
@@ -217,6 +218,7 @@ static int w60x_socket_send(struct at_socket *socket, const char *buff, size_t b
             cur_pkt_size = W60X_MODULE_SEND_MAX_SIZE;
         }
 
+        rt_thread_mdelay(5);
         /* send the "AT+SKSND" commands */
         if (at_obj_exec_cmd(device->client, resp, "AT+SKSND=%d,%d", w60x_socket_fd[device_socket], cur_pkt_size) < 0)
         {
@@ -365,7 +367,7 @@ static const struct at_socket_ops w60x_socket_ops =
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    int device_socket = 0;
+    int device_socket = -1;
     rt_int32_t timeout = 0;
     rt_size_t bfsz = 0, temp_size = 0;
     char *recv_buf = RT_NULL, temp[8] = {0};
@@ -376,6 +378,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_int32_t recv_port = 0;
     rt_uint8_t i;
     char *pos;
+    int wsk;
 
     RT_ASSERT(data && size);
 
@@ -388,11 +391,11 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     /* get the at deveice socket and receive buffer size by receive data */
     pos = rt_strstr(data, "+SKTRPT=");
-    sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &device_socket, (int *) &bfsz, recv_ip, &recv_port);
+    sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &wsk, (int *) &bfsz, recv_ip, &recv_port);
 
     for (i = 0; i < AT_DEVICE_W60X_SOCKETS_NUM; i++)
     {
-        if (device_socket == w60x_socket_fd[i])
+        if (wsk == w60x_socket_fd[i])
         {
             device_socket = i;
             break;
