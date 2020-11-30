@@ -269,7 +269,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
 {
 #define RESOLVE_RETRY        5
 
-    int i, result = RT_EOK;
+    int i, result = -RT_ERROR;
     char recv_ip[16] = { 0 };
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
@@ -298,7 +298,6 @@ static int w60x_domain_resolve(const char *name, char ip[16])
     {
         if (at_obj_exec_cmd(device->client, resp, "AT+SKGHBN=%s", name) < 0)
         {
-            result = -RT_ERROR;
             goto __exit;
         }
 
@@ -323,6 +322,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
         {
             rt_strncpy(ip, recv_ip, 15);
             ip[15] = '\0';
+            result = RT_EOK;
             break;
         }
     }
