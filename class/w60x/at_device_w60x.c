@@ -742,51 +742,6 @@ static int w60x_net_init(struct at_device *device)
     return RT_EOK;
 }
 
-static void urc_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
-
-    RT_ASSERT(client && data && size);
-
-    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
-    if (device == RT_NULL)
-    {
-        LOG_E("get device(%s) failed.", client_name);
-        return;
-    }
-
-    if (w60x_is_join_start && !rt_strncmp(data, "+OK=", rt_strlen("+OK=")))
-    {
-        w60x_is_join_start = RT_FALSE;
-    
-        LOG_I("%s device wifi is connected.", device->name);
-
-        if (device->is_init)
-        {
-            netdev_low_level_set_link_status(device->netdev, RT_TRUE);
-
-            w60x_netdev_start_delay_work(device);
-        }
-    }
-    else if (w60x_is_join_start && !rt_strncmp(data, "+ERR=", rt_strlen("+ERR=")))
-    {
-        w60x_is_join_start = RT_FALSE;
-
-        LOG_I("%s device wifi is disconnect.", device->name);
-
-        if (device->is_init)
-        {
-            netdev_low_level_set_link_status(device->netdev, RT_FALSE);
-        }
-    }
-}
-
-static const struct at_urc urc_table[] =
-{
-    {"+ERR=", "\r\n", urc_func},
-};
-
 static int w60x_init(struct at_device *device)
 {
     struct at_device_w60x *w60x = (struct at_device_w60x *) device->user_data;
@@ -800,9 +755,6 @@ static int w60x_init(struct at_device *device)
         LOG_E("get AT client(%s) failed.", w60x->client_name);
         return -RT_ERROR;
     }
-
-    /* register URC data execution function  */
-    at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
 #ifdef AT_USING_SOCKET
     w60x_socket_init(device);
