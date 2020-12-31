@@ -178,7 +178,7 @@ if GetDepend(['AT_DEVICE_USING_M5311']):
 # N720
 if GetDepend(['AT_DEVICE_USING_N720']):
     path += [cwd + '/class/n720']
-    src += Glob('class/N720/at_device_n720.c')
+    src += Glob('class/n720/at_device_n720.c')
     if GetDepend(['AT_USING_SOCKET']):
         src += Glob('class/n720/at_socket_n720.c')
     if GetDepend(['AT_DEVICE_N720_SAMPLE']):
