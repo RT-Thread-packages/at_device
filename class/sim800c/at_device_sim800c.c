@@ -767,6 +767,11 @@ static void sim800c_init_thread_entry(void *parameter)
             /* "CT" */
             LOG_I("%s device network operator: %s", device->name, parsed_data);
         }
+        else
+        {
+            AT_SEND_CMD(client, resp, 0, 300, "AT+CSTT");
+            LOG_I("%s device network operator: %s", device->name, parsed_data);
+        }
 
         /* the device default response timeout is 150 seconds, but it set to 20 seconds is convenient to use. */
         AT_SEND_CMD(client, resp, 0, 20 * 1000, "AT+CIICR");
