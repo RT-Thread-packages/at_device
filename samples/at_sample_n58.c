@@ -42,7 +42,7 @@ static struct at_device_n58 sim0 =
 static int n58_device_register(void)
 {
     struct at_device_n58 *n58 = &sim0;
-    
+
     return at_device_register(&(n58->device),
                               n58->device_name,
                               n58->client_name,

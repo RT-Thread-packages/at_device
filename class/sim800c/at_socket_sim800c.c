@@ -86,11 +86,11 @@ static int sim800c_socket_close(struct at_socket *socket)
     int result = RT_EOK;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     /* clear socket close event */
     event = SET_EVENT(device_socket, SIM800C_EVNET_CLOSE_OK);
     sim800c_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     if (at_obj_exec_cmd(device->client, NULL, "AT+CIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
@@ -104,7 +104,7 @@ static int sim800c_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-__exit:    
+__exit:
     return result;
 }
 

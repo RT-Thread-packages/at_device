@@ -49,7 +49,7 @@ struct at_device_ec200x
 
     void *socket_data;
     void *user_data;
-    
+
     rt_bool_t power_status;
     rt_bool_t sleep_status;
 };

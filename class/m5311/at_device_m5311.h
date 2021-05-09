@@ -21,7 +21,7 @@
  * Date           Author       Notes
  * 2020-03-09     LXGMAX     first version
  */
- 
+
 #ifndef __AT_DEVICE_M5311_H__
 #define __AT_DEVICE_M5311_H__
 
@@ -43,7 +43,7 @@ struct at_device_m5311{
         int power_pin;
         size_t recieve_line_num;
         struct at_device device;
-        
+
         void *socket_data;
         void *user_data;
 };

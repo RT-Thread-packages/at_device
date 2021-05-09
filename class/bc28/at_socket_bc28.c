@@ -207,7 +207,7 @@ static int bc28_socket_close(struct at_socket *socket)
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
-    
+
     result = at_obj_exec_cmd(device->client, resp, "AT+NSOCL=%d", device_socket);
     if (result < 0)
     {
@@ -217,7 +217,7 @@ static int bc28_socket_close(struct at_socket *socket)
     {
         LOG_D("%s device close socket(%d).", device->name, device_socket);
     }
-    
+
     at_delete_resp(resp);
 
     return result;
@@ -363,7 +363,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         }
 
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds*/
-        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
+        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0),
                                    30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_D("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
@@ -373,7 +373,7 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         }
 
         /* waiting OK or failed result */
-        event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL, 
+        event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL,
                                               1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result & BC28_EVENT_CONN_FAIL)
         {
@@ -410,7 +410,7 @@ __exit:
  *          -2: waited socket event timeout
  *          -5: no memory
  */
-static int bc28_socket_send(struct at_socket *socket, const char *buff, 
+static int bc28_socket_send(struct at_socket *socket, const char *buff,
                             size_t bfsz, enum at_socket_type type)
 {
     uint32_t event = 0;
@@ -465,7 +465,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         {
         case AT_SOCKET_TCP:
             /* AT+NSOSD=<socket>,<length>,<data>[,<flag>[,<sequence>]] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%s,0x100,1", device_socket, 
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOSD=%d,%d,%s,0x100,1", device_socket,
                                 (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
@@ -476,7 +476,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         case AT_SOCKET_UDP:
             /* AT+NSOST=<socket>,<remote_addr>,<remote_port>,<length>,<data>[,<sequence>] */
-            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%s,%d,%d,%s,1", device_socket, 
+            if (at_obj_exec_cmd(device->client, resp, "AT+NSOST=%d,%s,%d,%d,%s,1", device_socket,
                                 ip, port, (int)cur_pkt_size, hex_data) < 0)
             {
                 result = -RT_ERROR;
@@ -484,7 +484,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             }
             LOG_D("%s device udp socket(%d) send %d bytes to %s:%d.\n>> %s", device->name, device_socket, ip, port, (int)cur_pkt_size, hex_data);
             break;
-        
+
         default:
             LOG_E("not supported send type %d.", type);
             result = -RT_ERROR;
@@ -516,7 +516,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         }
 
         /* waiting result event from AT URC, the device default timeout is 60 seconds*/
-        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0), 
+        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0),
                                    60 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
         {
             LOG_E("%s device socket(%d) wait send result timeout.", device->name, device_socket);
@@ -524,7 +524,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
             goto __exit;
         }
         /* waiting OK or failed result */
-        event_result = bc28_socket_event_recv(device, BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL, 
+        event_result = bc28_socket_event_recv(device, BC28_EVENT_SEND_OK | BC28_EVENT_SEND_FAIL,
                                               1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result & BC28_EVENT_SEND_FAIL)
         {
@@ -591,7 +591,7 @@ int bc28_domain_resolve(const char *name, char ip[16])
 
     /* clear BC28_EVENT_DOMAIN_OK */
     bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
-    
+
     bc28 = (struct at_device_bc28 *) device->user_data;
     bc28->socket_data = ip;
 
@@ -604,7 +604,7 @@ int bc28_domain_resolve(const char *name, char ip[16])
     for(i = 0; i < RESOLVE_RETRY; i++)
     {
         /* waiting result event from AT URC, the device default connection timeout is 30 seconds.*/
-        event_result = bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK | BC28_EVENT_DOMAIN_FAIL, 
+        event_result = bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK | BC28_EVENT_DOMAIN_FAIL,
                                               30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
         if (event_result < 0)
         {
@@ -695,7 +695,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     sscanf(data, "+NSOSTR:%d,%d,%d", &device_socket, &sequence, &status);
-    
+
     if (1 == status)
     {
         bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_SEND_OK));
@@ -725,7 +725,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     sscanf(data, "+NSOCLI: %d", &device_socket);
 
     bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
-    
+
     if (device_socket >= 0)
     {
         /* get at socket object by device socket descriptor */
@@ -832,7 +832,7 @@ static void urc_dns_func(struct at_client *client, const char *data, rt_size_t s
         LOG_E("get device(%s) failed.", client_name);
         return;
     }
-    
+
     bc28 = (struct at_device_bc28 *) device->user_data;
     if (bc28->socket_data == RT_NULL)
     {

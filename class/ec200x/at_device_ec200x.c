@@ -54,7 +54,7 @@ static int ec200x_power_on(struct at_device *device)
     {
         return(RT_EOK);
     }
-    
+
     rt_pin_write(ec200x->power_pin, PIN_HIGH);
 
     if (ec200x->power_status_pin != -1)//use power status pin
@@ -64,11 +64,11 @@ static int ec200x_power_on(struct at_device *device)
             rt_thread_mdelay(10);
         }
     }
-    
+
     rt_thread_mdelay(500);
-    
+
     rt_pin_write(ec200x->power_pin, PIN_LOW);
-    
+
     ec200x->power_status = RT_TRUE;
 
     return(RT_EOK);
@@ -98,7 +98,7 @@ static int ec200x_power_off(struct at_device *device)
         rt_pin_write(ec200x->power_pin, PIN_HIGH);
         rt_thread_mdelay(1000);
         rt_pin_write(ec200x->power_pin, PIN_LOW);
-        
+
         while (rt_pin_read(ec200x->power_status_pin) == PIN_HIGH)//wait power down
         {
             rt_thread_mdelay(100);
@@ -109,9 +109,9 @@ static int ec200x_power_off(struct at_device *device)
         at_obj_exec_cmd(device->client, RT_NULL, "AT+QPOWD=0");
         rt_thread_mdelay(5*1000);
     }
-    
+
     ec200x->power_status = RT_FALSE;
-    
+
     return(RT_EOK);
 }
 
@@ -119,13 +119,13 @@ static int ec200x_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_ec200x *ec200x = RT_NULL;
-    
+
     ec200x = (struct at_device_ec200x *)device->user_data;
     if ( ! ec200x->power_status)//power off
     {
         return(RT_EOK);
     }
-    if (ec200x->sleep_status)//is sleep status 
+    if (ec200x->sleep_status)//is sleep status
     {
         return(RT_EOK);
     }
@@ -141,22 +141,22 @@ static int ec200x_sleep(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)//enable sleep mode
-        
+
     {
         LOG_D("enable sleep fail.\"AT+QSCLK=1\" execute fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
-    
+
     at_delete_resp(resp);
     */
-    
+
     rt_pin_write(ec200x->wakeup_pin, PIN_HIGH);
-    
+
     ec200x->sleep_status = RT_TRUE;
-    
+
     return(RT_EOK);
 }
 
@@ -164,7 +164,7 @@ static int ec200x_wakeup(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_ec200x *ec200x = RT_NULL;
-    
+
     ec200x = (struct at_device_ec200x *)device->user_data;
     if ( ! ec200x->power_status)//power off
     {
@@ -194,9 +194,9 @@ static int ec200x_wakeup(struct at_device *device)
     }
     at_delete_resp(resp);
     */
-    
+
     ec200x->sleep_status = RT_FALSE;
-    
+
     return(RT_EOK);
 }
 
@@ -205,7 +205,7 @@ static int ec200x_check_link_status(struct at_device *device)
     at_response_t resp = RT_NULL;
     struct at_device_ec200x *ec200x = RT_NULL;
     int result = -RT_ERROR;
-    
+
     ec200x = (struct at_device_ec200x *)device->user_data;
     if ( ! ec200x->power_status)//power off
     {
@@ -217,7 +217,7 @@ static int ec200x_check_link_status(struct at_device *device)
         rt_pin_write(ec200x->wakeup_pin, PIN_LOW);
         rt_thread_mdelay(200);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -237,14 +237,14 @@ static int ec200x_check_link_status(struct at_device *device)
             }
         }
     }
-    
+
     at_delete_resp(resp);
-    
+
     if (ec200x->sleep_status)//is sleep status
     {
         rt_pin_write(ec200x->wakeup_pin, PIN_HIGH);
     }
-    
+
     return(result);
 }
 
@@ -297,14 +297,14 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args(resp, 2, "%s", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("%s device IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = EC200X_NETDEV_HWADDR_LEN;
@@ -326,7 +326,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         /* send "AT+CGPADDR=1" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") != RT_EOK)
         {
@@ -348,12 +348,12 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
-    
+
     /* set network interface device dns server */
     {
         #define DNS_ADDR_SIZE_MAX   16
         char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
-        
+
         /* send "AT+QIDNSCFG=1" commond to get DNS servers address */
         if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=1") != RT_EOK)
         {
@@ -403,7 +403,7 @@ static void ec200x_check_link_status_entry(void *parameter)
         LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
-    
+
     while (1)
     {
         rt_thread_delay(EC200X_LINK_DELAY_TIME);
@@ -514,7 +514,7 @@ static int ec200x_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, 
     }
 
     /* send "AT+QIDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
-    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s", 
+    if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=%d,%s",
         dns_num, inet_ntoa(*dns_server)) != RT_EOK)
     {
         result = -RT_ERROR;
@@ -639,7 +639,7 @@ static struct netdev *ec200x_netdev_add(const char *netdev_name)
     {
         return netdev;
     }
-    
+
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -702,14 +702,14 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-        
+
         /* disable echo */
         if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Get the baudrate */
         if (at_obj_exec_cmd(device->client, resp, "AT+IPR?") != RT_EOK)
         {
@@ -717,8 +717,8 @@ static void ec200x_init_thread_entry(void *parameter)
             goto __exit;
         }
         at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
-        LOG_D("%s device baudrate %d", device->name, i);     
-        
+        LOG_D("%s device baudrate %d", device->name, i);
+
         /* get module version */
         if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
         {
@@ -729,7 +729,7 @@ static void ec200x_init_thread_entry(void *parameter)
         {
             LOG_D("%s", at_resp_get_line(resp, i + 1));
         }
-        
+
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
@@ -754,7 +754,7 @@ static void ec200x_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
             {
                 int signal_strength = 0, err_rate = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &signal_strength, &err_rate) > 0)
                 {
                     if ((signal_strength != 99) && (signal_strength != 0))
@@ -772,7 +772,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-                
+
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
@@ -780,7 +780,7 @@ static void ec200x_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") == RT_EOK)
             {
                 int link_stat = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %*d,%d", &link_stat) > 0)
                 {
                     if ((link_stat == 1) || (link_stat == 5))
@@ -813,7 +813,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Deactivate context profile */
         resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(40*1000));
         if (at_obj_exec_cmd(device->client, resp, "AT+QIDEACT=1") != RT_EOK)
@@ -821,7 +821,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Activate context profile */
         resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(150*1000));
         if (at_obj_exec_cmd(device->client, resp, "AT+QIACT=1") != RT_EOK)
@@ -895,9 +895,9 @@ static int ec200x_net_init(struct at_device *device)
 static int ec200x_init(struct at_device *device)
 {
     struct at_device_ec200x *ec200x = RT_NULL;
-    
+
     RT_ASSERT(device);
-    
+
     ec200x = (struct at_device_ec200x *) device->user_data;
     ec200x->power_status = RT_FALSE;//default power is off.
     ec200x->sleep_status = RT_FALSE;//default sleep is disabled.
@@ -948,7 +948,7 @@ static int ec200x_init(struct at_device *device)
 static int ec200x_deinit(struct at_device *device)
 {
     RT_ASSERT(device);
-    
+
     return ec200x_netdev_set_down(device->netdev);
 }
 

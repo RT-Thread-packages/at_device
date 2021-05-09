@@ -23,7 +23,7 @@
  * 2020-07-12     LXGMAX       fix parameters and remove redundant content
  * 2020-07-31     LXGMAX       fix a bug of connect function
  */
- 
+
 #include <stdio.h>
 #include <string.h>
 

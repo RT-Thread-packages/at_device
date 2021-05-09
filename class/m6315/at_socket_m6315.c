@@ -87,11 +87,11 @@ static int m6315_socket_close(struct at_socket *socket)
     int result = RT_EOK;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    
+
     /* clear socket close event */
     event = SET_EVENT(device_socket, M6315_EVNET_CLOSE_OK);
     m6315_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     if (at_obj_exec_cmd(device->client, NULL, "AT+QICLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
@@ -105,7 +105,7 @@ static int m6315_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-__exit:    
+__exit:
     return result;
 }
 
@@ -383,7 +383,7 @@ static int m6315_domain_resolve(const char *name, char ip[16])
         {
             rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */
-            continue;            
+            continue;
         }
 
         if (rt_strlen(recv_ip) < 8)
@@ -444,7 +444,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     {
         m6315_socket_event_send(device, SET_EVENT(device_socket, M6315_EVENT_CONN_ALREADY));
         return;
-    }    
+    }
 
     /* get the current socket by receive data */
     sscanf(data, "%d,%*s", &device_socket);

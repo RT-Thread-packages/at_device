@@ -42,7 +42,7 @@ static struct at_device_air720 sim0 =
 static int air720_device_register(void)
 {
     struct at_device_air720 *air720 = &sim0;
-    
+
     return at_device_register(&(air720->device),
                               air720->device_name,
                               air720->client_name,

@@ -93,7 +93,7 @@ static int n720_socket_close(struct at_socket *socket)
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
-    
+
     result = at_obj_exec_cmd(device->client, resp, "AT$MYNETCLOSE=%d", device_socket);
 
     at_delete_resp(resp);
@@ -151,21 +151,21 @@ static int n720_socket_connect(struct at_socket *socket, char *ip, int32_t port,
         LOG_E("no memory for resp create.");
         return -RT_ENOMEM;
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT$MYNETSRV=0,%d,%d,0,\"%s:%d\"", device_socket, type_val, ip, port) < 0)
     {
         at_delete_resp(resp);
         LOG_E("%s device socket(%d) config params fail.", device->name, device_socket);
         return -RT_ERROR;
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT$MYNETOPEN=%d", device_socket) < 0)
     {
         at_delete_resp(resp);
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
         result = -RT_ERROR;
     }
-    
+
     at_delete_resp(resp);
     return RT_EOK;
 }
@@ -273,19 +273,19 @@ static int n720_socket_send(struct at_socket *socket, const char *buff, size_t b
         {
             cur_pkt_size = N720_MODULE_SEND_MAX_SIZE;
         }
-        
+
         if (at_obj_exec_cmd(device->client, resp, "AT$MYNETWRITE=%d,%d", device_socket, (int)cur_pkt_size) < 0)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_get_line_by_kw(resp, "$MYNETWRITE:") == RT_NULL)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* send the real data to server or client */
         result = (int) at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
