@@ -164,7 +164,7 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     int sock = -1;
-	int connect_result;
+    int connect_result;
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
@@ -229,7 +229,7 @@ static int l610_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = -RT_ERROR;
             goto __exit;
         }
-       
+
     }
     else
     {

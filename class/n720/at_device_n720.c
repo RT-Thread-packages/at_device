@@ -59,7 +59,7 @@ static int n720_power_on(struct at_device *device)
     {
         return(RT_EOK);
     }
-    
+
     rt_pin_write(n720->power_pin, PIN_HIGH);
 
     if (n720->power_status_pin != -1)//use power status pin
@@ -69,11 +69,11 @@ static int n720_power_on(struct at_device *device)
             rt_thread_mdelay(10);
         }
     }
-    
+
     rt_thread_mdelay(1000);
-    
+
     rt_pin_write(n720->power_pin, PIN_LOW);
-    
+
     n720->power_status = RT_TRUE;
 
     return(RT_EOK);
@@ -84,7 +84,7 @@ static int n720_power_off(struct at_device *device)
     struct at_device_n720 *n720 = RT_NULL;
 
     n720 = (struct at_device_n720 *)device->user_data;
-    
+
     if (n720->power_ctrl)
     {
         n720->power_status = RT_FALSE;
@@ -111,7 +111,7 @@ static int n720_power_off(struct at_device *device)
         rt_pin_write(n720->power_pin, PIN_HIGH);
         rt_thread_mdelay(1000);
         rt_pin_write(n720->power_pin, PIN_LOW);
-        
+
         while (rt_pin_read(n720->power_status_pin) == PIN_HIGH)//wait power down
         {
             rt_thread_mdelay(100);
@@ -122,9 +122,9 @@ static int n720_power_off(struct at_device *device)
         at_obj_exec_cmd(device->client, RT_NULL, "$MYPOWEROFF");
         rt_thread_mdelay(5*1000);
     }
-    
+
     n720->power_status = RT_FALSE;
-    
+
     return(RT_EOK);
 }
 
@@ -132,13 +132,13 @@ static int n720_sleep(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_n720 *n720 = RT_NULL;
-    
+
     n720 = (struct at_device_n720 *)device->user_data;
     if ( ! n720->power_status)//power off
     {
         return(RT_EOK);
     }
-    if (n720->sleep_status)//is sleep status 
+    if (n720->sleep_status)//is sleep status
     {
         return(RT_EOK);
     }
@@ -154,22 +154,22 @@ static int n720_sleep(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(-RT_ERROR);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+QSCLK=1") != RT_EOK)//enable sleep mode
-        
+
     {
         LOG_D("enable sleep fail.\"AT+QSCLK=1\" execute fail.");
         at_delete_resp(resp);
         return(-RT_ERROR);
     }
-    
+
     at_delete_resp(resp);
     */
-    
+
     rt_pin_write(n720->wakeup_pin, PIN_HIGH);
-    
+
     n720->sleep_status = RT_TRUE;
-    
+
     return(RT_EOK);
 }
 
@@ -177,7 +177,7 @@ static int n720_wakeup(struct at_device *device)
 {
     at_response_t resp = RT_NULL;
     struct at_device_n720 *n720 = RT_NULL;
-    
+
     n720 = (struct at_device_n720 *)device->user_data;
     if ( ! n720->power_status)//power off
     {
@@ -207,9 +207,9 @@ static int n720_wakeup(struct at_device *device)
     }
     at_delete_resp(resp);
     */
-    
+
     n720->sleep_status = RT_FALSE;
-    
+
     return(RT_EOK);
 }
 
@@ -218,7 +218,7 @@ static int n720_check_link_status(struct at_device *device)
     at_response_t resp = RT_NULL;
     struct at_device_n720 *n720 = RT_NULL;
     int result = -RT_ERROR;
-    
+
     n720 = (struct at_device_n720 *)device->user_data;
     if ( ! n720->power_status)//power off
     {
@@ -230,7 +230,7 @@ static int n720_check_link_status(struct at_device *device)
         rt_pin_write(n720->wakeup_pin, PIN_LOW);
         rt_thread_mdelay(200);
     }
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
@@ -250,14 +250,14 @@ static int n720_check_link_status(struct at_device *device)
             }
         }
     }
-    
+
     at_delete_resp(resp);
-    
+
     if (n720->sleep_status)//is sleep status
     {
         rt_pin_write(n720->wakeup_pin, PIN_HIGH);
     }
-    
+
     return(result);
 }
 
@@ -310,14 +310,14 @@ static int n720_netdev_set_info(struct netdev *netdev)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (at_resp_parse_line_args_by_kw(resp, "+GSN:", "%*[^\"]\"%[^\"]", imei) <= 0)
         {
             LOG_E("%s device prase \"AT+GSN\" cmd error.", device->name);
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         LOG_D("%s device IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = N720_NETDEV_HWADDR_LEN;
@@ -339,7 +339,7 @@ static int n720_netdev_set_info(struct netdev *netdev)
     {
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-        
+
         /* Get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT?") != RT_EOK)
         {
@@ -359,7 +359,7 @@ static int n720_netdev_set_info(struct netdev *netdev)
         inet_aton(ipaddr, &addr);
         netdev_low_level_set_ipaddr(netdev, &addr);
     }
-    
+
     /* set network interface device dns server */
     {
         #define DNS_ADDR_SIZE_MAX 16
@@ -413,7 +413,7 @@ static void n720_check_link_status_entry(void *parameter)
         LOG_E("get device(%s) failed.", netdev->name);
         return;
     }
-    
+
     while (1)
     {
         rt_thread_delay(N720_LINK_DELAY_TIME);
@@ -649,7 +649,7 @@ static struct netdev *n720_netdev_add(const char *netdev_name)
     {
         return netdev;
     }
-    
+
     netdev = (struct netdev *)rt_calloc(1, sizeof(struct netdev));
     if (netdev == RT_NULL)
     {
@@ -712,14 +712,14 @@ static void n720_init_thread_entry(void *parameter)
             goto __exit;
         }
         rt_thread_mdelay(5000);
-        
+
         /* disable echo */
         if (at_obj_exec_cmd(device->client, resp, "ATE0") != RT_EOK)
         {
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Get the baudrate */
         if (at_obj_exec_cmd(device->client, resp, "AT+IPR?") != RT_EOK)
         {
@@ -727,8 +727,8 @@ static void n720_init_thread_entry(void *parameter)
             goto __exit;
         }
         at_resp_parse_line_args_by_kw(resp, "+IPR:", "+IPR: %d", &i);
-        LOG_D("%s device baudrate %d", device->name, i);     
-        
+        LOG_D("%s device baudrate %d", device->name, i);
+
         /* get module version */
         if (at_obj_exec_cmd(device->client, resp, "ATI") != RT_EOK)
         {
@@ -739,7 +739,7 @@ static void n720_init_thread_entry(void *parameter)
         {
             LOG_D("%s", at_resp_get_line(resp, i + 1));
         }
-        
+
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
@@ -764,7 +764,7 @@ static void n720_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
             {
                 int signal_strength = 0, err_rate = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d,%d", &signal_strength, &err_rate) > 0)
                 {
                     if ((signal_strength != 99) && (signal_strength != 0))
@@ -782,7 +782,7 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-                
+
         /* check the GPRS network is registered */
         for (i = 0; i < CGREG_RETRY; i++)
         {
@@ -790,7 +790,7 @@ static void n720_init_thread_entry(void *parameter)
             if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") == RT_EOK)
             {
                 int link_stat = 0;
-                
+
                 if (at_resp_parse_line_args_by_kw(resp, "+CGREG:", "+CGREG: %*d,%d", &link_stat) > 0)
                 {
                     if ((link_stat == 1) || (link_stat == 5))
@@ -807,7 +807,7 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         if (((struct at_device_n720 *)(device->user_data))->wakeup_pin != -1)//use wakeup pin
         {
             if (at_obj_exec_cmd(device->client, resp, "AT+ENPWRSAVE=1") != RT_EOK)// enable sleep mode fail
@@ -816,7 +816,7 @@ static void n720_init_thread_entry(void *parameter)
                 goto __exit;
             }
         }
-        
+
         /* Activate context profile */
         resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(30*1000));
         if (at_obj_exec_cmd(device->client, resp, "AT+CGATT=1") != RT_EOK)
@@ -824,7 +824,7 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Activate PPP */
         resp = at_resp_set_info(resp, RESP_SIZE, 0, rt_tick_from_millisecond(30*1000));
         if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT=0,1") != RT_EOK)
@@ -832,12 +832,12 @@ static void n720_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* Get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT$MYNETACT?") == RT_EOK)
         {
             char ip_str[20];
-            
+
             if (at_resp_parse_line_args_by_kw(resp, "$MYNETACT:", "$MYNETACT: %*[^\"]\"%[^\"]", ip_str) <= 0)
             {
                 result = -RT_ERROR;
@@ -910,9 +910,9 @@ static int n720_net_init(struct at_device *device)
 static int n720_init(struct at_device *device)
 {
     struct at_device_n720 *n720 = RT_NULL;
-    
+
     RT_ASSERT(device);
-    
+
     n720 = (struct at_device_n720 *) device->user_data;
     n720->power_status = RT_FALSE;//default power is off.
     n720->sleep_status = RT_FALSE;//default sleep is disabled.
@@ -963,7 +963,7 @@ static int n720_init(struct at_device *device)
 static int n720_deinit(struct at_device *device)
 {
     RT_ASSERT(device);
-    
+
     return n720_netdev_set_down(device->netdev);
 }
 

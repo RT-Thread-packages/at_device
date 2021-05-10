@@ -86,7 +86,7 @@ static int m26_socket_close(struct at_socket *socket)
     int result = 0;
     int device_socke = (int) socket->user_data;
     struct at_device *device  = (struct at_device *) socket->device;
-    
+
     /* clear socket close event */
     m26_socket_event_recv(device, SET_EVENT(device_socke, M26_EVNET_CLOSE_OK), 0, RT_EVENT_FLAG_OR);
 

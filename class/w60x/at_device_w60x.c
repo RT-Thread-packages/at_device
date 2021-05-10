@@ -154,7 +154,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
     }
 
     pos = rt_strstr(resp->buf, "+OK=");
- 
+
     /* parse response data, get the DHCP status */
     if (!pos)
     {
@@ -511,7 +511,7 @@ void w60x_netdev_netstat(struct netdev *netdev)
 {
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
- 
+
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
     {

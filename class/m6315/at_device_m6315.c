@@ -413,7 +413,7 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
     int sent, recv, lost, min, max, avg;
-		
+
     RT_ASSERT(netdev);
     RT_ASSERT(host);
     RT_ASSERT(ping_resp);
@@ -441,14 +441,14 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
     {
     case 0:
         if (at_resp_parse_line_args(resp, 4, "+QPING: %d, %[^,], %d, %d, %d",
-            &response, ip_addr, &bytes, &time, &ttl) != RT_NULL) 
+            &response, ip_addr, &bytes, &time, &ttl) != RT_NULL)
         {
             /* ping result reponse at the sixth line */
             if (at_resp_parse_line_args(resp, 6, "+QPING: %d, %d, %d, %d, %d, %d, %d",
-                 &response, &sent, &recv, &lost, &min, &max, &avg) != RT_NULL) 
+                 &response, &sent, &recv, &lost, &min, &max, &avg) != RT_NULL)
             {
                 // ping result 2
-                if (response == 2)  
+                if (response == 2)
                 {
                     inet_aton(ip_addr, &(ping_resp->ip_addr));
                     ping_resp->data_len = bytes;
@@ -473,7 +473,7 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
         break;
     default:
         break;
-    }    
+    }
 
 
  __exit:
@@ -566,7 +566,7 @@ static void m6315_init_thread_entry(void *parameter)
     struct at_device *device = (struct at_device *)parameter;
     struct at_client *client = device->client;
 
-    resp = at_create_resp(128, 0, rt_tick_from_millisecond(500));   
+    resp = at_create_resp(128, 0, rt_tick_from_millisecond(500));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -588,7 +588,7 @@ static void m6315_init_thread_entry(void *parameter)
             result = -RT_ETIMEOUT;
             goto __exit;
         }
-								
+
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, 300, "ATE0");
         /* get module version */
@@ -662,7 +662,7 @@ static void m6315_init_thread_entry(void *parameter)
 
         /* Define PDP Context */
         for (i = 0; i < COMMON_RETRY; i++)
-        {            
+        {
             if (at_obj_exec_cmd(device->client, resp, "AT+CGDCONT=1,\"IP\",\"CMNET\"") == RT_EOK)
             {
                 LOG_D("%s device Define PDP Context Success.", device->name);
@@ -679,7 +679,7 @@ static void m6315_init_thread_entry(void *parameter)
 
         /* PDP Context Activate*/
         for (i = 0; i < COMMON_RETRY; i++)
-        {            
+        {
             if (at_obj_exec_cmd(device->client, resp, "AT+CGACT=1,1") == RT_EOK)
             {
                 LOG_D("%s device PDP Context Activate Success.", device->name);
@@ -735,12 +735,12 @@ static void m6315_init_thread_entry(void *parameter)
 
         /* check the GPRS network IP address */
         for (i = 0; i < IPADDR_RETRY; i++)
-        {            
+        {
             if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") == RT_EOK)
             {
                 #define IP_ADDR_SIZE_MAX    16
                 char ipaddr[IP_ADDR_SIZE_MAX] = {0};
-                
+
                 /* parse response data "+CGPADDR: 1,<IP_address>" */
                 if (at_resp_parse_line_args_by_kw(resp, "+CGPADDR:", "+CGPADDR: %*d,%s", ipaddr) > 0)
                 {
@@ -766,22 +766,22 @@ static void m6315_init_thread_entry(void *parameter)
         }
         else if (qimux == 1)
         {
-            /* Close Already Opened GPRS/CSD PDP*/                         
+            /* Close Already Opened GPRS/CSD PDP*/
             AT_SEND_CMD(device->client, resp, 2, 300, "AT+QIDEACT");
             if (at_resp_get_line_by_kw(resp, "DEACT OK") == RT_NULL)
             {
                 LOG_E("%s device prase \"AT+QIDEACT\" cmd error.", device->name);
                 result = -RT_ERROR;
                 goto __exit;
-            }                   
+            }
         }
-        
+
         /* Start task & set entry point default apn,username,password */
         if (at_obj_exec_cmd(device->client, resp, "AT+QIREGAPP") < 0)
         {
             LOG_E("%s device Start task & set default params failed.", device->name);
             result = -RT_ERROR;
-            goto __exit;            
+            goto __exit;
         }
 
         /* PDP Context Activate */
@@ -790,7 +790,7 @@ static void m6315_init_thread_entry(void *parameter)
             LOG_E("%s device PDP Context Activate failed.", device->name);
             result = -RT_ERROR;
             goto __exit;
-        }          
+        }
 
         /* initialize successfully  */
         result = RT_EOK;

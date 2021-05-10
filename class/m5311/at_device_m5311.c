@@ -71,7 +71,7 @@ static void m5311_power_off(struct at_device *device)
 
 /* ====================  m5311 network interface operations ================= */
 /* set m5311 network interface device status and address information
- * 
+ *
  * */
 static int m5311_netdev_set_info(struct netdev *netdev)
 {
@@ -100,7 +100,7 @@ static int m5311_netdev_set_info(struct netdev *netdev)
     netdev_low_level_set_status(netdev, RT_TRUE);
     netdev_low_level_set_link_status(netdev, RT_TRUE);
     netdev_low_level_set_dhcp_status(netdev, RT_TRUE);
-    
+
     resp = at_create_resp(M5311_IMEI_RESP_SIZE, 0, M5311_INFO_RESP_TIMO);
     if (resp == RT_NULL)
     {
@@ -177,7 +177,7 @@ static int m5311_netdev_set_info(struct netdev *netdev)
     }
 
     /*  set network interface device dns server
-     *     
+     *
      * */
     {
         #define DNS_ADDR_SIZE_MAX   16
@@ -220,7 +220,7 @@ __exit:
 
 /**
  * Check link status task entry
- * 
+ *
  * @param parameter
  */
 static void check_link_status_entry(void *parameter)

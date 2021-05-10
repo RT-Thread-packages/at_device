@@ -216,7 +216,7 @@ static int sim76xx_socket_connect(struct at_socket *socket, char *ip, int32_t po
         return -RT_ENOMEM;
     }
 
-	rt_mutex_take(lock, RT_WAITING_FOREVER);
+    rt_mutex_take(lock, RT_WAITING_FOREVER);
 
     /* check and close current socket */
     sim76xx_socket_close(socket);
@@ -274,7 +274,7 @@ __retry:
             LOG_D("socket(%d) connect failed, the socket was not be closed and now will connect retry.", device_socket);
             if (sim76xx_socket_close(socket) < 0)
             {
-			    result = -RT_ERROR;
+                result = -RT_ERROR;
                 goto __exit;
             }
             retryed = RT_TRUE;

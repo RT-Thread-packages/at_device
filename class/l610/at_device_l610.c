@@ -35,7 +35,7 @@
 
 
 #ifndef L610_DEEP_SLEEP_EN
-#define L610_DEEP_SLEEP_EN          0//module support  sleep mode
+#define L610_DEEP_SLEEP_EN          0 //module support sleep mode
 #endif
 
 #ifdef AT_DEVICE_USING_L610
@@ -810,7 +810,7 @@ static void l610_init_thread_entry(void *parameter)
         }
 
 // 0: Received data with "+MIPRTCP:" or "+MIPRUDP:" and the data is encoded.
-// 1: Received data only and the data are without encoded. In received character string, Module doesn’t accede to any <CR><LF> symbol.
+// 1: Received data only and the data are without encoded. In received character string, Module doesn't accede to any <CR><LF> symbol.
 // 2: Received data with "+MIPRTCP:" or "+MIPRUDP:" and the data is without encoded. In received character string, Module will accede to <CR><LF> before "+MIPRTCP:" or "+MIPRUDP:".
 // 5: Data read mode.
         /* */

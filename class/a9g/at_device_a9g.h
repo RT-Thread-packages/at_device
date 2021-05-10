@@ -21,7 +21,7 @@
  * Date           Author       Notes
  * 2019-11-23     luliang    first version
  */
- 
+
 #ifndef __A9G_DEVICE_H__
 #define __A9G_DEVICE_H__
 
@@ -34,19 +34,19 @@ extern "C" {
 #include <at_device.h>
 
 /* The maximum number of sockets supported by the a9g device */
-#define AT_DEVICE_A9G_SOCKETS_NUM		8
+#define AT_DEVICE_A9G_SOCKETS_NUM       8
 
 struct at_device_a9g
 {
-	char *device_name;
-	char *client_name;
-	
-	int power_pin;
-	int power_status_pin;
-	size_t recv_line_num;
-	struct at_device device;
-	
-	void *user_data;
+    char *device_name;
+    char *client_name;
+
+    int power_pin;
+    int power_status_pin;
+    size_t recv_line_num;
+    struct at_device device;
+
+    void *user_data;
 };
 
 #ifdef AT_USING_SOCKET
@@ -64,4 +64,4 @@ int a9g_socket_class_register(struct at_device_class *class);
 #endif
 
 
-#endif	/*	__AT_DEVICE_A9G_H__*/
+#endif  /*  __AT_DEVICE_A9G_H__*/

@@ -37,7 +37,7 @@ extern "C" {
 #define AT_DEVICE_N58_SOCKETS_NUM      4
 
 struct at_device_n58
-{     
+{
     char *device_name;
     char *client_name;
 
