@@ -130,7 +130,7 @@ static int n720_power_off(struct at_device *device)
 
 static int n720_sleep(struct at_device *device)
 {
-    at_response_t resp = RT_NULL;
+    //at_response_t resp = RT_NULL;
     struct at_device_n720 *n720 = RT_NULL;
 
     n720 = (struct at_device_n720 *)device->user_data;
@@ -175,7 +175,7 @@ static int n720_sleep(struct at_device *device)
 
 static int n720_wakeup(struct at_device *device)
 {
-    at_response_t resp = RT_NULL;
+    //at_response_t resp = RT_NULL;
     struct at_device_n720 *n720 = RT_NULL;
 
     n720 = (struct at_device_n720 *)device->user_data;

@@ -51,25 +51,6 @@ static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_CLOSED] = NULL,
 };
 
-static int n720_socket_event_send(struct at_device *device, uint32_t event)
-{
-    return (int) rt_event_send(device->socket_event, event);
-}
-
-static int n720_socket_event_recv(struct at_device *device, uint32_t event, uint32_t timeout, rt_uint8_t option)
-{
-    int result = RT_EOK;
-    rt_uint32_t recved;
-
-    result = rt_event_recv(device->socket_event, event, option | RT_EVENT_FLAG_CLEAR, timeout, &recved);
-    if (result != RT_EOK)
-    {
-        return -RT_ETIMEOUT;
-    }
-
-    return recved;
-}
-
 /**
  * close socket by AT commands.
  *
@@ -118,7 +99,6 @@ static int n720_socket_close(struct at_socket *socket)
 static int n720_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     enum at_socket_type type, rt_bool_t is_client)
 {
-    int result = 0;
     int type_val = 0;
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
@@ -163,7 +143,7 @@ static int n720_socket_connect(struct at_socket *socket, char *ip, int32_t port,
     {
         at_delete_resp(resp);
         LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
-        result = -RT_ERROR;
+        return -RT_ERROR;
     }
 
     at_delete_resp(resp);
@@ -240,8 +220,7 @@ static int at_wait_send_finish(struct at_socket *socket, size_t settings_size)
  */
 static int n720_socket_send(struct at_socket *socket, const char *buff, size_t bfsz, enum at_socket_type type)
 {
-    uint32_t event = 0;
-    int result = 0, event_result = 0;
+    int result = 0;
     size_t cur_pkt_size = 0, sent_size = 0;
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
@@ -355,8 +334,6 @@ static int n720_domain_resolve(const char *name, char ip[16])
 
     for (i = 0; i < RESOLVE_RETRY; i++)
     {
-        int err_code = 0;
-
         if (at_obj_exec_cmd(device->client, resp, "AT+DNS=%s", name) < 0)
         {
             result = -RT_ERROR;
@@ -437,14 +414,25 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 }
 
+static void send_net_read(struct at_client *client, int device_socket)
+{
+    char *send_buf = (char *) rt_malloc(128);
+    if (send_buf == RT_NULL)
+    {
+        return;
+    }
+
+    rt_sprintf(send_buf, "AT$MYNETREAD=%d,%d\r\n", device_socket, N720_MODULE_SEND_MAX_SIZE);
+    at_client_obj_send(client, send_buf, strlen(send_buf));
+
+    rt_free(send_buf);
+}
+
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int device_socket = 0;
-    struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
-    char *send_buf = RT_NULL;
-    int len;
 
     RT_ASSERT(data && size);
 
@@ -459,23 +447,15 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     {
         return;
     }
-    send_buf = (char *) rt_malloc(128);
-    if (send_buf == RT_NULL)
-    {
-        return;
-    }
 
-    rt_sprintf(send_buf, "AT$MYNETREAD=%d,%d\r\n", device_socket, N720_MODULE_SEND_MAX_SIZE);
-    at_client_obj_send(client, send_buf, strlen(send_buf));
-
-    rt_free(send_buf);
+    send_net_read(client, device_socket);
 }
 
 static void read_ack_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int device_socket = 0;
     rt_int32_t timeout;
-    rt_size_t bfsz = 0, temp_size = 0;
+    int bfsz = 0, temp_size = 0;
     char *recv_buf = RT_NULL, temp[8] = {0};
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
@@ -536,7 +516,8 @@ static void read_ack_func(struct at_client *client, const char *data, rt_size_t 
     {
         at_evt_cb_set[AT_SOCKET_EVT_RECV](socket, AT_SOCKET_EVT_RECV, recv_buf, bfsz);
     }
-
+    
+    send_net_read(client, device_socket);
 }
 
 static const struct at_urc urc_table[] =
