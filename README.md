@@ -79,7 +79,7 @@ Open the AT device software package. This version only supports **Enable one AT 
 
 - **Enable at device init by thread**: Configure whether to enable the device network initialization to be completed by creating a thread;
 
-- **AT socket device modules**: AT device selection, currently supports RW007, ESP8266, M26/MC20, EC20, SIM800C, SIM76XX, A9/A9G, BC26, air720, ME3616, M6315, BC28, EC200X, M5311 and other devices;
+- **AT socket device modules**: AT device selection, currently only supports RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX. More device support should choose V2.X.X branch.
 
 - **Version**: download the software package version;
 
@@ -206,5 +206,4 @@ Among them, the configuration options related to the AT device software package:
 
 * Maintenance: RT-Thread development team and community developers
 * Homepage: https://github.com/RT-Thread-packages/at_device
-
 

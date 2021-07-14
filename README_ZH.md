@@ -78,7 +78,7 @@ AT device 软件包目前已经发布多个版本，各个版本之间选项配�
                   Version (V1.6.0)  --->
 
 - **Enable at device init by thread**: 配置开启设备网络初始化是否通过创建线程完成；
-- **AT socket device modules**: AT 设备选择，目前支持 RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX、A9/A9G、BC26 、air720、ME3616、M6315、BC28、EC200X、M5311等设备；
+- **AT socket device modules**: AT 设备选择，目前仅支持 RW007、ESP8266、M26/MC20、EC20、SIM800C、SIM76XX；更多的设备支持请选择 V2.X.X 分支。
 - **Version**: 下载软件包版本；
 
 **V2.X.X (latest) 版本配置选项介绍**
