@@ -373,7 +373,7 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
         }
 
         /* send the real data to server or client */
-        result = (int) at_client_send(buff + sent_size, cur_pkt_size);
+        result = (int)at_client_obj_send(device->client, buff + sent_size, cur_pkt_size);
         if (result == 0)
         {
             result = -RT_ERROR;
