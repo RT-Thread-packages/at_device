@@ -604,15 +604,15 @@ static struct netdev *esp8266_netdev_add(const char *netdev_name)
 
 static void esp8266_netdev_start_delay_work(struct at_device *device)
 {
-    struct rt_delayed_work *net_work = RT_NULL;
-    net_work = (struct rt_delayed_work *)rt_calloc(1, sizeof(struct rt_delayed_work));
+    struct rt_work *net_work = RT_NULL;
+    net_work = (struct rt_work *)rt_calloc(1, sizeof(struct rt_work));
     if (net_work == RT_NULL)
     {
         return;
     }
 
-    rt_delayed_work_init(net_work, esp8266_get_netdev_info, (void *)device);
-    rt_work_submit(&(net_work->work), RT_TICK_PER_SECOND);
+    rt_work_init(net_work, esp8266_get_netdev_info, (void *)device);
+    rt_work_submit(net_work, RT_TICK_PER_SECOND);
 }
 
 static void esp8266_init_thread_entry(void *parameter)
