@@ -58,14 +58,13 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
     rt_uint32_t dhcp_stat = 0;
-    struct rt_delayed_work *delay_work = (struct rt_delayed_work *)work;
     struct at_device *device = (struct at_device *)work_data;
     struct netdev *netdev = device->netdev;
     struct at_client *client = device->client;
 
-    if (delay_work)
+    if (work != RT_NULL)
     {
-        rt_free(delay_work);
+        rt_free(work);
     }
 
     resp = at_create_resp(512, 0, rt_tick_from_millisecond(300));
