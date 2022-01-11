@@ -516,7 +516,7 @@ static void read_ack_func(struct at_client *client, const char *data, rt_size_t 
     {
         at_evt_cb_set[AT_SOCKET_EVT_RECV](socket, AT_SOCKET_EVT_RECV, recv_buf, bfsz);
     }
-    
+
     send_net_read(client, device_socket);
 }
 
