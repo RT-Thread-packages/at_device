@@ -37,7 +37,7 @@ The AT device software package is composed of the transplantation files and samp
 | class/l610 | A migration directory for AT components of L610 equipment, realizing AT Socket function |
 ### 1.2 License ###
 
-The at_device package complies with the LGPLv2.1 license, see the `LICENSE` file for details.
+See the `LICENSE` file for details.
 
 ### 1.3 Dependency ###
 
