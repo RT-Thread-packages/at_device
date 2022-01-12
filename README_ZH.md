@@ -37,7 +37,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/l610 | L610 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 ### 1.2 许可证 ###
 
-at_device package 遵循 LGPLv2.1 许可，详见 `LICENSE` 文件。
+详见 `LICENSE` 文件。
 
 ### 1.3 依赖 ###
 
