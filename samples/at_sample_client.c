@@ -87,7 +87,7 @@ int at_client_test(int argc, char **argv)
         if (at_resp_parse_line_args(resp, 1, resp_expr, resp_arg) == 1)
         {
             LOG_D("Station IP  : %s", resp_arg);
-            memset(resp_arg, 0x00, AT_CMD_MAX_LEN);
+            rt_memset(resp_arg, 0x00, AT_CMD_MAX_LEN);
         }
         else
         {

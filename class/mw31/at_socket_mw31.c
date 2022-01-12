@@ -235,7 +235,7 @@ static int mw31_socket_send(struct at_socket *socket, const char *buff, size_t b
             cur_pkt_size = MW31_MODULE_SEND_MAX_SIZE;
         }
 
-        sprintf(send_buf, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size);
+        rt_sprintf(send_buf, "AT+CIPSEND=%d,%d", device_socket, cur_pkt_size);
         /* send the "AT+CIPSEND" commands to AT server than receive the '>' response on the first line */
         at_client_obj_send(device->client, send_buf, strlen(send_buf));
 

@@ -458,7 +458,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
 
         for (i=0, ind=0; i<cur_pkt_size; i++, ind+=2)
         {
-            sprintf(&hex_data[ind], "%02X", buff[sent_size + i]);
+            rt_sprintf(&hex_data[ind], "%02X", buff[sent_size + i]);
         }
 
         switch (type)
