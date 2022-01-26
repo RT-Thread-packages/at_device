@@ -26,8 +26,8 @@ extern "C" {
 #include <netdev.h>
 #endif /* RT_USING_NETDEV */
 
-#define AT_DEVICE_SW_VERSION           "2.0.5"
-#define AT_DEVICE_SW_VERSION_NUM       0x20005
+#define AT_DEVICE_SW_VERSION           "2.1.0"
+#define AT_DEVICE_SW_VERSION_NUM       0x20100
 
 /* AT device class ID */
 #define AT_DEVICE_CLASS_ESP8266        0x01U
