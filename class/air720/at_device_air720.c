@@ -275,6 +275,7 @@ static void check_link_status_entry(void *parameter)
             //LTE down
             LOG_E("the lte pin is low");
             air720_reboot(device);
+            return;
         }
 
         rt_thread_mdelay(air720_LINK_DELAY_TIME);
