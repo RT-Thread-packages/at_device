@@ -28,8 +28,15 @@ static int ec200x_power_on(struct at_device *device)
 
     ec200x = (struct at_device_ec200x *)device->user_data;
 
+    if (ec200x->power_ctrl)
+    {
+        (ec200x->power_ctrl)(1);
+        rt_thread_mdelay(2000);
+    }
+
     if (ec200x->power_pin == -1)//no power on pin
     {
+        ec200x->power_status = RT_TRUE;
         return(RT_EOK);
     }
     if (ec200x->power_status_pin != -1)//use power status pin
@@ -65,6 +72,14 @@ static int ec200x_power_off(struct at_device *device)
     struct at_device_ec200x *ec200x = RT_NULL;
 
     ec200x = (struct at_device_ec200x *)device->user_data;
+
+    if (ec200x->power_ctrl)
+    {
+        ec200x->power_status = RT_FALSE;
+        (ec200x->power_ctrl)(0);
+        rt_thread_mdelay(2*1000);
+        return(RT_EOK);
+    }
 
     if (ec200x->power_pin == -1)//no power on pin
     {
@@ -103,7 +118,7 @@ static int ec200x_power_off(struct at_device *device)
 
 static int ec200x_sleep(struct at_device *device)
 {
-    at_response_t resp = RT_NULL;
+    //at_response_t resp = RT_NULL;
     struct at_device_ec200x *ec200x = RT_NULL;
 
     ec200x = (struct at_device_ec200x *)device->user_data;
@@ -148,7 +163,7 @@ static int ec200x_sleep(struct at_device *device)
 
 static int ec200x_wakeup(struct at_device *device)
 {
-    at_response_t resp = RT_NULL;
+    //at_response_t resp = RT_NULL;
     struct at_device_ec200x *ec200x = RT_NULL;
 
     ec200x = (struct at_device_ec200x *)device->user_data;
@@ -234,6 +249,38 @@ static int ec200x_check_link_status(struct at_device *device)
     return(result);
 }
 
+static int ec200x_read_rssi(struct at_device *device)
+{
+    int result = -RT_ERROR;
+    at_response_t resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
+    if (resp == RT_NULL)
+    {
+        LOG_D("no memory for resp create.");
+        return(result);
+    }
+    
+    if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
+    {
+        int rssi = 0;
+        if (at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %d", &rssi) > 0)
+        {
+            struct at_device_ec200x *ec200x = (struct at_device_ec200x *)device->user_data;
+            if (rssi < 99)
+            {
+                ec200x->rssi = rssi * 2 - 113;
+            }
+            else if(rssi >= 100 && rssi < 199)
+            {
+                ec200x->rssi = rssi - 216;
+            }
+            result = RT_EOK;
+        }
+    }
+    
+    at_delete_resp(resp);
+
+    return(result);
+}
 
 /* =============================  ec200x network interface operations ============================= */
 /* set ec200x network interface device status and address information */
@@ -304,6 +351,18 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
             else
             {
                 netdev->hwaddr[i] = (imei[j] - '0');
+            }
+        }
+    }
+    
+    /* read number of SIM card */
+    {
+        if (at_obj_exec_cmd(device->client, resp, "AT+QCCID") == RT_EOK)
+        {
+            char str[32];
+            if (at_resp_parse_line_args_by_kw(resp, "+QCCID:", "+QCCID:%s\r", str) > 0)
+            {
+                LOG_D("QCCID of SIM card : %s", str);
             }
         }
     }
@@ -392,6 +451,8 @@ static void ec200x_check_link_status_entry(void *parameter)
 
     while (1)
     {
+        ec200x_read_rssi(device);
+        
         rt_thread_delay(EC200X_LINK_DELAY_TIME);
 
         is_link_up = (ec200x_check_link_status(device) == RT_EOK);
@@ -732,7 +793,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-
+        
         /* check signal strength */
         for (i = 0; i < CSQ_RETRY; i++)
         {

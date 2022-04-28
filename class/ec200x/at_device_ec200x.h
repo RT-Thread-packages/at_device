@@ -31,6 +31,7 @@ struct at_device_ec200x
     int power_status_pin;
     int wakeup_pin;
     size_t recv_line_num;
+    void (*power_ctrl)(int is_on);
     struct at_device device;
 
     void *socket_data;
@@ -38,6 +39,7 @@ struct at_device_ec200x
 
     rt_bool_t power_status;
     rt_bool_t sleep_status;
+    int rssi;
 };
 
 #ifdef AT_USING_SOCKET

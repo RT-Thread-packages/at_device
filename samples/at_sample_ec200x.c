@@ -24,6 +24,7 @@ static struct at_device_ec200x _dev =
     EC200X_SAMPLE_STATUS_PIN,
     EC200X_SAMPLE_WAKEUP_PIN,
     EC200X_SAMPLE_RECV_BUFF_LEN,
+    RT_NULL
 };
 
 static int ec200x_device_register(void)
@@ -37,4 +38,10 @@ static int ec200x_device_register(void)
                               (void *) ec200x);
 }
 INIT_APP_EXPORT(ec200x_device_register);
+
+int ec200x_get_rssi(void)
+{
+    struct at_device_ec200x *ec200x = &_dev;
+    return(ec200x->rssi);
+}
 
