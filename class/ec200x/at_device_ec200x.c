@@ -258,7 +258,7 @@ static int ec200x_read_rssi(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(result);
     }
-    
+
     if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
     {
         int rssi = 0;
@@ -276,7 +276,7 @@ static int ec200x_read_rssi(struct at_device *device)
             result = RT_EOK;
         }
     }
-    
+
     at_delete_resp(resp);
 
     return(result);
@@ -354,7 +354,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
             }
         }
     }
-    
+
     /* read number of SIM card */
     {
         if (at_obj_exec_cmd(device->client, resp, "AT+QCCID") == RT_EOK)
@@ -452,7 +452,7 @@ static void ec200x_check_link_status_entry(void *parameter)
     while (1)
     {
         ec200x_read_rssi(device);
-        
+
         rt_thread_delay(EC200X_LINK_DELAY_TIME);
 
         is_link_up = (ec200x_check_link_status(device) == RT_EOK);
@@ -793,7 +793,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check signal strength */
         for (i = 0; i < CSQ_RETRY; i++)
         {
