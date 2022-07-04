@@ -94,7 +94,7 @@ struct at_device_class
     const struct at_device_ops *device_ops;      /* AT device operaiotns */
 #ifdef AT_USING_SOCKET
     uint32_t socket_num;                         /* The maximum number of sockets support */
-    const struct at_socket_ops *socket_ops;      /* AT device socket operations */
+    struct at_socket_ops *socket_ops;            /* AT device socket operations */
 #endif
     rt_slist_t list;                             /* AT device class list */
 };
