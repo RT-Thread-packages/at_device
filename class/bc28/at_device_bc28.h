@@ -6,6 +6,7 @@
  * Change Logs:
  * Date           Author            Notes
  * 2020-02-12     luhuadong         first version
+ * 2022-11-9      wangcheng         support bc28 low version firmware
  */
 
 #ifndef __AT_DEVICE_BC28_H__
