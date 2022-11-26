@@ -197,7 +197,7 @@ static int bc28_netdev_set_info(struct netdev *netdev)
             LOG_E("AT+QIDNSCFG");
             goto __exit;
         }
-        
+
         /* send "AT+QIDNSCFG?" commond to get DNS servers address */
         if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG?") != RT_EOK)
         {
@@ -574,7 +574,7 @@ static void bc28_init_thread_entry(void *parameter)
             LOG_E("ATE0");
             goto __exit;
         }
-        
+
         /* disable auto register */
         if (at_obj_exec_cmd(device->client, resp, "AT+QREGSWT=2") != RT_EOK)
         {
@@ -623,7 +623,7 @@ static void bc28_init_thread_entry(void *parameter)
             LOG_E(">> AT+CFUN=1");
             goto __exit;
         }
-       
+
         /* auto report recv from tcp */
         if (at_obj_exec_cmd(device->client, resp, "AT+NSONMI=2") != RT_EOK)
         {
@@ -746,7 +746,7 @@ static void bc28_init_thread_entry(void *parameter)
                     }
                 }
             }
-        }      
+        }
         if (i == CGREG_RETRY)
         {
             LOG_E("%s device GPRS is register failed", device->name);
@@ -776,7 +776,7 @@ static void bc28_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* initialize successfully  */
         result = RT_EOK;
         break;

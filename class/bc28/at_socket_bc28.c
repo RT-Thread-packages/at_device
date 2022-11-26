@@ -350,7 +350,7 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         for (i=0, ind=0; i<cur_pkt_size; i++, ind+=2)
         {
             rt_sprintf(&hex_data[ind], "%02X", buff[sent_size + i]);
- 
+
         }
         switch (type)
         {
@@ -447,10 +447,10 @@ int bc28_domain_resolve(const char *name, char ip[16])
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
     struct at_device_bc28 *bc28 = RT_NULL;
-   
+
     RT_ASSERT(name);
     RT_ASSERT(ip);
-    
+
     device = at_device_get_first_initialized();
     if (device == RT_NULL)
     {
