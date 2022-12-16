@@ -193,6 +193,15 @@ if GetDepend(['AT_DEVICE_USING_L610']):
     if GetDepend(['AT_DEVICE_L610_SAMPLE']):
         src +=Glob('samples/at_sample_l610.c')
 
+# ML305
+if GetDepend(['AT_DEVICE_USING_ML305']):
+    path += [cwd + '/class/ml305']
+    src += Glob('class/ml305/at_device_ml305.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src +=Glob('class/ml305/at_socket_ml305.c')
+    if GetDepend(['AT_DEVICE_ML305_SAMPLE']):
+        src +=Glob('samples/at_sample_ml305.c')
+
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
