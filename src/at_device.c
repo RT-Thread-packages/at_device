@@ -291,5 +291,5 @@ __exit:
         device->is_init = RT_TRUE;
     }
 
-    return RT_EOK;
+    return result;
 }
