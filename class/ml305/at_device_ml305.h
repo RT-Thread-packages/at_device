@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -33,7 +33,7 @@ struct at_device_ml305
     int power_status_pin;
     size_t recv_buff_size;
     struct at_device device;
- 
+
     void *user_data;
 };
 

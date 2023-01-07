@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -75,13 +75,13 @@ static int ml305_socket_close(struct at_socket *socket)
     /* clear socket close event */
     event = SET_EVENT(device_socket, ML305_EVENT_CLOSE_OK);
     ml305_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     if (at_obj_exec_cmd(device->client, NULL, "AT+MIPCLOSE=%d", device_socket) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
     }
-    
+
     if (ml305_socket_event_recv(device, event, rt_tick_from_millisecond(300 * 3), RT_EVENT_FLAG_AND) < 0)
     {
         LOG_E("ml305 device(%s) socket(%d) close failed, wait close OK timeout.", device->name, device_socket);
@@ -242,7 +242,7 @@ static int ml305_socket_send(struct at_socket *socket, const char *buff, size_t 
     /* clear socket connect event */
     event = SET_EVENT(device_socket, ML305_EVENT_SEND_OK | ML305_EVENT_SEND_FAIL);
     ml305_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
-    
+
     /* set AT client end sign to deal with '>' sign.*/
     at_obj_set_end_sign(device->client, '>');
 
@@ -593,7 +593,7 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 static void urc_mipurc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
-    
+
     switch(*(data + 10))
     {
     case 's' : urc_state_func(client, data, size); break;   //+MIPURC: ”state”,<connect_id>,<connect_state>

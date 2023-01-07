@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -38,7 +38,7 @@ static rt_bool_t ml305_get_power_state(struct at_device *device)
     struct at_device_ml305 *ml305 = RT_NULL;
 
     ml305 = (struct at_device_ml305 *) device->user_data;
-    
+
     return (!rt_pin_read(ml305->power_status_pin)) ? ML305_POWER_ON : ML305_POWER_OFF;
 }
 
@@ -58,7 +58,7 @@ static void ml305_power_on(struct at_device *device)
     {
         return;
     }
-    
+
     rt_pin_write(ml305->power_pin, PIN_HIGH);
     rt_thread_mdelay(ML305_POWER_ON_TIME * RT_TICK_PER_SECOND);
     rt_pin_write(ml305->power_pin, PIN_LOW);
@@ -80,7 +80,7 @@ static void ml305_power_off(struct at_device *device)
         {
             return;
         }
-        
+
         rt_pin_write(ml305->power_pin, PIN_HIGH);
         rt_thread_mdelay(ML305_POWER_OFF_TIME * RT_TICK_PER_SECOND);
         rt_pin_write(ml305->power_pin, PIN_LOW);
@@ -94,18 +94,18 @@ static int ml305_check_link_status(struct at_device *device)
     struct at_device_ml305 *ml305 = RT_NULL;
     int result = -RT_ERROR;
     int link_stat = 0;
-    
+
     RT_ASSERT(device);
 
     ml305 = (struct at_device_ml305 *)device->user_data;
-    
+
     resp = at_create_resp(64, 0, rt_tick_from_millisecond(300));
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
         return -RT_ERROR;
     }
-    
+
     if(at_obj_exec_cmd(device->client, resp, "AT+CGREG?") < 0)
     {
         result = -RT_ERROR;
@@ -119,7 +119,7 @@ static int ml305_check_link_status(struct at_device *device)
             result = RT_EOK;
         }
     }
-    
+
     if(at_obj_exec_cmd(device->client, resp, "AT+CGACT?") < 0)
     {
         result = -RT_ERROR;
@@ -132,12 +132,12 @@ static int ml305_check_link_status(struct at_device *device)
     }
 
 __exit:
-    
+
     if(resp)
     {
         at_delete_resp(resp);
     }
-    
+
     return(result);
 }
 
@@ -263,7 +263,7 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         sscanf(dns1_str, "DNS1:%s", dns_server1);
         const char *dns2_str = strstr(dns_str, "DNS2:");
         sscanf(dns2_str, "DNS2:%s", dns_server2);
-        
+
         LOG_D("ml305 device(%s) primary DNS server address: %s", device->name, dns_server1);
         LOG_D("ml305 device(%s) secondary DNS server address: %s", device->name, dns_server2);
 
@@ -321,7 +321,7 @@ static void check_link_status_entry(void *parameter)
         {
             netdev_low_level_set_link_status(netdev, (ML305_LINK_STATUS_OK == link_status));
         }
-        
+
         rt_thread_mdelay(ML305_LINK_DELAY_TIME);
     }
 }
@@ -664,7 +664,7 @@ static void ml305_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check signal strength */
         for (i = 0; i < CSQ_RETRY; i++)
         {
@@ -683,7 +683,7 @@ static void ml305_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check the GSM network is registered */
         for (i = 0; i < CREG_RETRY; i++)
         {
@@ -763,7 +763,7 @@ static void ml305_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
 #if defined (AT_DEBUG)
         /* check the GPRS network IP address */
         for (i = 0; i < IPADDR_RETRY; i++)
@@ -791,7 +791,7 @@ static void ml305_init_thread_entry(void *parameter)
 #endif
 
         result = RT_EOK;
-        
+
 __exit:
         if (result == RT_EOK)
         {
@@ -874,9 +874,9 @@ static int ml305_init(struct at_device *device)
     struct at_device_ml305 *ml305 = (struct at_device_ml305 *) device->user_data;
 
     struct serial_configure serial_config = RT_SERIAL_CONFIG_DEFAULT;
-    
+
     rt_device_t serial = rt_device_find(ml305->client_name);
-    
+
      if (serial == RT_NULL)
     {
         LOG_E("ml305 device(%s) initialize failed, get AT client(%s) failed.", ml305->device_name, ml305->client_name);
@@ -884,7 +884,7 @@ static int ml305_init(struct at_device *device)
     }
     serial_config.bufsz = ml305->recv_buff_size;
     rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &serial_config);
-    
+
     /* initialize AT client */
     at_client_init(ml305->client_name, ml305->recv_buff_size);
 
@@ -915,7 +915,7 @@ static int ml305_init(struct at_device *device)
     {
         rt_pin_mode(ml305->power_pin, PIN_MODE_OUTPUT);
     }
-    
+
     if (ml305->power_status_pin != -1)
     {
         rt_pin_mode(ml305->power_status_pin, PIN_MODE_INPUT_PULLUP);
