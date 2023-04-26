@@ -382,7 +382,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     sscanf(temp, "%d,", &device_socket);
     temp[0] = 0;
     temp[1] = 0;
-    for (i = 0; i < 6 && temp[i - 1] != ','; i++)
+    for (i = 0; i < 6 && temp[i] != ','; i++)
     {
         at_client_obj_recv(client, &temp[i], 1, 1000);
     }
