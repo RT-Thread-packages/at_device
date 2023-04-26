@@ -729,9 +729,9 @@ static void urc_busy_s_func(struct at_client *client, const char *data, rt_size_
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
 
     RT_ASSERT(client && data && size);
+    char *client_name = client->device->parent.name;
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
