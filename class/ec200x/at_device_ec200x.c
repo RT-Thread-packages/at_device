@@ -748,7 +748,7 @@ const struct netdev_ops ec200x_netdev_ops =
     ec200x_netdev_ping,
 #endif
 
-#ifdef NETDEV_USING_PING
+#ifdef NETDEV_USING_NETSTAT
     ec200x_netdev_netstat,
 #endif
 
