@@ -6,6 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2019-12-13     qiyongzhong  first version
+ * 2023-06-03     CX           support netstat command
  */
 
 #include <stdio.h>
@@ -658,7 +659,81 @@ __exit:
 }
 #endif /* NETDEV_USING_PING */
 
+#ifdef NETDEV_USING_NETSTAT
+void ec200x_netdev_netstat(struct netdev *netdev)
+{
+#define EC200X_NETSTAT_RESP_SIZE         320
+#define EC200X_NETSTAT_TYPE_SIZE         4
+#define EC200X_NETSTAT_IPADDR_SIZE       17
+#define EC200X_NETSTAT_EXPRESSION        "+QISTATE:%*d,\"%[^\"]\",\"%[^\"]\",%d,%*d,%d"
 
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+    int remote_port, link_sta, i;
+    char *type = RT_NULL;
+    char *ipaddr = RT_NULL;
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", netdev->name);
+        return;
+    }
+
+    type = (char *) rt_calloc(1, EC200X_NETSTAT_TYPE_SIZE);
+    ipaddr = (char *) rt_calloc(1, EC200X_NETSTAT_IPADDR_SIZE);
+    if ((type && ipaddr) == RT_NULL)
+    {
+        LOG_E("no memory for ipaddr create.");
+        goto __exit;
+    }
+
+    resp = at_create_resp(EC200X_NETSTAT_RESP_SIZE, 0, 5 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.", device->name);
+        goto __exit;
+    }
+
+    /* send network connection information commond "AT+QISTATE?" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+QISTATE?") < 0)
+    {
+        goto __exit;
+    }
+
+    for (i = 1; i <= resp->line_counts; i++)
+    {
+        if (strstr(at_resp_get_line(resp, i), "+QISTATE:"))
+        {
+            /* parse the third line of response data, get the network connection information */
+            if (at_resp_parse_line_args(resp, i, EC200X_NETSTAT_EXPRESSION, type, ipaddr, &remote_port, &link_sta) < 0)
+            {
+                goto __exit;
+            }
+            else
+            {
+                /* link_sta==2?"LINK_INTNET_UP":"LINK_INTNET_DOWN" */
+                LOG_RAW("%s: %s ==> %s:%d\n", type, inet_ntoa(netdev->ip_addr), ipaddr, remote_port);
+            }
+        }
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    
+    if (type)
+    {
+        rt_free(type);
+    }
+
+    if (ipaddr)
+    {
+        rt_free(ipaddr);
+    }
+}
 
 const struct netdev_ops ec200x_netdev_ops =
 {
@@ -672,7 +747,11 @@ const struct netdev_ops ec200x_netdev_ops =
 #ifdef NETDEV_USING_PING
     ec200x_netdev_ping,
 #endif
-    RT_NULL,
+
+#ifdef NETDEV_USING_PING
+    ec200x_netdev_netstat,
+#endif
+
 };
 
 static struct netdev *ec200x_netdev_add(const char *netdev_name)
