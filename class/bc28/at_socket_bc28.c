@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -7,6 +7,7 @@
  * Date           Author            Notes
  * 2020-02-13     luhuadong         first version
  * 2020-07-19     luhuadong         support alloc socket
+ * 2022-11-9      wangcheng         support bc28 low version firmware
  */
 
 #include <stdio.h>
@@ -51,36 +52,6 @@ static struct at_socket_ip_info
 } bc28_sock_info[AT_DEVICE_BC28_SOCKETS_NUM];
 
 /**
- * convert data from ASCII string to Hex string.
- *
- * @param str  input ASCII string
- * @param hex  output Hex string
- * @param len  length of str, or the size you want to convert
- *
- * @return =0: convert failed, or no data need to convert
- *         >0: the size of convert success
- */
-static int string_to_hex(const char *str, char *hex, const rt_size_t len)
-{
-    RT_ASSERT(str && hex);
-
-    int str_len = rt_strlen(str);
-    int pos = 0, i;
-
-    if (len < 1 || str_len < len)
-    {
-        return 0;
-    }
-
-    for (i = 0; i < len; i++, pos += 2)
-    {
-        rt_sprintf(&hex[pos], "%02X", str[i]);
-    }
-
-    return i;
-}
-
-/**
  * convert data from Hex string to ASCII string.
  *
  * @param hex  input Hex string
@@ -114,41 +85,6 @@ static int hex_to_string(const char *hex, char *str, const rt_size_t len)
     }
 
     return pos;
-}
-
-static void at_tcp_ip_errcode_parse(int result)//TCP/IP_QIGETERROR
-{
-    switch(result)
-    {
-    case 0   : LOG_D("%d : Operation successful",         result); break;
-    case 550 : LOG_E("%d : Unknown error",                result); break;
-    case 551 : LOG_E("%d : Operation blocked",            result); break;
-    case 552 : LOG_E("%d : Invalid parameters",           result); break;
-    case 553 : LOG_E("%d : Memory not enough",            result); break;
-    case 554 : LOG_E("%d : Create socket failed",         result); break;
-    case 555 : LOG_E("%d : Operation not supported",      result); break;
-    case 556 : LOG_E("%d : Socket bind failed",           result); break;
-    case 557 : LOG_E("%d : Socket listen failed",         result); break;
-    case 558 : LOG_E("%d : Socket write failed",          result); break;
-    case 559 : LOG_E("%d : Socket read failed",           result); break;
-    case 560 : LOG_E("%d : Socket accept failed",         result); break;
-    case 561 : LOG_E("%d : Open PDP context failed",      result); break;
-    case 562 : LOG_E("%d : Close PDP context failed",     result); break;
-    case 563 : LOG_W("%d : Socket identity has been used", result); break;
-    case 564 : LOG_E("%d : DNS busy",                     result); break;
-    case 565 : LOG_E("%d : DNS parse failed",             result); break;
-    case 566 : LOG_E("%d : Socket connect failed",        result); break;
-    // case 567 : LOG_W("%d : Socket has been closed",       result); break;
-    case 567 : break;
-    case 568 : LOG_E("%d : Operation busy",               result); break;
-    case 569 : LOG_E("%d : Operation timeout",            result); break;
-    case 570 : LOG_E("%d : PDP context broken down",      result); break;
-    case 571 : LOG_E("%d : Cancel send",                  result); break;
-    case 572 : LOG_E("%d : Operation not allowed",        result); break;
-    case 573 : LOG_E("%d : APN not configured",           result); break;
-    case 574 : LOG_E("%d : Port busy",                    result); break;
-    default  : LOG_E("%d : Unknown err code",             result); break;
-    }
 }
 
 static int bc28_socket_event_send(struct at_device *device, uint32_t event)
@@ -296,11 +232,9 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 #define CONN_RETRY  3
 
     int i = 0;
-    uint32_t event = 0;
     at_response_t resp = RT_NULL;
-    int result = 0, event_result = 0;
+    int result = 0;
     int device_socket = (int) socket->user_data;
-    int return_socket = -1;
     struct at_device *device = (struct at_device *) socket->device;
 
     RT_ASSERT(ip);
@@ -331,9 +265,6 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
 
     for(i=0; i<CONN_RETRY; i++)
     {
-        /* clear socket connect event */
-        event = SET_EVENT(device_socket, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL);
-        bc28_socket_event_recv(device, event, 0, RT_EVENT_FLAG_OR);
 
         if (at_obj_exec_cmd(device->client, resp, "AT+NSOCO=%d,%s,%d", device_socket, ip, port) < 0)
         {
@@ -347,34 +278,9 @@ static int bc28_socket_connect(struct at_socket *socket, char *ip, int32_t port,
             result = -RT_ERROR;
             continue;
         }
-
-        /* waiting result event from AT URC, the device default connection timeout is 30 seconds*/
-        if (bc28_socket_event_recv(device, SET_EVENT(device_socket, 0),
-                                   30 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
-        {
-            LOG_D("%s device socket(%d) wait connect result timeout.", device->name, device_socket);
-            /* No news is good news */
-            result = RT_EOK;
-            break;
-        }
-
-        /* waiting OK or failed result */
-        event_result = bc28_socket_event_recv(device, BC28_EVENT_CONN_OK | BC28_EVENT_CONN_FAIL,
-                                              1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR);
-        if (event_result & BC28_EVENT_CONN_FAIL)
-        {
-            LOG_E("%s device socket(%d) connect failed.", device->name, device_socket);
-            result = -RT_ERROR;
-            continue;
-        }
-        else
-        {
-            result = RT_EOK;
-            break;
-        }
+        break;
     }
 
-__exit:
     if (resp)
     {
         at_delete_resp(resp);
@@ -405,7 +311,6 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    struct at_device_bc28 *bc28 = (struct at_device_bc28 *) device->user_data;
     rt_mutex_t lock = device->client->lock;
 
     RT_ASSERT(buff);
@@ -445,8 +350,8 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         for (i=0, ind=0; i<cur_pkt_size; i++, ind+=2)
         {
             rt_sprintf(&hex_data[ind], "%02X", buff[sent_size + i]);
-        }
 
+        }
         switch (type)
         {
         case AT_SOCKET_TCP:
@@ -481,22 +386,6 @@ static int bc28_socket_send(struct at_socket *socket, const char *buff,
         if (!at_resp_get_line_by_kw(resp, "OK"))
         {
             LOG_E("%s device socket(%d) send data failed.", device->name, device_socket);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        int return_socket = -1, return_size = -1;
-
-        if (at_resp_parse_line_args(resp, 2, "%d,%d", &return_socket, &return_size) <= 0)
-        {
-            LOG_E("%s device socket(%d) send data failed.", device->name, device_socket);
-            result = -RT_ERROR;
-            goto __exit;
-        }
-
-        if (return_socket != device_socket || return_size != cur_pkt_size)
-        {
-            LOG_E("%s device socket(%d) send data incompletely.", device->name, device_socket);
             result = -RT_ERROR;
             goto __exit;
         }
@@ -537,6 +426,8 @@ __exit:
     return result > 0 ? sent_size : result;
 }
 
+static struct rt_mutex dns_mutex;
+
 /**
  * domain resolve by AT commands.
  *
@@ -575,6 +466,8 @@ int bc28_domain_resolve(const char *name, char ip[16])
         return -RT_ENOMEM;
     }
 
+    rt_mutex_take(&dns_mutex, RT_WAITING_FOREVER);
+
     /* clear BC28_EVENT_DOMAIN_OK */
     bc28_socket_event_recv(device, BC28_EVENT_DOMAIN_OK, 0, RT_EVENT_FLAG_OR);
 
@@ -610,7 +503,8 @@ int bc28_domain_resolve(const char *name, char ip[16])
         }
     }
 
- __exit:
+__exit:
+    rt_mutex_release(&dns_mutex);
     bc28->socket_data = RT_NULL;
     if (resp)
     {
@@ -635,44 +529,13 @@ static void bc28_socket_set_event_cb(at_socket_evt_t event, at_evt_cb_t cb)
     }
 }
 
-static void urc_connect_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    int device_socket = 0, result = 0;
-    struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
-
-    RT_ASSERT(data && size);
-
-    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
-    if (device == RT_NULL)
-    {
-        LOG_E("get device(%s) failed.", client_name);
-        return;
-    }
-
-    /* only for firmware version base BC28JAR02xxx */
-    sscanf(data, "+QTCPIND: %d,%d", &device_socket , &result);
-
-    if (result == 0)
-    {
-        bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_OK));
-    }
-    else
-    {
-        at_tcp_ip_errcode_parse(result);
-        bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
-    }
-}
-
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
 {
     int device_socket = 0, sequence = 0, status = 0;
     struct at_device *device = RT_NULL;
-    struct at_device_bc28 *bc28 = RT_NULL;
     char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
-
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -732,14 +595,13 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     rt_size_t bfsz = 0, temp_size = 0;
     char *recv_buf = RT_NULL, *hex_buf = RT_NULL, temp[8] = {0};
     char remote_addr[IP_ADDR_SIZE_MAX] = {0};
-    int remote_port = -1, return_socket = -1, data_length = 0, remaining_length = 0;
+    int remote_port = -1;
 
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
 
     RT_ASSERT(data && size);
-
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
     {
@@ -752,8 +614,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* get the current socket and receive buffer size by receive data */
 
     /* mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data> */
-    sscanf(data, "+NSONMI:%d,%[0-9.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
-    LOG_D("%s device socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
+    sscanf(data, "+NSONMI:%d,%[0123456789.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
+    LOG_D("device socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
 
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;
@@ -803,9 +665,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
 static void urc_dns_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    int i = 0, j = 0;
     char recv_ip[16] = {0};
-    int result, ip_count, dns_ttl;
     struct at_device *device = RT_NULL;
     struct at_device_bc28 *bc28 = RT_NULL;
     char *client_name = client->device->parent.name;
@@ -840,18 +700,10 @@ static void urc_dns_func(struct at_client *client, const char *data, rt_size_t s
     }
 }
 
-static void urc_func(struct at_client *client, const char *data, rt_size_t size)
-{
-    RT_ASSERT(data);
-
-    LOG_I("URC data : %.*s", size, data);
-}
-
 /* +NSOSTR:<socket>,<sequence>,<status> */
 static const struct at_urc urc_table[] =
 {
     {"+QDNS:",      "\r\n",       urc_dns_func},
-    {"+QTCPIND:",   "\r\n",       urc_connect_func},
     {"+NSOSTR:",    "\r\n",       urc_send_func},
     {"+NSONMI:",    "\r\n",       urc_recv_func},
     {"+NSOCLI:",    "\r\n",       urc_close_func},
@@ -882,7 +734,7 @@ int bc28_socket_init(struct at_device *device)
 int bc28_socket_class_register(struct at_device_class *class)
 {
     RT_ASSERT(class);
-
+    rt_mutex_init(&dns_mutex, "dns", RT_IPC_FLAG_PRIO);
     class->socket_num = AT_DEVICE_BC28_SOCKETS_NUM;
     class->socket_ops = &bc28_socket_ops;
 

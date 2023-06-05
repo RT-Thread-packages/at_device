@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -7,6 +7,7 @@
  * Date           Author       Notes
  * 2018-06-20     chenyong     first version
  * 2019-05-09     chenyong     multi AT socket client support
+ * 2022-06-02     xiangxistu   add AT server mode
  */
 
 #include <stdio.h>
@@ -19,6 +20,7 @@
 
 #if defined(AT_DEVICE_USING_ESP8266) && defined(AT_USING_SOCKET)
 
+#define ESP8266_MODULE_SERVER_SUPPORT_NUM 1
 #define ESP8266_MODULE_SEND_MAX_SIZE   2048
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
@@ -34,7 +36,43 @@
 static at_evt_cb_t at_evt_cb_set[] = {
         [AT_SOCKET_EVT_RECV] = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
+#ifdef AT_USING_SOCKET_SERVER
+        [AT_SOCKET_EVT_CONNECTED] = NULL,
+#endif
 };
+
+static void urc_send_func(struct at_client *client, const char *data, rt_size_t size);
+static void urc_send_bfsz_func(struct at_client *client, const char *data, rt_size_t size);
+static void urc_close_func(struct at_client *client, const char *data, rt_size_t size);
+#ifdef AT_USING_SOCKET_SERVER
+static void urc_connected_func(struct at_client *client, const char *data, rt_size_t size);
+#endif
+static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size);
+
+static const struct at_urc urc_table[] =
+{
+    {"SEND OK",          "\r\n",           urc_send_func},
+    {"SEND FAIL",        "\r\n",           urc_send_func},
+    {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
+    {"",                 ",CLOSED\r\n",    urc_close_func},
+    {"+IPD",             ":",              urc_recv_func},
+};
+
+#ifdef AT_USING_SOCKET_SERVER
+static const struct at_urc urc_table_with_server[] =
+{
+    {"SEND OK",          "\r\n",           urc_send_func},
+    {"SEND FAIL",        "\r\n",           urc_send_func},
+    {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
+    {"",                 ",CONNECT\r\n",   urc_connected_func},
+    {"",                 ",CLOSED\r\n",    urc_close_func},
+    {"+IPD",             ":",              urc_recv_func},
+};
+#endif
+
+#ifdef AT_USING_SOCKET_SERVER
+static int esp8266_server_number = 0;
+#endif
 
 static int esp8266_socket_event_send(struct at_device *device, uint32_t event)
 {
@@ -172,6 +210,68 @@ __exit:
     return result;
 }
 
+#ifdef AT_USING_SOCKET_SERVER
+/**
+ * create TCP/UDP or server connect by AT commands.
+ *
+ * @param socket current socket
+ * @param backlog waiting to handdle work, useless in "at mode"
+ *
+ * @return   0: connect success
+ *          -1: connect failed, send commands error or type error
+ *          -2: wait socket event timeout
+ *          -5: no memory
+ */
+int esp8266_socket_listen(struct at_socket *socket, int backlog)
+{
+    int result = RT_EOK;
+    at_response_t resp = RT_NULL;
+    struct at_device *device = RT_NULL;
+    int listen_port;
+
+    listen_port = (int)socket->listen.port;
+
+    device = at_device_get_first_initialized();
+    if (device == RT_NULL)
+    {
+        LOG_E("get first init device failed.");
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return -RT_ENOMEM;
+    }
+
+    if(esp8266_server_number >= ESP8266_MODULE_SERVER_SUPPORT_NUM)
+    {
+
+        LOG_E("no memory for server to listen(%05d).", socket->listen.port);
+        return -RT_ENOMEM;
+    }
+    esp8266_server_number++;
+
+    /* AT+CIPSERVER=1,<port> */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSERVER=1,%d", listen_port) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+    at_obj_set_urc_table(device->client, urc_table_with_server, sizeof(urc_table_with_server) / sizeof(urc_table_with_server[0]));
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+#endif
+
 /**
  * send data to server or client by AT commands.
  *
@@ -210,6 +310,8 @@ static int esp8266_socket_send(struct at_socket *socket, const char *buff, size_
 
     /* set current socket for send URC event */
     esp8266->user_data = (void *) device_socket;
+
+    at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
 
     /* set AT client end sign to deal with '>' sign */
     at_obj_set_end_sign(device->client, '>');
@@ -278,6 +380,10 @@ __exit:
     {
         at_delete_resp(resp);
     }
+
+#ifdef AT_USING_SOCKET_SERVER
+    at_obj_set_urc_table(device->client, urc_table_with_server, sizeof(urc_table_with_server) / sizeof(urc_table_with_server[0]));
+#endif
 
     return result > 0 ? sent_size : result;
 }
@@ -381,6 +487,9 @@ static const struct at_socket_ops esp8266_socket_ops =
     esp8266_socket_set_event_cb,
 #if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
     RT_NULL,
+#ifdef AT_USING_SOCKET_SERVER
+    esp8266_socket_listen,
+#endif
 #endif
 };
 
@@ -438,7 +547,11 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     sscanf(data, "%d,CLOSED", &index);
+#ifdef AT_USING_SOCKET_SERVER
+    socket = at_get_base_socket(index);
+#else
     socket = &(device->sockets[index]);
+#endif
 
     /* notice the socket is disconnect by remote */
     if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
@@ -446,6 +559,35 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, RT_NULL, 0);
     }
 }
+
+#ifdef AT_USING_SOCKET_SERVER
+static void urc_connected_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    int socket;
+    struct at_device *device = RT_NULL;
+    char socket_info[AT_SOCKET_INFO_LEN] = {0};
+    char *client_name = client->device->parent.name;
+
+    RT_ASSERT(data && size);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", client_name);
+        return;
+    }
+
+    sscanf(data, "%d,CONNECT", &socket);
+    rt_memset(&socket_info[0], 0, AT_SOCKET_INFO_LEN);
+    rt_sprintf(&socket_info[0], "SOCKET:%d", socket);
+
+    /* notice at socket to alloc a new socket */
+    if (at_evt_cb_set[AT_SOCKET_EVT_CONNECTED])
+    {
+        at_evt_cb_set[AT_SOCKET_EVT_CONNECTED](RT_NULL, AT_SOCKET_EVT_CONNECTED, &socket_info[0], AT_SOCKET_INFO_LEN);
+    }
+}
+#endif
 
 static void urc_recv_func(struct at_client *client, const char *data, rt_size_t size)
 {
@@ -504,7 +646,11 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get at socket object by device socket descriptor */
+#ifdef AT_USING_SOCKET_SERVER
+    socket = at_get_base_socket(device_socket);
+#else
     socket = &(device->sockets[device_socket]);
+#endif
 
     /* notice the receive buffer and buffer size */
     if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
@@ -512,15 +658,6 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         at_evt_cb_set[AT_SOCKET_EVT_RECV](socket, AT_SOCKET_EVT_RECV, recv_buf, bfsz);
     }
 }
-
-static const struct at_urc urc_table[] =
-{
-    {"SEND OK",          "\r\n",           urc_send_func},
-    {"SEND FAIL",        "\r\n",           urc_send_func},
-    {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
-    {"",                 ",CLOSED\r\n",    urc_close_func},
-    {"+IPD",             ":",              urc_recv_func},
-};
 
 int esp8266_socket_init(struct at_device *device)
 {

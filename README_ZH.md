@@ -35,6 +35,7 @@ AT device 软件包是由 RT-Thread AT 组件针对不同 AT 设备的移植文�
 | class/n58 | N58 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/m5311 | M5311 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 | class/l610 | L610 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
+| class/ml305 | ML305 设备针对 AT 组件的移植目录，实现 AT Socket 功能 |
 ### 1.2 许可证 ###
 
 详见 `LICENSE` 文件。
@@ -120,6 +121,7 @@ RT-Thread online packages  --->
         [ ]   Neoway N21  --->
         [ ]   Neoway N58  --->
         [ ]   ChinaMobile M5311  --->
+        [ ]   ChinaMobile ML305  --->
         Version (latest)  --->
 ```
 
@@ -154,6 +156,7 @@ RT-Thread online packages  --->
 - **Neoway N21**：开启 N21（NB-IoT 模块）设备支持；
 - **Neoway N58**：开启 N58（4G 模块）设备支持；
 - **ChinaMobile M5311**：开启 M5311（NB-IoT 模块)设备支持；
+- **ChinaMobile ML305**：开启 ML305（4G 模块)设备支持；
 - **Version** 下载软件包版本；
 
 上面配置选项以 2G 模块和 WIFI 模块选项为例，介绍了`V2.X.X` 版本 AT device 软件包配置方式，如下几点值得注意：

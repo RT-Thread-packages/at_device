@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -291,5 +291,5 @@ __exit:
         device->is_init = RT_TRUE;
     }
 
-    return RT_EOK;
+    return result;
 }

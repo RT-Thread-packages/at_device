@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author            Notes
  * 2020-02-12     luhuadong         first version
+ * 2022-11-9      wangcheng         support bc28 low version firmware
  */
 
 #ifndef __AT_DEVICE_BC28_H__

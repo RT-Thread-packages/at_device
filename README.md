@@ -35,6 +35,7 @@ The AT device software package is composed of the transplantation files and samp
 | class/n58 | N58 device's migration directory for AT components, realizing AT Socket function |
 | class/m5311 | M5311 device is aimed at AT component transplantation catalog, realizes AT Socket function |
 | class/l610 | A migration directory for AT components of L610 equipment, realizing AT Socket function |
+| class/ml305 | A migration directory for AT components of ML305 equipment, realizing AT Socket function |
 ### 1.2 License ###
 
 See the `LICENSE` file for details.
@@ -122,6 +123,7 @@ RT-Thread online packages --->
         [] Neoway N21 --->
         [] Neoway N58 --->
         [] ChinaMobile M5311 --->
+        [] ChinaMobile ML305 --->
         Version (latest) --->
 ```
 
@@ -156,6 +158,7 @@ RT-Thread online packages --->
 - **Neoway N21**: enable N21 (NB-IoT module) device support;
 - **Neoway N58**: enable N58 (4G module) device support;
 - **ChinaMobile M5311**: enable M5311 (NB-IoT module) device support;
+- **ChinaMobile ML305**: enable ML305 (4G module) device support;
 - **Version**: download the software package version;
 
 The above configuration options take 2G module and WIFI module options as examples to introduce the configuration method of the AT device software package of the `V2.X.X` version. The following points are worth noting:

@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * Change Logs:
  * Date           Author            Notes
  * 2020-02-12     luhuadong         first version
+ * 2022-11-9      wangcheng         support bc28 low version firmware
  */
 
 #include <stdio.h>
@@ -24,16 +25,6 @@
 #define BC28_WAIT_CONNECT_TIME          5000
 #define BC28_THREAD_STACK_SIZE          2048
 #define BC28_THREAD_PRIORITY            (RT_THREAD_PRIORITY_MAX/2)
-
-static int bc28_sleep(struct at_device *device)
-{
-    return(RT_EOK);
-}
-
-static int bc28_wakeup(struct at_device *device)
-{
-    return(RT_EOK);
-}
 
 static int bc28_reset(struct at_device *device)
 {
@@ -199,6 +190,13 @@ static int bc28_netdev_set_info(struct netdev *netdev)
     {
         #define DNS_ADDR_SIZE_MAX   16
         char dns_server1[DNS_ADDR_SIZE_MAX] = {0}, dns_server2[DNS_ADDR_SIZE_MAX] = {0};
+
+        if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG=114.114.114.114,8.8.8.8") != RT_EOK)
+        {
+            result = -RT_ERROR;
+            LOG_E("AT+QIDNSCFG");
+            goto __exit;
+        }
 
         /* send "AT+QIDNSCFG?" commond to get DNS servers address */
         if (at_obj_exec_cmd(device->client, resp, "AT+QIDNSCFG?") != RT_EOK)
@@ -394,7 +392,7 @@ static int bc28_netdev_ping(struct netdev *netdev, const char *host,
 #define BC28_PING_TIMEOUT         (10 * RT_TICK_PER_SECOND)
 
     rt_err_t result = RT_EOK;
-    int response = -1, recv_data_len, ping_time, ttl;
+    int response = -1, ping_time, ttl;
     char ip_addr[BC28_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;

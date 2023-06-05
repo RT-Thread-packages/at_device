@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -912,7 +912,7 @@ static int l610_net_init(struct at_device *device)
         return -RT_ERROR;
     }
 #else
-    L610_init_thread_entry(device);
+    l610_init_thread_entry(device);
 #endif /* AT_DEVICE_L610_INIT_ASYN */
 
     return RT_EOK;

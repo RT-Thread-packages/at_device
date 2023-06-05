@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2022, RT-Thread Development Team
+ * Copyright (c) 2006-2023, RT-Thread Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -109,7 +109,7 @@ static int air720_netdev_set_info(struct netdev *netdev)
         char imei[air720_IEMI_LEN] = {0};
         int i = 0, j = 0;
 
-        /* send "AT+CGSN" commond to get device IMEI */
+        /* send "AT+CGSN" command to get device IMEI */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGSN") < 0)
         {
             result = -RT_ERROR;
@@ -145,7 +145,7 @@ static int air720_netdev_set_info(struct netdev *netdev)
 
         at_resp_set_info(resp, air720_IPADDR_RESP_SIZE, 2, air720_INFO_RESP_TIMO);
 
-        /* send "AT+CIFSR" commond to get IP address */
+        /* send "AT+CIFSR" command to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CIFSR") < 0)
         {
             result = -RT_ERROR;
@@ -173,7 +173,7 @@ static int air720_netdev_set_info(struct netdev *netdev)
 
         at_resp_set_info(resp, air720_DNS_RESP_SIZE, 0, air720_INFO_RESP_TIMO);
 
-        /* send "AT+CDNSCFG?" commond to get DNS servers address */
+        /* send "AT+CDNSCFG?" command to get DNS servers address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CDNSCFG?") < 0)
         {
             result = -RT_ERROR;
@@ -224,7 +224,7 @@ static void check_link_status_entry(void *parameter)
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
 
-    LOG_D("statrt air720 device(%s) link status check \n");
+    LOG_D("start air720 device(%s) link status check \n");
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -242,7 +242,7 @@ static void check_link_status_entry(void *parameter)
 
     while (1)
     {
-        /* send "AT+CGREG?" commond  to check netweork interface device link status */
+        /* send "AT+CGREG?" command  to check netweork interface device link status */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGREG?") < 0)
         {
             rt_thread_mdelay(air720_LINK_DELAY_TIME);
@@ -385,7 +385,7 @@ static int air720_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, 
         goto __exit;
     }
 
-    /* send "AT+CDNSCFG=<pri_dns>[,<sec_dns>]" commond to set dns servers */
+    /* send "AT+CDNSCFG=<pri_dns>[,<sec_dns>]" command to set dns servers */
     if (at_obj_exec_cmd(device->client, resp, "AT+CDNSCFG=\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         result = -RT_ERROR;
@@ -510,7 +510,7 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
         }
     }
 
-    /* send "AT+CIPPING=<IP addr>[,<retryNum>[,<dataLen>[,<timeout>[,<ttl>]]]]" commond to send ping request */
+    /* send "AT+CIPPING=<IP addr>[,<retryNum>[,<dataLen>[,<timeout>[,<ttl>]]]]" command to send ping request */
     if (at_obj_exec_cmd(device->client, resp, "AT+CIPPING=%s,1,%d,%d,64",
                         host, data_len, air720_PING_TIMEO / (RT_TICK_PER_SECOND / 10)) < 0)
     {
@@ -929,7 +929,7 @@ static int air720_reset(struct at_device *device)
     int result = RT_EOK;
     struct at_client *client = device->client;
 
-    /* send "AT+RST" commonds to mw31 device */
+    /* send "AT+RST" commands to mw31 device */
     result = at_obj_exec_cmd(client, RT_NULL, "AT+RESET");
     rt_thread_mdelay(1000);
 
