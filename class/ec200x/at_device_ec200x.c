@@ -734,6 +734,7 @@ __exit:
         rt_free(ipaddr);
     }
 }
+#endif
 
 const struct netdev_ops ec200x_netdev_ops =
 {
