@@ -384,7 +384,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     temp[1] = 0;
     for (i = 0; i < 6; i++)
     {
-        if (i > 0 && temp[i-1] != ',')
+        if (i > 0 && temp[i - 1] == ',')
         {
             break;
         }
