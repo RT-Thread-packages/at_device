@@ -183,7 +183,7 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         #define ML305_NETDEV_HWADDR_LEN   8
         #define ML305_IMEI_LEN            15
 
-        char imei[ML305_IMEI_LEN] = {0};
+        char imei[ML305_IMEI_LEN + 1] = {0};
         int i = 0, j = 0;
 
         /* send "AT+GSN" commond to get device IMEI */
@@ -221,7 +221,7 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
-        at_resp_set_info(resp, ML305_IPADDR_RESP_SIZE, 2, ML305_INFO_RESP_TIMO);
+        at_resp_set_info(resp, ML305_IPADDR_RESP_SIZE, 0, ML305_INFO_RESP_TIMO);
 
         /* send "AT+CIFSR" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") < 0)
@@ -623,7 +623,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, ML305_AT_DEFAULT_TIMEOUT, "ATE0");
         /* get module version */
-        AT_SEND_CMD(client, resp, 5, ML305_AT_DEFAULT_TIMEOUT, "ATI");
+        AT_SEND_CMD(client, resp, 0, ML305_AT_DEFAULT_TIMEOUT, "ATI");
         /* show module version */
         for (i = 0; i < (int)resp->line_counts - 1; i++)
         {
@@ -632,7 +632,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            AT_SEND_CMD(client, resp, 2, 5 * RT_TICK_PER_SECOND, "AT+CPIN?");
+            AT_SEND_CMD(client, resp, 0, 5 * RT_TICK_PER_SECOND, "AT+CPIN?");
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
@@ -650,7 +650,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            AT_SEND_CMD(client, resp, 2, 10 * 1000, "AT+ICCID");
+            AT_SEND_CMD(client, resp, 0, 10 * 1000, "AT+ICCID");
             if (at_resp_get_line_by_kw(resp, "+ICCID:"))
             {
                 LOG_D("%s device SIM card detection success.", device->name);
