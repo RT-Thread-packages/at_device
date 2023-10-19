@@ -408,7 +408,7 @@ static int esp32_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* parse the third line of response data, get the IP address */
-    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", ip_addr) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:\"%[^\"]\"", ip_addr) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
