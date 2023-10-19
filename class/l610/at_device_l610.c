@@ -936,7 +936,7 @@ static int l610_init(struct at_device *device)
     struct at_device_l610 *l610 = (struct at_device_l610 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(l610->client_name, l610->recv_line_num);
+    at_client_init(l610->client_name, l610->recv_line_num, l610->recv_line_num);
 
     device->client = at_client_get(l610->client_name);
     if (device->client == RT_NULL)

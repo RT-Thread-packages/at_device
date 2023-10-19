@@ -709,7 +709,7 @@ static int m5311_init(struct at_device *device)
     struct at_device_m5311 *m5311 = (struct at_device_m5311 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(m5311->client_name, m5311->recieve_line_num);
+    at_client_init(m5311->client_name, m5311->recieve_line_num, m5311->recieve_line_num);
 
     device->client = at_client_get(m5311->client_name);
     if (device->client == RT_NULL)

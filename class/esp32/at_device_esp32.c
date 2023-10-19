@@ -775,7 +775,7 @@ static int esp32_init(struct at_device *device)
     struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(esp32->client_name, esp32->recv_line_num);
+    at_client_init(esp32->client_name, esp32->recv_line_num, esp32->recv_line_num);
 
     device->client = at_client_get(esp32->client_name);
     if (device->client == RT_NULL)

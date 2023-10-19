@@ -814,7 +814,7 @@ static int a9g_init(struct at_device *device)
     struct at_device_a9g *a9g = (struct at_device_a9g *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(a9g->client_name, a9g->recv_line_num);
+    at_client_init(a9g->client_name, a9g->recv_line_num, a9g->recv_line_num);
 
     device->client = at_client_get(a9g->client_name);
     if (device->client == RT_NULL)
