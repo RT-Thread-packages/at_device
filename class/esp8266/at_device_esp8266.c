@@ -39,7 +39,6 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
     char gateway[AT_ADDR_LEN] = {0}, netmask[AT_ADDR_LEN] = {0};
     char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
     const char *resp_expr = "%*[^\"]\"%[^\"]\"";
-    const char *resp_dns = "+CIPDNS_CUR:%s";
     ip_addr_t ip_addr;
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
@@ -101,17 +100,17 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         netdev->hwaddr[num] = mac_addr[num];
     }
 
-    /* send dns server query commond "AT+CIPDNS_CUR?" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR?") < 0)
+    /* send dns server query commond "AT+CIPDNS?" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS?") < 0)
     {
-        LOG_W("please check and update %s device firmware to support the \"AT+CIPDNS_CUR?\" cmd.", device->name);
+        LOG_W("please check and update %s device firmware to support the \"AT+CIPDNS?\" cmd.", device->name);
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
-            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    /* +CIPDNS:0,"208.67.222.222","8.8.8.8" */
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDNS:", "%*[^\"]\"%[^\"]\",\"%[^\"]\"", dns_server1, dns_server2) < 0)
     {
-        LOG_E("%d device prase \"AT+CIPDNS_CUR?\" cmd error.", device->name);
+        LOG_E("%s device prase \"AT+CIPDNS?\" cmd error.", device->name);
         goto __exit;
     }
 
@@ -135,21 +134,21 @@ static void esp8266_get_netdev_info(struct rt_work *work, void *work_data)
         netdev_low_level_set_dns_server(netdev, 1, &ip_addr);
     }
 
-    /* send DHCP query commond " AT+CWDHCP_CUR?" and wait response */
-    if (at_obj_exec_cmd(client, resp, "AT+CWDHCP_CUR?") < 0)
+    /* send DHCP query commond " AT+CWDHCP" and wait response */
+    if (at_obj_exec_cmd(client, resp, "AT+CWDHCP?") < 0)
     {
         goto __exit;
     }
 
     /* parse response data, get the DHCP status */
-    if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP_CUR:", "+CWDHCP_CUR:%d", &dhcp_stat) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CWDHCP:", "+CWDHCP:%d", &dhcp_stat) < 0)
     {
         LOG_E("%s device prase DHCP status error.", device->name);
         goto __exit;
     }
 
-    /* Bit0 - SoftAP DHCP status, Bit1 - Station DHCP status */
-    netdev_low_level_set_dhcp_status(netdev, dhcp_stat & 0x02 ? RT_TRUE : RT_FALSE);
+    /* Bit0 - Station DHCP status, Bit1 - SoftAP DHCP status */
+    netdev_low_level_set_dhcp_status(netdev, dhcp_stat & 0x01 ? RT_TRUE : RT_FALSE);
 
 __exit:
     if (resp)
@@ -248,8 +247,8 @@ static int esp8266_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_add
     else
         rt_memcpy(netmask_str, inet_ntoa(netdev->netmask), IPADDR_SIZE);
 
-    /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"",
+    /* send addr info set commond "AT+CIPSTA=<ip>[,<gateway>,<netmask>]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA=\"%s\",\"%s\",\"%s\"",
                         ip_str, gw_str, netmask_str) < 0)
     {
         LOG_E("%s device set address failed.", device->name);
@@ -304,8 +303,8 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
         return -RT_ENOMEM;
     }
 
-    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS    server0>,<DNS   server1>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
+    /* send dns server set commond "AT+CIPDNS=<enable>[,<"DNS IP1">][,<"DNS IP2">][,<"DNS IP3">]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         LOG_E("%s device set DNS failed.", device->name);
         result = -RT_ERROR;
@@ -326,7 +325,8 @@ static int esp8266_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num,
 
 static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
 {
-#define ESP8266_STATION     1
+#define ESP8266_STATION     1 << 0
+#define ESP8266_SOFTAP      1 << 1
 #define RESP_SIZE           128
 
     int result = RT_EOK;
@@ -349,8 +349,8 @@ static int esp8266_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
         return -RT_ENOMEM;
     }
 
-    /* send dhcp set commond "AT+CWDHCP_CUR=<mode>,<en>" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP_CUR=%d,%d", ESP8266_STATION, is_enabled) < 0)
+    /* send dhcp set commond "AT+CWDHCP=<operate>,<mode>" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP=%d,%d", is_enabled, ESP8266_STATION) < 0)
     {
         LOG_E("%s device set DHCP status(%d) failed.", device->name, is_enabled);
         result = -RT_ERROR;
@@ -422,7 +422,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+", "+%d", &req_time) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+", "+PING:%d", &req_time) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -730,9 +730,9 @@ static void urc_busy_s_func(struct at_client *client, const char *data, rt_size_
 static void urc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     struct at_device *device = RT_NULL;
-    char *client_name = client->device->parent.name;
 
     RT_ASSERT(client && data && size);
+    char *client_name = client->device->parent.name;
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
     if (device == RT_NULL)
