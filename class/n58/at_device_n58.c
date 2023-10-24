@@ -844,7 +844,7 @@ static int n58_init(struct at_device *device)
     struct at_device_n58 *n58 = (struct at_device_n58 *)device->user_data;
 
     /* initialize AT client */
-    at_client_init(n58->client_name, n58->recv_line_num);
+    at_client_init(n58->client_name, n58->recv_line_num, n58->recv_line_num);
 
     device->client = at_client_get(n58->client_name);
     if (device->client == RT_NULL)

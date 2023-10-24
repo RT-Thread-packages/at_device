@@ -850,7 +850,7 @@ static int sim800c_init(struct at_device *device)
     struct at_device_sim800c *sim800c = (struct at_device_sim800c *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(sim800c->client_name, sim800c->recv_line_num);
+    at_client_init(sim800c->client_name, sim800c->recv_line_num, sim800c->recv_line_num);
 
     device->client = at_client_get(sim800c->client_name);
     if (device->client == RT_NULL)

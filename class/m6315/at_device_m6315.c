@@ -860,7 +860,7 @@ static int m6315_init(struct at_device *device)
     struct at_device_m6315 *m6315 = (struct at_device_m6315 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(m6315->client_name, m6315->recv_line_num);
+    at_client_init(m6315->client_name, m6315->recv_line_num, m6315->recv_line_num);
 
     device->client = at_client_get(m6315->client_name);
     if (device->client == RT_NULL)

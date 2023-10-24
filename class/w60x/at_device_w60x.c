@@ -732,7 +732,7 @@ static int w60x_init(struct at_device *device)
     struct at_device_w60x *w60x = (struct at_device_w60x *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(w60x->client_name, w60x->recv_line_num);
+    at_client_init(w60x->client_name, w60x->recv_line_num, w60x->recv_line_num);
 
     device->client = at_client_get(w60x->client_name);
     if (device->client == RT_NULL)

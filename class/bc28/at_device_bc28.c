@@ -857,7 +857,7 @@ static int bc28_init(struct at_device *device)
     rt_device_close(serial);
 
     /* initialize AT client */
-    at_client_init(bc28->client_name, bc28->recv_bufsz);
+    at_client_init(bc28->client_name, bc28->recv_bufsz, bc28->recv_bufsz);
 
     device->client = at_client_get(bc28->client_name);
     if (device->client == RT_NULL)

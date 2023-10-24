@@ -61,12 +61,7 @@ static const struct at_urc urc_table[] =
 #ifdef AT_USING_SOCKET_SERVER
 static const struct at_urc urc_table_with_server[] =
 {
-    {"SEND OK",          "\r\n",           urc_send_func},
-    {"SEND FAIL",        "\r\n",           urc_send_func},
-    {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
     {"",                 ",CONNECT\r\n",   urc_connected_func},
-    {"",                 ",CLOSED\r\n",    urc_close_func},
-    {"+IPD",             ":",              urc_recv_func},
 };
 #endif
 
@@ -311,8 +306,6 @@ static int esp8266_socket_send(struct at_socket *socket, const char *buff, size_
     /* set current socket for send URC event */
     esp8266->user_data = (void *) device_socket;
 
-    at_obj_set_urc_table(device->client, urc_table, sizeof(urc_table) / sizeof(urc_table[0]));
-
     /* set AT client end sign to deal with '>' sign */
     at_obj_set_end_sign(device->client, '>');
 
@@ -381,10 +374,6 @@ __exit:
         at_delete_resp(resp);
     }
 
-#ifdef AT_USING_SOCKET_SERVER
-    at_obj_set_urc_table(device->client, urc_table_with_server, sizeof(urc_table_with_server) / sizeof(urc_table_with_server[0]));
-#endif
-
     return result > 0 ? sent_size : result;
 }
 
@@ -433,7 +422,7 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", recv_ip) < 0)
+        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:\"%[^\"]\"", recv_ip) < 0)
         {
             rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */

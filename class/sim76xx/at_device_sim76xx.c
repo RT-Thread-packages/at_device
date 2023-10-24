@@ -744,7 +744,7 @@ static int sim76xx_init(struct at_device *device)
     struct at_device_sim76xx *sim76xx = (struct at_device_sim76xx *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(sim76xx->client_name, sim76xx->recv_line_num);
+    at_client_init(sim76xx->client_name, sim76xx->recv_line_num, sim76xx->recv_line_num);
 
     device->client = at_client_get(sim76xx->client_name);
     if (device->client == RT_NULL)
