@@ -771,7 +771,7 @@ static int n21_init(struct at_device *device)
     struct at_device_n21 *n21 = (struct at_device_n21 *)device->user_data;
 
     /* initialize AT client */
-    at_client_init(n21->client_name, n21->recv_line_num);
+    at_client_init(n21->client_name, n21->recv_line_num, n21->recv_line_num);
 
     device->client = at_client_get(n21->client_name);
     if (device->client == RT_NULL)

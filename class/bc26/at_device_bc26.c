@@ -897,7 +897,7 @@ static int bc26_init(struct at_device *device)
     bc26->sleep_status = RT_FALSE; //default sleep is disabled.
 
     /* initialize AT client */
-    at_client_init(bc26->client_name, bc26->recv_line_num);
+    at_client_init(bc26->client_name, bc26->recv_line_num, bc26->recv_line_num);
 
     device->client = at_client_get(bc26->client_name);
     if (device->client == RT_NULL)

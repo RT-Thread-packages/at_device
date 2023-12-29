@@ -758,6 +758,7 @@ __exit:
         rt_free(ipaddr);
     }
 }
+#endif
 
 const struct netdev_ops ec200x_netdev_ops =
 {
@@ -1053,7 +1054,7 @@ static int ec200x_init(struct at_device *device)
     ec200x->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
-    at_client_init(ec200x->client_name, ec200x->recv_line_num);
+    at_client_init(ec200x->client_name, ec200x->recv_line_num, ec200x->recv_line_num);
 
     device->client = at_client_get(ec200x->client_name);
     if (device->client == RT_NULL)

@@ -38,7 +38,6 @@ static void esp32_get_netdev_info(struct rt_work *work, void *work_data)
     char gateway[AT_ADDR_LEN] = {0}, netmask[AT_ADDR_LEN] = {0};
     char dns_server1[AT_ADDR_LEN] = {0}, dns_server2[AT_ADDR_LEN] = {0};
     const char *resp_expr = "%*[^\"]\"%[^\"]\"";
-    const char *resp_dns = "+CIPDNS:%s";
     ip_addr_t ip_addr;
     rt_uint32_t mac_addr[6] = {0};
     rt_uint32_t num = 0;
@@ -107,8 +106,8 @@ static void esp32_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    if (at_resp_parse_line_args(resp, 1, resp_dns, dns_server1) <= 0 &&
-            at_resp_parse_line_args(resp, 2, resp_dns, dns_server2) <= 0)
+    /* +CIPDNS:0,"208.67.222.222","8.8.8.8" */
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDNS:", "%*[^\"]\"%[^\"]\",\"%[^\"]\"", dns_server1, dns_server2) < 0)
     {
         LOG_E("%s device prase \"AT+CIPDNS?\" cmd error.", device->name);
         goto __exit;
@@ -134,7 +133,7 @@ static void esp32_get_netdev_info(struct rt_work *work, void *work_data)
         netdev_low_level_set_dns_server(netdev, 1, &ip_addr);
     }
 
-    /* send DHCP query commond " AT+CWDHCP_CUR?" and wait response */
+    /* send DHCP query commond " AT+CWDHCP" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+CWDHCP?") < 0)
     {
         goto __exit;
@@ -147,7 +146,7 @@ static void esp32_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    /* Bit0 - SoftAP DHCP status, Bit1 - Station DHCP status */
+    /* Bit0 - Station DHCP status, Bit1 - SoftAP DHCP status */
     netdev_low_level_set_dhcp_status(netdev, dhcp_stat & 0x01 ? RT_TRUE : RT_FALSE);
 
 __exit:
@@ -247,8 +246,8 @@ static int esp32_netdev_set_addr_info(struct netdev *netdev, ip_addr_t *ip_addr,
     else
         rt_memcpy(netmask_str, inet_ntoa(netdev->netmask), IPADDR_SIZE);
 
-    /* send addr info set commond "AT+CIPSTA_CUR=<ip>[,<gateway>,<netmask>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA_CUR=\"%s\",\"%s\",\"%s\"",
+    /* send addr info set commond "AT+CIPSTA=<ip>[,<gateway>,<netmask>]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSTA=\"%s\",\"%s\",\"%s\"",
                         ip_str, gw_str, netmask_str) < 0)
     {
         LOG_E("%s device set address failed.", device->name);
@@ -303,8 +302,8 @@ static int esp32_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, i
         return -RT_ENOMEM;
     }
 
-    /* send dns server set commond "AT+CIPDNS_CUR=<enable>[,<DNS    server0>,<DNS   server1>]" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS_CUR=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
+    /* send dns server set commond "AT+CIPDNS=<enable>[,<"DNS IP1">][,<"DNS IP2">][,<"DNS IP3">]" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPDNS=1,\"%s\"", inet_ntoa(*dns_server)) < 0)
     {
         LOG_E("%s device set DNS failed.", device->name);
         result = -RT_ERROR;
@@ -325,7 +324,8 @@ static int esp32_netdev_set_dns_server(struct netdev *netdev, uint8_t dns_num, i
 
 static int esp32_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
 {
-#define ESP32_STATION     1
+#define ESP32_STATION       1 << 0
+#define ESP32_SOFTAP        1 << 1
 #define RESP_SIZE           128
 
     int result = RT_EOK;
@@ -348,8 +348,8 @@ static int esp32_netdev_set_dhcp(struct netdev *netdev, rt_bool_t is_enabled)
         return -RT_ENOMEM;
     }
 
-    /* send dhcp set commond "AT+CWDHCP_CUR=<mode>,<en>" and wait response */
-    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP_CUR=%d,%d", ESP32_STATION, is_enabled) < 0)
+    /* send dhcp set commond "AT+CWDHCP=<operate>,<mode>" and wait response */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CWDHCP=%d,%d", is_enabled, ESP32_STATION) < 0)
     {
         LOG_E("%s device set DHCP status(%d) failed.", device->name, is_enabled);
         result = -RT_ERROR;
@@ -408,7 +408,7 @@ static int esp32_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* parse the third line of response data, get the IP address */
-    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:%s", ip_addr) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:\"%[^\"]\"", ip_addr) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -775,7 +775,7 @@ static int esp32_init(struct at_device *device)
     struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(esp32->client_name, esp32->recv_line_num);
+    at_client_init(esp32->client_name, esp32->recv_line_num, esp32->recv_line_num);
 
     device->client = at_client_get(esp32->client_name);
     if (device->client == RT_NULL)

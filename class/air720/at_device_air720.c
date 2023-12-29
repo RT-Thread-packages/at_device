@@ -873,7 +873,7 @@ static int air720_init(struct at_device *device)
     struct at_device_air720 *air720 = (struct at_device_air720 *)device->user_data;
 
     /* initialize AT client */
-    at_client_init(air720->client_name, air720->recv_line_num);
+    at_client_init(air720->client_name, air720->recv_line_num, air720->recv_line_num);
 
     device->client = at_client_get(air720->client_name);
     if (device->client == RT_NULL)

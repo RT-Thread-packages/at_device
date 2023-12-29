@@ -231,7 +231,7 @@ static int rw007_init(struct at_device *device)
     struct at_device_rw007 *rw007 = (struct at_device_rw007 *) device->user_data;
 
     /* initialize AT client */
-    at_client_init(rw007->client_name, rw007->recv_line_num);
+    at_client_init(rw007->client_name, rw007->recv_line_num, rw007->recv_line_num);
 
     device->client = at_client_get(rw007->client_name);
     if (device->client == RT_NULL)
