@@ -22,6 +22,7 @@
 #endif
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
+//#define SET_EVENT(socket, event)       ((1 << (socket + 16)) | (event)) 
 
 /* AT socket event type */
 #define ML307_EVENT_CONN_OK          (1L << 0)
@@ -82,7 +83,7 @@ static int ml307_socket_close(struct at_socket *socket)
         goto __exit;
     }
 
-    if (ml307_socket_event_recv(device, event, rt_tick_from_millisecond(300 * 3), RT_EVENT_FLAG_AND) < 0)
+    if (ml307_socket_event_recv(device, event, 1 * RT_TICK_PER_SECOND, RT_EVENT_FLAG_OR) < 0)
     {
         LOG_E("ml307 device(%s) socket(%d) close failed, wait close OK timeout.", device->name, device_socket);
         result = -RT_ETIMEOUT;
@@ -435,7 +436,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*d,%d", &connect_result);
+    sscanf(data, "%*s %d,%d", &device_socket, &connect_result);
 
     if(connect_result == 0)
     {
@@ -493,7 +494,8 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d", &close_result);
+    sscanf(data, "%d", &device_socket);
+
     if (close_result == 0)
     {
         ml307_socket_event_send(device, SET_EVENT(device_socket, ML307_EVENT_CLOSE_OK));
@@ -629,15 +631,68 @@ static void urc_func(struct at_client *client, const char *data, rt_size_t size)
     RT_ASSERT(data);
     LOG_I("URC data : %.*s", size, data);
 }
+static void urc_disc_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    int device_socket = 0;
+    struct at_device *device = RT_NULL;
+    char *client_name = client->device->parent.name;
+    int connect_state = 0;
+
+    RT_ASSERT(data && size);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get ml307 device by client name(%s) failed.", client_name);
+        return;
+    }
+
+    /* get the current socket & connect_state by receive data */
+    sscanf(data, "%*[^ ] \"%*[^\"]\",%d,%d", &device_socket, &connect_state);
+
+//    LOG_I("device_socket = %d, connect_state = %d", device_socket, connect_state);
+
+    //connect_state: 1. The servr close connection; 2. Connection exception; 3. Deactivate PDP context.
+    if (connect_state > 0)
+    {
+        struct at_socket *socket = RT_NULL;
+
+        /* get AT socket object by device socket descriptor */
+        socket = &(device->sockets[device_socket]);
+
+        /* notice the socket is disconnect by remote */
+        if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
+        {
+            at_evt_cb_set[AT_SOCKET_EVT_CLOSED](socket, AT_SOCKET_EVT_CLOSED, RT_NULL, 0);
+        }
+    }
+}
+static void urc_drop_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    RT_ASSERT(data);
+    LOG_I("URC data : %.*s", size, data);
+}
+static void urc_disc_drop_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    RT_ASSERT(data && size);
+
+    switch(*(data + 11))
+    {
+        case 'i' : urc_disc_func(client, data, size); break;            //+MIPURC: "disconn",<connect_id>,<connect_state>
+        case 'r' : urc_drop_func(client, data, size); break;            //+MIPURC: "drop",<connect_id>,<drop_length>
+        default  : urc_func(client, data, size);      break;
+    }
+}
 static void urc_mipurc_func(struct at_client *client, const char *data, rt_size_t size)
 {
     RT_ASSERT(data && size);
 
     switch(*(data + 10))
     {
-    case 's' : urc_state_func(client, data, size); break;   //+MIPURC: ”state”,<connect_id>,<connect_state>
-    case 'r' : urc_recv_func(client, data, size); break;    //+MIPURC: “recv”,<connect_id>,<recv_length>
-    default  : urc_func(client, data, size);      break;
+        case 's' : urc_state_func(client, data, size); break;           //+MIPURC: "state",<connect_id>,<connect_state>
+        case 'r' : urc_recv_func(client, data, size); break;            //+MIPURC: "recv",<connect_id>,<recv_length>
+        case 'd' : urc_disc_drop_func(client, data, size); break;       //+MIPURC: "disconn",<connect_id>,<connect_state>或+MIPURC: "drop",<connect_id>,<drop_length>
+        default  : urc_func(client, data, size);      break;
     }
 }
 
