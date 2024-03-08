@@ -230,7 +230,7 @@ static void check_link_status_entry(void *parameter)
         return;
     }
 
-    LOG_D("start air720 device(%s) link status check \n",netdev->name);
+    LOG_D("start air720 device(%s) link status check", netdev->name);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
