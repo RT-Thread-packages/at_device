@@ -226,7 +226,7 @@ static void check_link_status_entry(void *parameter)
 
     if(netdev == RT_NULL)
     {
-        LOG_E("netdev pointer is NULL \n");
+        LOG_E("netdev pointer is NULL");
         return;
     }
 
