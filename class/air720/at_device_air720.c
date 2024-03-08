@@ -224,7 +224,13 @@ static void check_link_status_entry(void *parameter)
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
 
-    LOG_D("start air720 device(%s) link status check \n");
+    if(netdev == RT_NULL)
+    {
+        LOG_E("netdev pointer is NULL");
+        return;
+    }
+
+    LOG_D("start air720 device(%s) link status check", netdev->name);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
