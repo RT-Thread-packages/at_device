@@ -18,6 +18,8 @@ extern "C" {
 #include <stdlib.h>
 
 #include <at_device.h>
+#define ESP32_DEFAULT_AT_VERSION         "1.4.0.0"
+#define ESP32_DEFAULT_AT_VERSION_NUM     0x1040000
 
 /* The maximum number of sockets supported by the esp32 device */
 #define AT_DEVICE_ESP32_SOCKETS_NUM  5
@@ -43,6 +45,11 @@ int esp32_socket_init(struct at_device *device);
 /* esp32 device class socket register */
 int esp32_socket_class_register(struct at_device_class *class);
 
+/* convert the esp32 AT version string to hexadecimal */
+unsigned int esp32_at_version_to_hex(const char *str);
+
+/* obtain the esp32 AT version number */
+unsigned int esp32_get_at_version(void);
 #endif /* AT_USING_SOCKET */
 
 #ifdef __cplusplus

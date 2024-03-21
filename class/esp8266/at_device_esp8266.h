@@ -18,6 +18,8 @@ extern "C" {
 #include <stdlib.h>
 
 #include <at_device.h>
+#define ESP8266_DEFAULT_AT_VERSION         "1.4.0.0"
+#define ESP8266_DEFAULT_AT_VERSION_NUM     0x1040000
 
 /* The maximum number of sockets supported by the esp8266 device */
 #define AT_DEVICE_ESP8266_SOCKETS_NUM  5
@@ -43,6 +45,11 @@ int esp8266_socket_init(struct at_device *device);
 /* esp8266 device class socket register */
 int esp8266_socket_class_register(struct at_device_class *class);
 
+/* convert the esp8266 AT version string to hexadecimal */
+unsigned int esp8266_at_version_to_hex(const char *str);
+
+/* obtain the esp8266 AT version number */
+unsigned int esp8266_get_at_version(void);
 #endif /* AT_USING_SOCKET */
 
 #ifdef __cplusplus
