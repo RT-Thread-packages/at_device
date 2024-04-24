@@ -445,8 +445,16 @@ __exit:
 #ifdef NETDEV_USING_PING
 #ifdef AT_DEVICE_USING_A9G
 static int a9g_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x501000
+        , rt_bool_t isbind
+#endif
+        )
 {
+#if RT_VER_NUM >= 0x501000
+    RT_UNUSED(isbind);
+#endif
+
     rt_kprintf("I don't have PING function!\r\n");
     return RT_EOK;
 }
@@ -814,7 +822,7 @@ static int a9g_init(struct at_device *device)
     struct at_device_a9g *a9g = (struct at_device_a9g *) device->user_data;
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 0, 1))
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
     at_client_init(a9g->client_name, a9g->recv_line_num, a9g->recv_line_num);
 #else
     at_client_init(a9g->client_name, a9g->recv_line_num);
