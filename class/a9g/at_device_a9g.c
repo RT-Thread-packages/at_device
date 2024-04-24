@@ -454,7 +454,7 @@ static int a9g_netdev_ping(struct netdev *netdev, const char *host,
 #if RT_VER_NUM >= 0x50100
     RT_UNUSED(is_bind);
 #endif
-    rt_kprintf("I don't have PING function!\r\n");
+    LOG_E("ping doesn't support in a9g device.");
     return RT_EOK;
 }
 #endif
