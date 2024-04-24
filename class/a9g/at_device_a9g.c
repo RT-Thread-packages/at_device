@@ -445,8 +445,15 @@ __exit:
 #ifdef NETDEV_USING_PING
 #ifdef AT_DEVICE_USING_A9G
 static int a9g_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+        , rt_bool_t is_bind
+#endif
+        )
 {
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
     rt_kprintf("I don't have PING function!\r\n");
     return RT_EOK;
 }
