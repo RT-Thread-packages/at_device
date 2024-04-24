@@ -857,7 +857,11 @@ static int bc28_init(struct at_device *device)
     rt_device_close(serial);
 
     /* initialize AT client */
-    at_client_init(bc28->client_name, bc28->recv_bufsz, bc28->recv_bufsz);
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+    at_client_init(bc28->client_name, bc28->recv_line_num, bc28->recv_line_num);
+#else
+    at_client_init(bc28->client_name, bc28->recv_line_num);
+#endif
 
     device->client = at_client_get(bc28->client_name);
     if (device->client == RT_NULL)

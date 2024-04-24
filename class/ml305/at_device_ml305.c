@@ -886,7 +886,11 @@ static int ml305_init(struct at_device *device)
     rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &serial_config);
 
     /* initialize AT client */
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
     at_client_init(ml305->client_name, ml305->recv_buff_size, ml305->recv_buff_size);
+#else
+    at_client_init(ml305->client_name, ml305->recv_buff_size);
+#endif
 
     device->client = at_client_get(ml305->client_name);
     if (device->client == RT_NULL)

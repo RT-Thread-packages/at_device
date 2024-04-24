@@ -936,7 +936,11 @@ static int l610_init(struct at_device *device)
     struct at_device_l610 *l610 = (struct at_device_l610 *) device->user_data;
 
     /* initialize AT client */
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
     at_client_init(l610->client_name, l610->recv_line_num, l610->recv_line_num);
+#else
+    at_client_init(l610->client_name, l610->recv_line_num);
+#endif
 
     device->client = at_client_get(l610->client_name);
     if (device->client == RT_NULL)

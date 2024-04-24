@@ -814,7 +814,11 @@ static int a9g_init(struct at_device *device)
     struct at_device_a9g *a9g = (struct at_device_a9g *) device->user_data;
 
     /* initialize AT client */
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 0, 1))
     at_client_init(a9g->client_name, a9g->recv_line_num, a9g->recv_line_num);
+#else
+    at_client_init(a9g->client_name, a9g->recv_line_num);
+#endif
 
     device->client = at_client_get(a9g->client_name);
     if (device->client == RT_NULL)

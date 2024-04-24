@@ -925,7 +925,11 @@ static int ec20_init(struct at_device *device)
     struct at_device_ec20 *ec20 = (struct at_device_ec20 *) device->user_data;
 
     /* initialize AT client */
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
     at_client_init(ec20->client_name, ec20->recv_line_num, ec20->recv_line_num);
+#else
+    at_client_init(ec20->client_name, ec20->recv_line_num);
+#endif
 
     device->client = at_client_get(ec20->client_name);
     if (device->client == RT_NULL)

@@ -827,7 +827,11 @@ static int me3616_init(struct at_device *device)
     me3616->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
     at_client_init(me3616->client_name, me3616->recv_line_num, me3616->recv_line_num);
+#else
+    at_client_init(me3616->client_name, me3616->recv_line_num);
+#endif
 
     device->client = at_client_get(me3616->client_name);
     if (device->client == RT_NULL)
