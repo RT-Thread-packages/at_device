@@ -1030,7 +1030,7 @@ static int ec200x_init(struct at_device *device)
     ec200x->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+#if RT_VER_NUM >= 0x50100
     at_client_init(ec200x->client_name, ec200x->recv_line_num, ec200x->recv_line_num);
 #else
     at_client_init(ec200x->client_name, ec200x->recv_line_num);

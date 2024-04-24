@@ -779,7 +779,7 @@ static int esp8266_init(struct at_device *device)
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+#if RT_VER_NUM >= 0x50100
     at_client_init(esp8266->client_name, esp8266->recv_line_num, esp8266->recv_line_num);
 #else
     at_client_init(esp8266->client_name, esp8266->recv_line_num);

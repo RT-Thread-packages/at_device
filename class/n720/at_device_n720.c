@@ -904,7 +904,7 @@ static int n720_init(struct at_device *device)
     n720->sleep_status = RT_FALSE;//default sleep is disabled.
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+#if RT_VER_NUM >= 0x50100
     at_client_init(n720->client_name, n720->recv_line_num, n720->recv_line_num);
 #else
     at_client_init(n720->client_name, n720->recv_line_num);

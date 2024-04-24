@@ -897,7 +897,7 @@ static int bc26_init(struct at_device *device)
     bc26->sleep_status = RT_FALSE; //default sleep is disabled.
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+#if RT_VER_NUM >= 0x50100
     at_client_init(bc26->client_name, bc26->recv_line_num, bc26->recv_line_num);
 #else
     at_client_init(bc26->client_name, bc26->recv_line_num);

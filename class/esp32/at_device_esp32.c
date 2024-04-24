@@ -779,7 +779,7 @@ static int esp32_init(struct at_device *device)
     struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
 
     /* initialize AT client */
-#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 1, 0))
+#if RT_VER_NUM >= 0x50100
     at_client_init(esp32->client_name, esp32->recv_line_num, esp32->recv_line_num);
 #else
     at_client_init(esp32->client_name, esp32->recv_line_num);
