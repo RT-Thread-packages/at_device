@@ -529,7 +529,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int n720_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define N720_PING_RESP_SIZE       128
 #define N720_PING_IP_SIZE         16
@@ -540,6 +544,10 @@ static int n720_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[N720_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
