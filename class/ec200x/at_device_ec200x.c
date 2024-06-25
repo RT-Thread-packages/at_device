@@ -259,11 +259,7 @@ static int ec200x_read_rssi(struct at_device *device)
         LOG_D("no memory for resp create.");
         return(result);
     }
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> 46e820e47fb62e91410050ec39793f9662366e11
     if (at_obj_exec_cmd(device->client, resp, "AT+CSQ") == RT_EOK)
     {
         int rssi = 0;
@@ -281,11 +277,7 @@ static int ec200x_read_rssi(struct at_device *device)
             result = RT_EOK;
         }
     }
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> 46e820e47fb62e91410050ec39793f9662366e11
     at_delete_resp(resp);
 
     return(result);
@@ -295,7 +287,7 @@ static int ec200x_read_rssi(struct at_device *device)
 /* set ec200x network interface device status and address information */
 static int ec200x_netdev_set_info(struct netdev *netdev)
 {
-#define EC200X_INFO_RESP_SIZE      128
+#define EC200X_INFO_RESP_SIZE      256
 #define EC200X_INFO_RESP_TIMO      rt_tick_from_millisecond(1000)
 
     int result = RT_EOK;
@@ -330,7 +322,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
         #define EC200X_NETDEV_HWADDR_LEN   8
         #define EC200X_IMEI_LEN            15
 
-        char imei[EC200X_IMEI_LEN] = {0};
+        char imei[32] = {0};
         int i = 0, j = 0;
 
         /* send "AT+GSN" commond to get device IMEI */
@@ -363,18 +355,6 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
             }
         }
     }
-    
-    /* read number of SIM card */
-    {
-        if (at_obj_exec_cmd(device->client, resp, "AT+QCCID") == RT_EOK)
-        {
-            char str[32];
-            if (at_resp_parse_line_args_by_kw(resp, "+QCCID:", "+QCCID:%s\r", str) > 0)
-            {
-                LOG_D("QCCID of SIM card : %s", str);
-            }
-        }
-    }
 
     /* read number of SIM card */
     {
@@ -390,7 +370,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device IP address */
     {
-        #define IP_ADDR_SIZE_MAX    16
+        #define IP_ADDR_SIZE_MAX    128
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
         /* send "AT+CGPADDR=1" commond to get IP address */
@@ -473,11 +453,7 @@ static void ec200x_check_link_status_entry(void *parameter)
     while (1)
     {
         ec200x_read_rssi(device);
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> 46e820e47fb62e91410050ec39793f9662366e11
         rt_thread_delay(EC200X_LINK_DELAY_TIME);
 
         is_link_up = (ec200x_check_link_status(device) == RT_EOK);
@@ -905,7 +881,7 @@ static void ec200x_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-        
+
         /* check signal strength */
         for (i = 0; i < CSQ_RETRY; i++)
         {
