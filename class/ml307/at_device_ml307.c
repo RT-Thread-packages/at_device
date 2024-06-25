@@ -199,7 +199,7 @@ static int ml307_netdev_set_info(struct netdev *netdev)
             goto __exit;
         }
 
-        LOG_D("ml307 device(%s) IMEI number: %s", device->name, imei);
+        LOG_I("ml307 device(%s) IMEI number: %s", device->name, imei);
 
         netdev->hwaddr_len = ML307_NETDEV_HWADDR_LEN;
         /* get hardware address by IMEI */
@@ -237,7 +237,7 @@ static int ml307_netdev_set_info(struct netdev *netdev)
             goto __exit;
         }
 
-        LOG_D("ml307 device(%s) IP address: %s", device->name, ipaddr);
+        LOG_I("ml307 device(%s) IP address: %s", device->name, ipaddr);
 
         /* set network interface address information */
         inet_aton(ipaddr, &addr);
@@ -276,8 +276,8 @@ static int ml307_netdev_set_info(struct netdev *netdev)
         const char *dns2_str = strstr(dns_str, "\",\"");
         sscanf(dns2_str, "\",\"%[^\"]", dns_server2);
 
-        LOG_D("ml307 device(%s) primary DNS server address: %s", device->name, dns_server1);
-        LOG_D("ml307 device(%s) secondary DNS server address: %s", device->name, dns_server2);
+        LOG_I("ml307 device(%s) primary DNS server address: %s", device->name, dns_server1);
+        LOG_I("ml307 device(%s) secondary DNS server address: %s", device->name, dns_server2);
 
         inet_aton(dns_server1, &addr);
         netdev_low_level_set_dns_server(netdev, 0, &addr);
@@ -384,7 +384,7 @@ static int ml307_netdev_set_up(struct netdev *netdev)
         ml307_net_init(device);
 
         netdev_low_level_set_status(netdev, RT_TRUE);
-        LOG_D("the network interface device(%s) set up status.", netdev->name);
+        LOG_I("the network interface device(%s) set up status.", netdev->name);
     }
 
     return RT_EOK;
@@ -513,11 +513,7 @@ __exit:
 #ifdef NETDEV_USING_PING
 #ifdef AT_DEVICE_USING_ML307
 static int ml307_netdev_ping(struct netdev *netdev, const char *host,
-            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
-#if RT_VER_NUM >= 0x50100
-            , rt_bool_t is_bind
-#endif
-            )
+        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
 {
 #define ML307_PING_RESP_SIZE         128
 #define ML307_PING_IP_SIZE           16
@@ -528,10 +524,7 @@ static int ml307_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr_resp[ML307_PING_IP_SIZE + 8] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
-
-#if RT_VER_NUM >= 0x50100
-    RT_UNUSED(is_bind);
-#endif
+//    int sent, recv, lost, min, max, avg;
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -831,7 +824,7 @@ static void ml307_init_thread_entry(void *parameter)
             AT_SEND_CMD(client, resp, 2, 10 * 1000, "AT+ICCID");
             if (at_resp_get_line_by_kw(resp, "+ICCID:"))
             {
-                LOG_D("%s device SIM card detection success.", device->name);
+                LOG_I("%s device SIM card detection success.", device->name);
                 break;
             }
             rt_thread_mdelay(1000);
@@ -850,7 +843,7 @@ static void ml307_init_thread_entry(void *parameter)
             at_resp_parse_line_args_by_kw(resp, "+CSQ:", "+CSQ: %s", &parsed_data);
             if (rt_strncmp(parsed_data, "99,99", sizeof(parsed_data)))
             {
-                LOG_D("signal strength: %s", parsed_data);
+                LOG_I("signal strength: %s", parsed_data);
                 break;
             }
             rt_thread_mdelay(2000);
@@ -861,86 +854,6 @@ static void ml307_init_thread_entry(void *parameter)
             result = -RT_ERROR;
             goto __exit;
         }
-
-        /* check the GSM network is registered */
-//        for (i = 0; i < CREG_RETRY; i++)
-//        {
-//            AT_SEND_CMD(client, resp, 0, ML307_AT_DEFAULT_TIMEOUT, "AT+CREG?");
-//            at_resp_parse_line_args_by_kw(resp, "+CREG:", "+CREG: %s", &parsed_data);
-//            if (!strncmp(parsed_data, "0,1", sizeof(parsed_data)) ||
-//                !strncmp(parsed_data, "0,5", sizeof(parsed_data)))
-//            {
-//                LOG_D("ml307 device(%s) GSM network is registered(%s),", device->name, parsed_data);
-//                break;
-//            }
-//            if(!strncmp(parsed_data, "0,3", sizeof(parsed_data)))
-//            {
-//                LOG_E("%s device GSM network is register failed(%s).", device->name, parsed_data);
-//                result = -RT_ERROR;
-//                goto __exit;
-//            }
-//            rt_thread_mdelay(1000 + 500 * (i + 1));
-//        }
-//        if (i == CREG_RETRY)
-//        {
-//            LOG_E("%s device GSM network is register failed(%s).", device->name, parsed_data);
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
-//
-//        /* check packet domain attach or detach */
-//        for (i = 0; i < CGATT_RETRY; i++)
-//        {
-//            AT_SEND_CMD(client, resp, 0, ML307_AT_DEFAULT_TIMEOUT, "AT+CGATT?");
-//            at_resp_parse_line_args_by_kw(resp, "+CGATT:", "+CGATT: %s", &parsed_data);
-//            if (!rt_strncmp(parsed_data, "1", 1))
-//            {
-//                LOG_D("%s device Packet domain attach.", device->name);
-//                break;
-//            }
-//
-//            rt_thread_mdelay(1000);
-//        }
-//        if (i == CGATT_RETRY)
-//        {
-//            LOG_E("%s device GPRS attach failed.", device->name);
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
-
-        /* Define PDP Context */
-//        for (i = 0; i < COMMON_RETRY; i++)
-//        {
-//            if (at_obj_exec_cmd(client, resp, "AT+CGDCONT=1,\"IPV4V6\",\"cmnet\"") == RT_EOK)
-//            {
-//                LOG_D("%s device Define PDP Context Success.", device->name);
-//                break;
-//            }
-//            rt_thread_mdelay(100);
-//        }
-//        if (i == COMMON_RETRY)
-//        {
-//            LOG_E("%s device Define PDP Context failed.", device->name);
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
-//
-//        /* PDP Context Activate*/
-//        for (i = 0; i < COMMON_RETRY; i++)
-//        {
-//            if (at_obj_exec_cmd(client, resp, "AT+MIPCALL=1,1") == RT_EOK)
-//            {
-//                LOG_D("%s device PDP Context Activate Success.", device->name);
-//                break;
-//            }
-//            rt_thread_mdelay(500);
-//        }
-//        if (i == COMMON_RETRY)
-//        {
-//            LOG_E("%s device PDP Context Activate failed.", device->name);
-//            result = -RT_ERROR;
-//            goto __exit;
-//        }
 
 #if defined (AT_DEBUG)
         /* check the GPRS network IP address */
@@ -1071,11 +984,7 @@ static int ml307_init(struct at_device *device)
     rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &serial_config);
 
     /* initialize AT client */
-#if RT_VER_NUM >= 0x50100
-    at_client_init(ml307->client_name, ml307->recv_buff_size, ml307->recv_buff_size);
-#else
     at_client_init(ml307->client_name, ml307->recv_buff_size);
-#endif
 
     device->client = at_client_get(ml307->client_name);
     if (device->client == RT_NULL)

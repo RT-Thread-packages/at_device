@@ -22,7 +22,7 @@
 #endif
 /* set real event by current socket and current state */
 #define SET_EVENT(socket, event)       (((socket + 1) << 16) | (event))
-//#define SET_EVENT(socket, event)       ((1 << (socket + 16)) | (event)) 
+//#define SET_EVENT(socket, event)       ((1 << (socket + 16)) | (event))
 
 /* AT socket event type */
 #define ML307_EVENT_CONN_OK          (1L << 0)
