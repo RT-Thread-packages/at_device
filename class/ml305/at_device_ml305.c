@@ -183,7 +183,7 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         #define ML305_NETDEV_HWADDR_LEN   8
         #define ML305_IMEI_LEN            15
 
-        char imei[ML305_IMEI_LEN] = {0};
+        char imei[ML305_IMEI_LEN + 1] = {0};
         int i = 0, j = 0;
 
         /* send "AT+GSN" commond to get device IMEI */
@@ -221,7 +221,7 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         #define IP_ADDR_SIZE_MAX    16
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
-        at_resp_set_info(resp, ML305_IPADDR_RESP_SIZE, 2, ML305_INFO_RESP_TIMO);
+        at_resp_set_info(resp, ML305_IPADDR_RESP_SIZE, 0, ML305_INFO_RESP_TIMO);
 
         /* send "AT+CIFSR" commond to get IP address */
         if (at_obj_exec_cmd(device->client, resp, "AT+CGPADDR=1") < 0)
@@ -501,9 +501,16 @@ __exit:
 #ifdef NETDEV_USING_PING
 #ifdef AT_DEVICE_USING_ML305
 static int ml305_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
-    rt_kprintf("I don't have PING function!\r\n");
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
+    LOG_E("ping doesn't support in ml305 device.");
     return RT_EOK;
 }
 #endif
@@ -623,7 +630,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* disable echo */
         AT_SEND_CMD(client, resp, 0, ML305_AT_DEFAULT_TIMEOUT, "ATE0");
         /* get module version */
-        AT_SEND_CMD(client, resp, 5, ML305_AT_DEFAULT_TIMEOUT, "ATI");
+        AT_SEND_CMD(client, resp, 0, ML305_AT_DEFAULT_TIMEOUT, "ATI");
         /* show module version */
         for (i = 0; i < (int)resp->line_counts - 1; i++)
         {
@@ -632,7 +639,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            AT_SEND_CMD(client, resp, 2, 5 * RT_TICK_PER_SECOND, "AT+CPIN?");
+            AT_SEND_CMD(client, resp, 0, 5 * RT_TICK_PER_SECOND, "AT+CPIN?");
 
             if (at_resp_get_line_by_kw(resp, "READY"))
             {
@@ -650,7 +657,7 @@ static void ml305_init_thread_entry(void *parameter)
         /* check SIM card */
         for (i = 0; i < CPIN_RETRY; i++)
         {
-            AT_SEND_CMD(client, resp, 2, 10 * 1000, "AT+ICCID");
+            AT_SEND_CMD(client, resp, 0, 10 * 1000, "AT+ICCID");
             if (at_resp_get_line_by_kw(resp, "+ICCID:"))
             {
                 LOG_D("%s device SIM card detection success.", device->name);
@@ -886,7 +893,11 @@ static int ml305_init(struct at_device *device)
     rt_device_control(serial, RT_DEVICE_CTRL_CONFIG, &serial_config);
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
     at_client_init(ml305->client_name, ml305->recv_buff_size, ml305->recv_buff_size);
+#else
+    at_client_init(ml305->client_name, ml305->recv_buff_size);
+#endif
 
     device->client = at_client_get(ml305->client_name);
     if (device->client == RT_NULL)

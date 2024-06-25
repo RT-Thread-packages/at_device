@@ -422,7 +422,9 @@ static int esp8266_domain_resolve(const char *name, char ip[16])
         }
 
         /* parse the third line of response data, get the IP address */
-        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:\"%[^\"]\"", recv_ip) < 0)
+
+        if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", (esp8266_get_at_version() <= ESP8266_DEFAULT_AT_VERSION_NUM) ? \
+                                      "+CIPDOMAIN:%s" : "+CIPDOMAIN:\"%[^\"]\"", recv_ip) < 0)
         {
             rt_thread_mdelay(100);
             /* resolve failed, maybe receive an URC CRLF */

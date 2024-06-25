@@ -23,6 +23,7 @@
 #define ESP8266_WAIT_CONNECT_TIME      5000
 #define ESP8266_THREAD_STACK_SIZE      2048
 #define ESP8266_THREAD_PRIORITY        (RT_THREAD_PRIORITY_MAX / 2)
+unsigned int ESP8266_GMR_AT_VERSION;
 
 /* =============================  esp8266 network interface operations ============================= */
 
@@ -373,7 +374,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
-                size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define ESP8266_PING_IP_SIZE         16
 
@@ -382,6 +387,10 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
     struct at_device *device = RT_NULL;
     char ip_addr[ESP8266_PING_IP_SIZE] = {0};
     int req_time;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -409,7 +418,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
     }
 
     /* parse the third line of response data, get the IP address */
-    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", "+CIPDOMAIN:\"%[^\"]\"", ip_addr) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+CIPDOMAIN:", (esp8266_get_at_version() <= ESP8266_DEFAULT_AT_VERSION_NUM) ? "+CIPDOMAIN:%s" : "+CIPDOMAIN:\"%[^\"]\"", ip_addr) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -422,7 +431,7 @@ static int esp8266_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+", "+PING:%d", &req_time) < 0)
+    if (at_resp_parse_line_args_by_kw(resp, "+", (esp8266_get_at_version() <= ESP8266_DEFAULT_AT_VERSION_NUM) ? "+%d" : "+PING:%d", &req_time) < 0)
     {
         result = -RT_ERROR;
         goto __exit;
@@ -639,6 +648,8 @@ static void esp8266_init_thread_entry(void *parameter)
         AT_SEND_CMD(client, resp, "AT+CWMODE=1");
         /* get module version */
         AT_SEND_CMD(client, resp, "AT+GMR");
+        /* get ESP8266 AT version*/
+        ESP8266_GMR_AT_VERSION = esp8266_at_version_to_hex(at_resp_get_line(resp, 1));
         /* show module version */
         for (i = 0; i < resp->line_counts - 1; i++)
         {
@@ -776,7 +787,11 @@ static int esp8266_init(struct at_device *device)
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
     at_client_init(esp8266->client_name, esp8266->recv_line_num, esp8266->recv_line_num);
+#else
+    at_client_init(esp8266->client_name, esp8266->recv_line_num);
+#endif
 
     device->client = at_client_get(esp8266->client_name);
     if (device->client == RT_NULL)
@@ -931,4 +946,57 @@ static int esp8266_device_class_register(void)
 }
 INIT_DEVICE_EXPORT(esp8266_device_class_register);
 
+/**
+ * Convert the ESP8266 AT version string to hexadecimal
+ *
+ * @param string containing the AT version
+ *
+ * @return hex_number: Hexadecimal AT version number, example: 1.4.1.1 -> 0x1040101
+ */
+unsigned int esp8266_at_version_to_hex(const char *str)
+{
+    const char *version_prefix = "AT version:";
+    char *version_start;
+    unsigned int numbers[4];
+    unsigned int hex_number;
+
+    if (str == NULL || *str == '\0')
+    {
+        LOG_E("Invalid AT version format\n");
+        return 0;
+    }
+
+    /* Get AT version string */
+    version_start = strstr(str, version_prefix);
+    if (version_start)
+    {
+        if (sscanf(version_start, "AT version:%d.%d.%d.%d", &numbers[0], &numbers[1], &numbers[2], &numbers[3]) == 4)
+        {
+
+            hex_number = (numbers[0] << 24) | (numbers[1] << 16) | (numbers[2] << 8) | numbers[3];
+        }
+        else
+        {
+            LOG_W("The AT instruction format is not standard\n");
+            return 0;
+        }
+    }
+    else
+    {
+        LOG_W("The AT+GMR instruction is not supported\n");
+        return 0;
+    }
+
+    return hex_number;
+}
+
+/**
+ * This function is used to obtain the ESP8266 AT version number.
+ *
+ * @return hex_number: Hexadecimal AT version number, example: 1.4.1.1 -> 0x1040101
+ */
+unsigned int esp8266_get_at_version(void)
+{
+    return ESP8266_GMR_AT_VERSION;
+}
 #endif /* AT_DEVICE_USING_ESP8266 */

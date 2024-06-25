@@ -508,7 +508,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int l610_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define L610_PING_RESP_SIZE         128
 #define L610_PING_IP_SIZE           16
@@ -521,6 +525,10 @@ static int l610_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[L610_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -936,7 +944,11 @@ static int l610_init(struct at_device *device)
     struct at_device_l610 *l610 = (struct at_device_l610 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
     at_client_init(l610->client_name, l610->recv_line_num, l610->recv_line_num);
+#else
+    at_client_init(l610->client_name, l610->recv_line_num);
+#endif
 
     device->client = at_client_get(l610->client_name);
     if (device->client == RT_NULL)

@@ -15,7 +15,9 @@
 
 #define ML305_SAMPLE_DEIVCE_NAME        "ml3050"
 
+#ifndef ML305_SAMPLE_CLIENT_NAME
 #define ML305_SAMPLE_CLIENT_NAME        "uart3"
+#endif
 
 #if !defined (ML305_SAMPLE_POWER_PIN)
     #define ML305_SAMPLE_POWER_PIN      0x1C

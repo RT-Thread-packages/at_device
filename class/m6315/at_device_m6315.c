@@ -388,7 +388,11 @@ __exit:
 
 #ifdef NETDEV_USING_PING
 static int m6315_netdev_ping(struct netdev *netdev, const char *host,
-        size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+            size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+            , rt_bool_t is_bind
+#endif
+            )
 {
 #define M6315_PING_RESP_SIZE         128
 #define M6315_PING_IP_SIZE           16
@@ -403,6 +407,10 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
     RT_ASSERT(netdev);
     RT_ASSERT(host);
     RT_ASSERT(ping_resp);
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -860,7 +868,11 @@ static int m6315_init(struct at_device *device)
     struct at_device_m6315 *m6315 = (struct at_device_m6315 *) device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
     at_client_init(m6315->client_name, m6315->recv_line_num, m6315->recv_line_num);
+#else
+    at_client_init(m6315->client_name, m6315->recv_line_num);
+#endif
 
     device->client = at_client_get(m6315->client_name);
     if (device->client == RT_NULL)

@@ -224,7 +224,13 @@ static void check_link_status_entry(void *parameter)
     char parsed_data[10] = {0};
     struct netdev *netdev = (struct netdev *)parameter;
 
-    LOG_D("start air720 device(%s) link status check \n");
+    if(netdev == RT_NULL)
+    {
+        LOG_E("netdev pointer is NULL");
+        return;
+    }
+
+    LOG_D("start air720 device(%s) link status check", netdev->name);
 
     device = at_device_get_by_name(AT_DEVICE_NAMETYPE_NETDEV, netdev->name);
     if (device == RT_NULL)
@@ -451,8 +457,12 @@ __exit:
 }
 
 #ifdef NETDEV_USING_PING
-static int air720_netdev_ping(struct netdev *netdev, const char *host,
-                              size_t data_len, uint32_t timeout, struct netdev_ping_resp *ping_resp)
+static int air720_netdev_ping(struct netdev *netdev, const char *host, size_t data_len,
+                              uint32_t timeout, struct netdev_ping_resp *ping_resp
+#if RT_VER_NUM >= 0x50100
+                              , rt_bool_t is_bind
+#endif
+                             )
 {
 #define air720_PING_RESP_SIZE 128
 #define air720_PING_IP_SIZE 16
@@ -466,6 +476,10 @@ static int air720_netdev_ping(struct netdev *netdev, const char *host,
     char ip_addr[air720_PING_IP_SIZE] = {0};
     at_response_t resp = RT_NULL;
     struct at_device *device = RT_NULL;
+
+#if RT_VER_NUM >= 0x50100
+    RT_UNUSED(is_bind);
+#endif
 
     RT_ASSERT(netdev);
     RT_ASSERT(host);
@@ -873,7 +887,11 @@ static int air720_init(struct at_device *device)
     struct at_device_air720 *air720 = (struct at_device_air720 *)device->user_data;
 
     /* initialize AT client */
+#if RT_VER_NUM >= 0x50100
     at_client_init(air720->client_name, air720->recv_line_num, air720->recv_line_num);
+#else
+    at_client_init(air720->client_name, air720->recv_line_num);
+#endif
 
     device->client = at_client_get(air720->client_name);
     if (device->client == RT_NULL)
