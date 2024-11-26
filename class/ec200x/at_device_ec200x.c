@@ -287,7 +287,7 @@ static int ec200x_read_rssi(struct at_device *device)
 /* set ec200x network interface device status and address information */
 static int ec200x_netdev_set_info(struct netdev *netdev)
 {
-#define EC200X_INFO_RESP_SIZE      128
+#define EC200X_INFO_RESP_SIZE      256
 #define EC200X_INFO_RESP_TIMO      rt_tick_from_millisecond(1000)
 
     int result = RT_EOK;
@@ -322,7 +322,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
         #define EC200X_NETDEV_HWADDR_LEN   8
         #define EC200X_IMEI_LEN            15
 
-        char imei[EC200X_IMEI_LEN] = {0};
+        char imei[32] = {0};
         int i = 0, j = 0;
 
         /* send "AT+GSN" commond to get device IMEI */
@@ -370,7 +370,7 @@ static int ec200x_netdev_set_info(struct netdev *netdev)
 
     /* set network interface device IP address */
     {
-        #define IP_ADDR_SIZE_MAX    16
+        #define IP_ADDR_SIZE_MAX    128
         char ipaddr[IP_ADDR_SIZE_MAX] = {0};
 
         /* send "AT+CGPADDR=1" commond to get IP address */
