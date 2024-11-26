@@ -260,9 +260,9 @@ static int ml305_netdev_set_info(struct netdev *netdev)
         //+MDNSCFG: IPV4 DNS1:211.136.17.107 IPV4 DNS2:211.136.20.203
         const char *dns_str = at_resp_get_line_by_kw(resp, "DNS1:");
         const char *dns1_str = strstr(dns_str, "DNS1:");
-        sscanf(dns1_str, "DNS1:%s", dns_server1);
+        rt_sscanf(dns1_str, "DNS1:%s", dns_server1);
         const char *dns2_str = strstr(dns_str, "DNS2:");
-        sscanf(dns2_str, "DNS2:%s", dns_server2);
+        rt_sscanf(dns2_str, "DNS2:%s", dns_server2);
 
         LOG_D("ml305 device(%s) primary DNS server address: %s", device->name, dns_server1);
         LOG_D("ml305 device(%s) secondary DNS server address: %s", device->name, dns_server2);

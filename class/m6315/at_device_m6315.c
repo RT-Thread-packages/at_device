@@ -430,7 +430,7 @@ static int m6315_netdev_ping(struct netdev *netdev, const char *host,
 
     /* send "AT+QPING="<host>"[,[<timeout>][,<pingnum>]]" timeout:1-255 second, pingnum:1-10, commond to send ping request */
     at_obj_exec_cmd(device->client, resp, "AT+QPING= \"%s\", 100, 1", host);
-    sscanf(at_resp_get_line_by_kw(resp, "+QPING:"), "+QPING:%d,%*s", &response);
+    rt_sscanf(at_resp_get_line_by_kw(resp, "+QPING:"), "+QPING:%d,%*s", &response);
     switch (response)
     {
     case 0:

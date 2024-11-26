@@ -80,7 +80,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr1, mac);
+    rt_sscanf(pos, resp_expr1, mac);
 
     /* send addr info query commond "AT+CIPSTA?" and wait response */
     if (at_obj_exec_cmd(client, resp, "AT+LKSTT") < 0)
@@ -96,7 +96,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr2, &link_status, ip, netmask, gateway, dns_server1, dns_server2);
+    rt_sscanf(pos, resp_expr2, &link_status, ip, netmask, gateway, dns_server1, dns_server2);
 
     /* set netdev info */
     inet_aton(gateway, &ip_addr);
@@ -105,7 +105,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_netmask(netdev, &ip_addr);
     inet_aton(ip, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
-    sscanf(mac, "%02x%02x%02x%02x%02x%02x",
+    rt_sscanf(mac, "%02x%02x%02x%02x%02x%02x",
             &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
@@ -147,7 +147,7 @@ static void w60x_get_netdev_info(struct rt_work *work, void *work_data)
         goto __exit;
     }
 
-    sscanf(pos, resp_expr3, &dhcp_stat, ip, netmask, gateway, dns_server1);
+    rt_sscanf(pos, resp_expr3, &dhcp_stat, ip, netmask, gateway, dns_server1);
 
     /* 0 - DHCP, 1 - static ip */
     netdev_low_level_set_dhcp_status(netdev, dhcp_stat ? RT_FALSE : RT_TRUE);
@@ -482,7 +482,7 @@ static int w60x_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    sscanf(pos, "+OK=\"%[^\"]\"", ip_addr);
+    rt_sscanf(pos, "+OK=\"%[^\"]\"", ip_addr);
 
     inet_aton(ip_addr, &(ping_resp->ip_addr));
     ping_resp->data_len = data_len;

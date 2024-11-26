@@ -419,7 +419,7 @@ static void urc_send_bfsz_func(struct at_client *client, const char *data, rt_si
 
     RT_ASSERT(data && size);
 
-    sscanf(data, "Recv %d bytes", &cur_send_bfsz);
+    rt_sscanf(data, "Recv %d bytes", &cur_send_bfsz);
 }
 
 static void urc_close_func(struct at_client *client, const char *data, rt_size_t size)
@@ -438,7 +438,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "%d,CLOSED", &index);
+    rt_sscanf(data, "%d,CLOSED", &index);
     socket = &(device->sockets[index]);
 
     /* notice the socket is disconnect by remote */
@@ -468,7 +468,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the at deveice socket and receive buffer size by receive data */
-    sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+IPD,%d,%d:", &device_socket, (int *) &bfsz);
 
     /* set receive timeout by receive buffer length, not less than 10ms */
     timeout = bfsz > 10 ? bfsz : 10;

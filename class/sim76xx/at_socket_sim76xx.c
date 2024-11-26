@@ -518,7 +518,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    sscanf(data, "+CIPSEND: %d,%d,%d", &device_socket, &rqst_size, &cnf_size);
+    rt_sscanf(data, "+CIPSEND: %d,%d,%d", &device_socket, &rqst_size, &cnf_size);
     sim76xx_socket_event_send(device, SET_EVENT(device_socket, SIM76XX_EVENT_SEND_OK));
 }
 
@@ -537,7 +537,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "+CIPOPEN: %d,%d", &device_socket, &result);
+    rt_sscanf(data, "+CIPOPEN: %d,%d", &device_socket, &result);
 
     if (result == 0)
     {
@@ -566,7 +566,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+IPCLOSE %d,%d", &device_socket, &reason);
+    rt_sscanf(data, "+IPCLOSE %d,%d", &device_socket, &reason);
     /* get AT socket object by device socket descriptor */
     socket = &(device->sockets[device_socket]);
 
@@ -600,7 +600,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     device_socket = (int) sim76xx->user_data;
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+IPD%d:", (int *)&bfsz);
+    rt_sscanf(data, "+IPD%d:", (int *)&bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz * 10;
 

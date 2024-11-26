@@ -298,7 +298,7 @@ static int w60x_domain_resolve(const char *name, char ip[16])
             continue;
         }
 
-        sscanf(pos, "+OK=\"%[^\"]\"", recv_ip);
+        rt_sscanf(pos, "+OK=\"%[^\"]\"", recv_ip);
 
         if (rt_strlen(recv_ip) < 8)
         {
@@ -377,7 +377,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     /* get the at deveice socket and receive buffer size by receive data */
     pos = rt_strstr(data, "+SKTRPT=");
-    sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &wsk, (int *) &bfsz, recv_ip, &recv_port);
+    rt_sscanf(pos, "+SKTRPT=%d,%d,%[^,],%d", &wsk, (int *) &bfsz, recv_ip, &recv_port);
 
     for (i = 0; i < AT_DEVICE_W60X_SOCKETS_NUM; i++)
     {

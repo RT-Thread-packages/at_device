@@ -483,7 +483,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
         return;
     }
 
-    sscanf(data, "%d%*[^0-9]", &device_socket);
+    rt_sscanf(data, "%d%*[^0-9]", &device_socket);
 
     if (rt_strstr(data, "CONNECT OK"))
     {
@@ -538,7 +538,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "%d%*s", &device_socket);
+    rt_sscanf(data, "%d%*s", &device_socket);
 
     if (rt_strstr(data, "CLOSE OK"))
     {
@@ -579,7 +579,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+RECEIVE: %d, %d", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+RECEIVE: %d, %d", &device_socket, (int *) &bfsz);
 
     /* set receive timeout by receive buffer length, not less than 10 ms */
     timeout = bfsz > 10 ? bfsz : 10;

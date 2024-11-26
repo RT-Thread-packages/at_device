@@ -456,7 +456,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*[^ ]%d,%s\r\n", &device_socket, constat);
+    rt_sscanf(data, "%*[^ ]%d,%s\r\n", &device_socket, constat);
 
     LOG_D("data:%s", data);
 
@@ -490,7 +490,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*[^ ] %d,%*d", &device_socket);
+    rt_sscanf(data, "%*[^ ] %d,%*d", &device_socket);
 
     if (rt_strstr(data, "OPERATION"))
     {
@@ -524,7 +524,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
 
     /* get the current socket by receive data */
     /* +TCPCLOSE: 1,OK */
-    sscanf(data, "%*[^ ]%d,%*s", &device_socket);
+    rt_sscanf(data, "%*[^ ]%d,%*s", &device_socket);
 
     if (rt_strstr(data, "OK"))
     {
@@ -558,7 +558,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     RT_ASSERT(data && size);
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "%*[^ ] %d,%d,", &device_socket, (int *)&bfsz);
+    rt_sscanf(data, "%*[^ ] %d,%d,", &device_socket, (int *)&bfsz);
 
     recv_buf = (char *)rt_calloc(1, bfsz + 1);
 

@@ -272,9 +272,9 @@ static int ml307_netdev_set_info(struct netdev *netdev)
         }
 
         const char *dns1_str = strstr(dns_str, "\"");
-        sscanf(dns1_str, "\"%[^\"]", dns_server1);
+        rt_sscanf(dns1_str, "\"%[^\"]", dns_server1);
         const char *dns2_str = strstr(dns_str, "\",\"");
-        sscanf(dns2_str, "\",\"%[^\"]", dns_server2);
+        rt_sscanf(dns2_str, "\",\"%[^\"]", dns_server2);
 
         LOG_D("ml307 device(%s) primary DNS server address: %s", device->name, dns_server1);
         LOG_D("ml307 device(%s) secondary DNS server address: %s", device->name, dns_server2);
@@ -563,7 +563,7 @@ static int ml307_netdev_ping(struct netdev *netdev, const char *host,
         at_obj_exec_cmd(device->client, resp, "AT+MPING=\"%s\", 10, 1", host);
     }
 
-    sscanf(at_resp_get_line_by_kw(resp, "+MPING:"), "+MPING:%d,%*s", &response);
+    rt_sscanf(at_resp_get_line_by_kw(resp, "+MPING:"), "+MPING:%d,%*s", &response);
 
     switch (response)
     {
@@ -571,7 +571,7 @@ static int ml307_netdev_ping(struct netdev *netdev, const char *host,
         if (at_resp_parse_line_args(resp, 4, "+MPING: %d, %[^,], %d, %d, %d",
             &response, ip_addr_resp, &bytes, &time, &ttl) != RT_NULL)
         {
-            sscanf(ip_addr_resp, "%[^\"]", ip_addr);
+            rt_sscanf(ip_addr_resp, "%[^\"]", ip_addr);
 
             /* ping result reponse at the sixth line */
 //            if (at_resp_parse_line_args(resp, 12, "+MPING: %*[^,], %d, %d, %d, %d, %d",
@@ -957,9 +957,9 @@ static void ml307_init_thread_entry(void *parameter)
                 if (at_resp_parse_line_args_by_kw(resp, "+MIPCALL:", "+MIPCALL: %*d,%*d,%s", ipaddr_str) > 0)
                 {
                     const char *ipaddr_v4_str = strstr(ipaddr_str, "\"");
-                    sscanf(ipaddr_v4_str, "\"%[^\"]", ipaddr_v4);
+                    rt_sscanf(ipaddr_v4_str, "\"%[^\"]", ipaddr_v4);
                     const char *ipaddr_v6_str = strstr(ipaddr_str, "\",\"");
-                    sscanf(ipaddr_v6_str, "\",\"%[^\"]", ipaddr_v6);
+                    rt_sscanf(ipaddr_v6_str, "\",\"%[^\"]", ipaddr_v6);
 
                     LOG_D("%s device IP address: %s - %s", device->name, ipaddr_v4, ipaddr_v6);
                     break;

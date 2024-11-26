@@ -26,6 +26,10 @@ extern "C" {
 #include <netdev.h>
 #endif /* RT_USING_NETDEV */
 
+#if RT_VER_NUM < 0x50200
+#define rt_sscanf   sscanf
+#endif
+
 #define AT_DEVICE_SW_VERSION           "2.1.0"
 #define AT_DEVICE_SW_VERSION_NUM       0x20100
 

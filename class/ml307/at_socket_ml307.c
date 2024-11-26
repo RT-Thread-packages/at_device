@@ -436,7 +436,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%*s %d,%d", &device_socket, &connect_result);
+    rt_sscanf(data, "%*s %d,%d", &device_socket, &connect_result);
 
     if(connect_result == 0)
     {
@@ -465,7 +465,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "+MIPSEND: %d,%d", &device_socket, &send_len);
+    rt_sscanf(data, "+MIPSEND: %d,%d", &device_socket, &send_len);
 
     if (send_len >= 0)
     {
@@ -494,7 +494,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d", &device_socket);
+    rt_sscanf(data, "%d", &device_socket);
 
     if (close_result == 0)
     {
@@ -531,7 +531,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     RT_ASSERT(data && size);
 
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "+MIPURC:%*[^,],%d,%d", &device_socket, (int *) &bfsz);
+    rt_sscanf(data, "+MIPURC:%*[^,],%d,%d", &device_socket, (int *) &bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz;
 
@@ -648,7 +648,7 @@ static void urc_disc_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket & connect_state by receive data */
-    sscanf(data, "%*[^ ] \"%*[^\"]\",%d,%d", &device_socket, &connect_state);
+    rt_sscanf(data, "%*[^ ] \"%*[^\"]\",%d,%d", &device_socket, &connect_state);
 
 //    LOG_I("device_socket = %d, connect_state = %d", device_socket, connect_state);
 

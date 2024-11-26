@@ -379,7 +379,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     at_client_obj_recv(client, temp, 2, 1000);
     /* get the at deveice socket and receive buffer size by receive data */
-    sscanf(temp, "%d,", &device_socket);
+    rt_sscanf(temp, "%d,", &device_socket);
     temp[0] = 0;
     temp[1] = 0;
     for (i = 0; i < 6; i++)
@@ -390,7 +390,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
         }
         at_client_obj_recv(client, &temp[i], 1, 1000);
     }
-    sscanf(temp, "%ld,", &bfsz);
+    rt_sscanf(temp, "%ld,", &bfsz);
 
     LOG_D("socket:%d, size:%ld\n", device_socket, bfsz);
     /* set receive timeout by receive buffer length, not less than 10 ms */

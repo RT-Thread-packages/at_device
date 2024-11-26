@@ -93,7 +93,7 @@ static void mw31_get_netdev_info(struct rt_work *work, void *work_data)
     inet_aton(mw31_ip_addr, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
 
-    sscanf(mac, "%2x%2x%2x%2x%2x%2x",
+    rt_sscanf(mac, "%2x%2x%2x%2x%2x%2x",
            &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {

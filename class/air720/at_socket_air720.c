@@ -444,7 +444,7 @@ static void urc_connect_func(struct at_client *client, const char *data, rt_size
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (strstr(data, "CONNECT OK"))
     {
@@ -472,7 +472,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "SEND OK"))
     {
@@ -500,7 +500,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "%d,%*s", &device_socket);
+    rt_sscanf(data, "%d,%*s", &device_socket);
 
     if (rt_strstr(data, "CLOSE OK"))
     {
@@ -535,8 +535,8 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
 
     //LOG_I("get +receive data %s", data);
     /* get the current socket and receive buffer size by receive data */
-    sscanf(data, "%*[^,],%d,%d:", &device_socket, (int *)&bfsz);
-    // sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *)&bfsz);
+    rt_sscanf(data, "%*[^,],%d,%d:", &device_socket, (int *)&bfsz);
+    // rt_sscanf(data, "+RECEIVE,%d,%d:", &device_socket, (int *)&bfsz);
     /* get receive timeout by receive buffer length */
     timeout = bfsz;
 
@@ -610,7 +610,7 @@ static void urc_dataaccept_func(struct at_client *client, const char *data, rt_s
     }
 
     /* get the current socket by receive data */
-    sscanf(data, "DATA ACCEPT:%d,%d", &device_socket, (int *)&bfsz);
+    rt_sscanf(data, "DATA ACCEPT:%d,%d", &device_socket, (int *)&bfsz);
 
     air720_socket_event_send(device, SET_EVENT(device_socket, AIR720_EVENT_SEND_OK));
 }

@@ -93,7 +93,7 @@ static void esp32_get_netdev_info(struct rt_work *work, void *work_data)
     netdev_low_level_set_netmask(netdev, &ip_addr);
     inet_aton(ip, &ip_addr);
     netdev_low_level_set_ipaddr(netdev, &ip_addr);
-    sscanf(mac, "%x:%x:%x:%x:%x:%x",
+    rt_sscanf(mac, "%x:%x:%x:%x:%x:%x",
             &mac_addr[0], &mac_addr[1], &mac_addr[2], &mac_addr[3], &mac_addr[4], &mac_addr[5]);
     for (num = 0; num < netdev->hwaddr_len; num++)
     {
@@ -970,7 +970,7 @@ unsigned int esp32_at_version_to_hex(const char *str)
     version_start = strstr(str, version_prefix);
     if (version_start)
     {
-        if (sscanf(version_start, "AT version:%d.%d.%d.%d", &numbers[0], &numbers[1], &numbers[2], &numbers[3]) == 4)
+        if (rt_sscanf(version_start, "AT version:%d.%d.%d.%d", &numbers[0], &numbers[1], &numbers[2], &numbers[3]) == 4)
         {
 
             hex_number = (numbers[0] << 24) | (numbers[1] << 16) | (numbers[2] << 8) | numbers[3];

@@ -543,7 +543,7 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         return;
     }
 
-    sscanf(data, "+NSOSTR:%d,%d,%d", &device_socket, &sequence, &status);
+    rt_sscanf(data, "+NSOSTR:%d,%d,%d", &device_socket, &sequence, &status);
 
     if (1 == status)
     {
@@ -571,7 +571,7 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    sscanf(data, "+NSOCLI: %d", &device_socket);
+    rt_sscanf(data, "+NSOCLI: %d", &device_socket);
 
     bc28_socket_event_send(device, SET_EVENT(device_socket, BC28_EVENT_CONN_FAIL));
 
@@ -614,7 +614,7 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     /* get the current socket and receive buffer size by receive data */
 
     /* mode 2 => +NSONMI:<socket>,<remote_addr>, <remote_port>,<length>,<data> */
-    sscanf(data, "+NSONMI:%d,%[0123456789.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
+    rt_sscanf(data, "+NSONMI:%d,%[0123456789.],%d,%d,%s", &device_socket, remote_addr, &remote_port, (int *) &bfsz, hex_buf);
     LOG_D("device socket(%d) recv %d bytes from %s:%d\n>> %s", device_socket, bfsz, remote_addr, remote_port, hex_buf);
 
     /* set receive timeout by receive buffer length, not less than 10 ms */
@@ -686,7 +686,7 @@ static void urc_dns_func(struct at_client *client, const char *data, rt_size_t s
         return;
     }
 
-    sscanf(data, "+QDNS:%s", recv_ip);
+    rt_sscanf(data, "+QDNS:%s", recv_ip);
     recv_ip[15] = '\0';
 
     if (rt_strstr(recv_ip, "FAIL"))
