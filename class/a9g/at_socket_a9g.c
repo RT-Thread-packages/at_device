@@ -228,7 +228,7 @@ static int a9g_socket_send(struct at_socket *socket, const char *buff, size_t bf
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    rt_mutex_t lock = device->client->lock;
+    rt_mutex_t lock = &(device->client->lock);
 
     RT_ASSERT(buff);
 

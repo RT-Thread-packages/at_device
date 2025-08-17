@@ -515,7 +515,7 @@ static int ec20_socket_send(struct at_socket *socket, const char *buff, size_t b
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_ec20 *ec20 = (struct at_device_ec20 *) device->user_data;
-    rt_mutex_t lock = device->client->lock;
+    rt_mutex_t lock = &(device->client->lock);
 
     RT_ASSERT(buff);
 
