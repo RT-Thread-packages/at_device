@@ -289,7 +289,7 @@ static int esp8266_socket_send(struct at_socket *socket, const char *buff, size_
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_esp8266 *esp8266 = (struct at_device_esp8266 *) device->user_data;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(buff);
     RT_ASSERT(bfsz > 0);

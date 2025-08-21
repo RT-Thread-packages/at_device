@@ -194,7 +194,7 @@ static int rw007_socket_send(struct at_socket *socket, const char *buff, size_t 
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_rw007 *rw007 = (struct at_device_rw007 *) device->user_data;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(buff);
     RT_ASSERT(bfsz > 0);

@@ -23,6 +23,22 @@ static rt_slist_t at_device_list = RT_SLIST_OBJECT_INIT(at_device_list);
 static rt_slist_t at_device_class_list = RT_SLIST_OBJECT_INIT(at_device_class_list);
 
 /**
+ * Get the client lock (mutex) of the specified AT device.
+ * This lock is used to ensure thread-safe access to the AT client.
+ * 
+ * @param device: Pointer to the AT device object.
+ * @return The client lock (rt_mutex_t) of the AT device.
+ */
+rt_mutex_t at_device_get_client_lock(struct at_device *device)
+{
+#if defined(RT_VERSION_CHECK) && (RTTHREAD_VERSION > RT_VERSION_CHECK(5, 2, 1))
+    return &(device->client->lock);
+#else
+    return device->client->lock;
+#endif
+}
+
+/**
  * This function will get the first initialized AT device.
  *
  * @return the AT device structure pointer

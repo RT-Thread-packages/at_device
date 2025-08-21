@@ -128,6 +128,8 @@ struct at_device *at_device_get_by_name(int type, const char *name);
 struct at_device *at_device_get_by_socket(int at_socket);
 #endif
 
+/* Get the client lock (mutex) of the specified AT device. */
+rt_mutex_t at_device_get_client_lock(struct at_device *device);
 /* AT device control operaions */
 int at_device_control(struct at_device *device, int cmd, void *arg);
 /* Register AT device class object */

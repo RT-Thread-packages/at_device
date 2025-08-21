@@ -255,7 +255,7 @@ static int l610_socket_send(struct at_socket *socket, const char *buff, size_t b
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
     int sock = -1;
 
        sock=l610_socket_fd[device_socket];
