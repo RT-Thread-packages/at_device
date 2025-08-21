@@ -282,7 +282,7 @@ static int m26_socket_send(struct at_socket *socket, const char *buff, size_t bf
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_m26 *m26 = (struct at_device_m26 *) device->user_data;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(buff);
 

@@ -190,7 +190,7 @@ static int sim76xx_socket_connect(struct at_socket *socket, char *ip, int32_t po
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(ip);
     RT_ASSERT(port >= 0);
@@ -304,7 +304,7 @@ static int sim76xx_socket_send(struct at_socket *socket, const char *buff, size_
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
     struct at_device_sim76xx *sim76xx = (struct at_device_sim76xx *) device->user_data;
-    rt_mutex_t lock = &(device->client->lock);
+    rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(buff);
     RT_ASSERT(bfsz > 0);
