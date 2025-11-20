@@ -15,7 +15,9 @@
 
 #define ML307_SAMPLE_DEIVCE_NAME        "ml3070"
 
+#if !defined ML307_SAMPLE_CLIENT_NAME
 #define ML307_SAMPLE_CLIENT_NAME        "uart2"
+#endif
 
 #if !defined (ML307_SAMPLE_POWER_PIN)
     #define ML307_SAMPLE_POWER_PIN      0x1C
