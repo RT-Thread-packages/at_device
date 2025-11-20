@@ -431,7 +431,7 @@ static int esp32_netdev_ping(struct netdev *netdev, const char *host,
         goto __exit;
     }
 
-    if (at_resp_parse_line_args_by_kw(resp, "+", (esp32_get_at_version() <= ESP32_DEFAULT_AT_VERSION_NUM) ? 
+    if (at_resp_parse_line_args_by_kw(resp, "+", (esp32_get_at_version() <= ESP32_DEFAULT_AT_VERSION_NUM) ?
                                       "+%d" : "+PING:%d", &req_time) < 0)
     {
         result = -RT_ERROR;
@@ -615,7 +615,7 @@ static void esp32_init_thread_entry(void *parameter)
 #define INIT_RETRY    5
 
     struct at_device *device = (struct at_device *) parameter;
-    struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
+    struct at_device_esp32 *esp32 = (struct at_device_esp32 *)rt_container_of(device, struct at_device_esp32, device);
     struct at_client *client = device->client;
     at_response_t resp = RT_NULL;
     rt_err_t result = RT_EOK;
@@ -784,7 +784,7 @@ static const struct at_urc urc_table[] =
 
 static int esp32_init(struct at_device *device)
 {
-    struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
+    struct at_device_esp32 *esp32 = rt_container_of(device, struct at_device_esp32, device);
 
     /* initialize AT client */
 #if RT_VER_NUM >= 0x50100
@@ -823,8 +823,27 @@ static int esp32_deinit(struct at_device *device)
 {
     return esp32_netdev_set_down(device->netdev);
 }
+/**
+ * Set the host name of the ESP32 device.
+ *
+ * @param device    Pointer to the AT device structure.
+ * @param host_name Host name string to set for the ESP32 device.
+ *
+ * @return RT_EOK on success, -RT_ERROR on failure.
+ */
+static int esp32_set_host_name(struct at_device *device, const char *host_name)
+{
+    int result = RT_EOK;
+    struct at_client *client = device->client;
+    if (host_name == RT_NULL || device->is_init == RT_FALSE)
+    {
+        return -RT_ERROR;
+    }
+    result = at_obj_exec_cmd(client, RT_NULL, "AT+CWHOSTNAME=\"%s\"", host_name);
+    return result;
+}
 
-/* reset eap8266 device and initialize device network again */
+/* reset esp32 device and initialize device network again */
 static int esp32_reset(struct at_device *device)
 {
     int result = RT_EOK;
@@ -849,7 +868,7 @@ static int esp32_reset(struct at_device *device)
     return result;
 }
 
-/* change eap8266 wifi ssid and password information */
+/* change esp32 wifi ssid and password information */
 static int esp32_wifi_info_set(struct at_device *device, struct at_device_ssid_pwd *info)
 {
     int result = RT_EOK;
@@ -909,6 +928,9 @@ static int esp32_control(struct at_device *device, int cmd, void *arg)
         break;
     case AT_DEVICE_CTRL_SET_WIFI_INFO:
         result = esp32_wifi_info_set(device, (struct at_device_ssid_pwd *) arg);
+        break;
+    case AT_DEVICE_CTRL_SET_HOST_NAME:
+        result = esp32_set_host_name(device, (const char *)arg);
         break;
     default:
         LOG_E("input error control cmd(%d).", cmd);
@@ -972,7 +994,6 @@ unsigned int esp32_at_version_to_hex(const char *str)
     {
         if (rt_sscanf(version_start, "AT version:%d.%d.%d.%d", &numbers[0], &numbers[1], &numbers[2], &numbers[3]) == 4)
         {
-
             hex_number = (numbers[0] << 24) | (numbers[1] << 16) | (numbers[2] << 8) | numbers[3];
         }
         else
@@ -998,5 +1019,69 @@ unsigned int esp32_at_version_to_hex(const char *str)
 unsigned int esp32_get_at_version(void)
 {
     return ESP32_GMR_AT_VERSION;
+}
+int esp32_scan_ap(struct at_device *device, at_ap_info_t *ap_info, uint8_t num)
+{
+
+    int result = RT_EOK;
+    struct at_client *client = device->client;
+    struct at_response *resp = RT_NULL;
+    uint8_t ap_count = 0;
+
+    RT_ASSERT(device && ap_info && num);
+
+    resp = at_create_resp(2048, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return 0;
+    }
+
+    if (at_obj_exec_cmd(client, resp, "AT+CWLAP") < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+    //+CWLAP:(3,"HONOR 20",-51,"22:a6:f3:40:da:3d",1)
+
+    at_ap_info_t *ap_info_ptr;
+    for (int i = 1; i <= resp->line_counts && ap_count < num; i++)
+    {
+        ap_info_ptr = &ap_info[ap_count];
+        char mac[32];
+        int temp_ecn, temp_rssi, temp_channel;
+        if (at_resp_parse_line_args(resp, i,
+                                    "%*[^(](%d,\"%31[^\"]\",%d,\"%31[^\"]\",%d)",
+                                    &temp_ecn, ap_info_ptr->ssid, &temp_rssi,
+                                    mac, &temp_channel) == 5)
+        {
+            ap_info_ptr->ecn = (uint8_t)temp_ecn;
+            ap_info_ptr->rssi = (int8_t)temp_rssi;
+            ap_info_ptr->channel = (uint8_t)temp_channel;
+            rt_uint32_t mac_addr[6] = {0};
+            rt_sscanf(mac, "%x:%x:%x:%x:%x:%x",
+                      &mac_addr[0], &mac_addr[1], &mac_addr[2],
+                      &mac_addr[3], &mac_addr[4], &mac_addr[5]);
+            for (int j = 0; j < 6; j++)
+            {
+                ap_info_ptr->mac[j] = (uint8_t)mac_addr[j];
+            }
+            ap_count++;
+        }
+    }
+__exit:
+
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+    if (result != RT_EOK)
+    {
+        return 0;
+    }
+    else
+    {
+        return ap_count;
+    }
 }
 #endif /* AT_DEVICE_USING_ESP32 */
