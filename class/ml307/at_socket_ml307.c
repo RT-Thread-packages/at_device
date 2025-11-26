@@ -359,7 +359,7 @@ static int ml307_domain_resolve(const char *name, char ip[16])
         if (at_obj_exec_cmd(device->client, resp, "AT+MDNSGIP=\"%s\"", name) < 0)
         {
             result = -RT_ERROR;
-            goto __exit;
+            continue;
         }
 
         /* domain name prase error options */
@@ -369,7 +369,7 @@ static int ml307_domain_resolve(const char *name, char ip[16])
             if (err_code == 580 || err_code == 581)
             {
                 result = -RT_ERROR;
-                goto __exit;
+                continue;
             }
         }
 
@@ -392,11 +392,11 @@ static int ml307_domain_resolve(const char *name, char ip[16])
             rt_thread_mdelay(10);
             rt_strncpy(ip, recv_ip, 15);
             ip[15] = '\0';
+            result = RT_EOK;
             break;
         }
     }
 
-__exit:
     if (resp)
     {
         at_delete_resp(resp);
