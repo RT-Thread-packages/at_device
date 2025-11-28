@@ -32,10 +32,12 @@
 #define ESP32_EVENT_SEND_FAIL        (1L << 5)
 
 static at_evt_cb_t at_evt_cb_set[] = {
-        [AT_SOCKET_EVT_RECV] = NULL,
+        [AT_SOCKET_EVT_RECV]   = NULL,
         [AT_SOCKET_EVT_CLOSED] = NULL,
+#ifdef AT_USING_SOCKET_SERVER
+        [AT_SOCKET_EVT_CONNECTED] = NULL,
+#endif
 };
-
 static int esp32_socket_event_send(struct at_device *device, uint32_t event)
 {
     return (int) rt_event_send(device->socket_event, event);
@@ -79,8 +81,21 @@ static int esp32_socket_close(struct at_socket *socket)
         return -RT_ENOMEM;
     }
 
-    result = at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket);
-
+#ifdef AT_USING_SOCKET_SERVER
+    if (socket->listen.is_listen)
+    {
+        result = at_obj_exec_cmd(device->client, resp, "AT+CIPSERVER=0");
+    }
+    else
+#endif
+    /* Note: Upstream at_closesocket sets state to AT_SOCKET_CLOSED before calling
+        * this function. Checking == AT_SOCKET_CLOSED here ensures we send CIPCLOSE
+        * during normal close flow while avoiding duplicate commands if already closed.
+        */
+    if (socket->state == AT_SOCKET_CLOSED)
+    {
+        result = at_obj_exec_cmd(device->client, resp, "AT+CIPCLOSE=%d", device_socket);
+    }
     if (resp)
     {
         at_delete_resp(resp);
@@ -172,6 +187,81 @@ __exit:
     return result;
 }
 
+#ifdef AT_USING_SOCKET_SERVER
+static void urc_connected_func(struct at_client *client, const char *data, rt_size_t size)
+{
+    int socket;
+    struct at_device *device             = RT_NULL;
+    char socket_info[AT_SOCKET_INFO_LEN] = {0};
+    char *client_name                    = client->device->parent.name;
+
+    RT_ASSERT(data && size);
+
+    device = at_device_get_by_name(AT_DEVICE_NAMETYPE_CLIENT, client_name);
+    if (device == RT_NULL)
+    {
+        LOG_E("get device(%s) failed.", client_name);
+        return;
+    }
+
+    rt_sscanf(data, "%d,CONNECT", &socket);
+    rt_memset(&socket_info[0], 0, AT_SOCKET_INFO_LEN);
+    rt_sprintf(&socket_info[0], "SOCKET:%d", socket);
+
+    /* notice at socket to alloc a new socket */
+    if (at_evt_cb_set[AT_SOCKET_EVT_CONNECTED])
+    {
+        at_evt_cb_set[AT_SOCKET_EVT_CONNECTED](RT_NULL, AT_SOCKET_EVT_CONNECTED, &socket_info[0], AT_SOCKET_INFO_LEN);
+    }
+}
+/**
+ * Listen for incoming connections on a TCP server socket using AT commands.
+ *
+ * @param socket current socket
+ * @param backlog waiting to handle work, useless in "at mode"
+ *
+ * @return   0: listen success
+ *          -1: listen failed, send commands error or type error
+ */
+int esp32_socket_listen(struct at_socket *socket, int backlog)
+{
+    int result               = RT_EOK;
+    at_response_t resp       = RT_NULL;
+    struct at_device *device = RT_NULL;
+    int listen_port;
+
+    listen_port = (int)socket->listen.port;
+
+    device = socket->device;
+    if (device == RT_NULL)
+    {
+        LOG_E("get first init device failed.");
+        return -RT_ERROR;
+    }
+
+    resp = at_create_resp(128, 0, 20 * RT_TICK_PER_SECOND);
+    if (resp == RT_NULL)
+    {
+        LOG_E("no memory for resp create.");
+        return -RT_ENOMEM;
+    }
+
+    /* AT+CIPSERVER=1,<port> */
+    if (at_obj_exec_cmd(device->client, resp, "AT+CIPSERVER=1,%d", listen_port) < 0)
+    {
+        result = -RT_ERROR;
+        goto __exit;
+    }
+
+__exit:
+    if (resp)
+    {
+        at_delete_resp(resp);
+    }
+
+    return result;
+}
+#endif
 /**
  * send data to server or client by AT commands.
  *
@@ -193,13 +283,13 @@ static int esp32_socket_send(struct at_socket *socket, const char *buff, size_t 
     at_response_t resp = RT_NULL;
     int device_socket = (int) socket->user_data;
     struct at_device *device = (struct at_device *) socket->device;
-    struct at_device_esp32 *esp32 = (struct at_device_esp32 *) device->user_data;
+    struct at_device_esp32 *esp32 = rt_container_of(device, struct at_device_esp32, device);
     rt_mutex_t lock = at_device_get_client_lock(device);
 
     RT_ASSERT(buff);
     RT_ASSERT(bfsz > 0);
 
-    resp = at_create_resp(128, 2, 5 * RT_TICK_PER_SECOND);
+    resp = at_create_resp(128, 0, 5 * RT_TICK_PER_SECOND);
     if (resp == RT_NULL)
     {
         LOG_E("no memory for resp create.");
@@ -209,7 +299,7 @@ static int esp32_socket_send(struct at_socket *socket, const char *buff, size_t 
     rt_mutex_take(lock, RT_WAITING_FOREVER);
 
     /* set current socket for send URC event */
-    esp32->user_data = (void *) device_socket;
+    esp32->urc_socket = device_socket;
 
     /* set AT client end sign to deal with '>' sign */
     at_obj_set_end_sign(device->client, '>');
@@ -356,7 +446,6 @@ __exit:
     }
 
     return result;
-
 }
 
 /**
@@ -383,6 +472,9 @@ static const struct at_socket_ops esp32_socket_ops =
 #if defined(AT_SW_VERSION_NUM) && AT_SW_VERSION_NUM > 0x10300
     RT_NULL,
 #endif
+#ifdef AT_USING_SOCKET_SERVER
+    esp32_socket_listen,
+#endif
 };
 
 static void urc_send_func(struct at_client *client, const char *data, rt_size_t size)
@@ -400,8 +492,8 @@ static void urc_send_func(struct at_client *client, const char *data, rt_size_t 
         LOG_E("get device(%s) failed.", client_name);
         return;
     }
-    esp32 = (struct at_device_esp32 *) device->user_data;
-    device_socket = (int) esp32->user_data;
+    esp32         = rt_container_of(device, struct at_device_esp32, device);
+    device_socket = esp32->urc_socket;
 
     if (rt_strstr(data, "SEND OK"))
     {
@@ -424,7 +516,7 @@ static void urc_send_bfsz_func(struct at_client *client, const char *data, rt_si
 
 static void urc_close_func(struct at_client *client, const char *data, rt_size_t size)
 {
-    int index = 0;
+    int device_socket = 0;
     struct at_socket *socket = RT_NULL;
     struct at_device *device = RT_NULL;
     char *client_name = client->device->parent.name;
@@ -438,8 +530,12 @@ static void urc_close_func(struct at_client *client, const char *data, rt_size_t
         return;
     }
 
-    rt_sscanf(data, "%d,CLOSED", &index);
-    socket = &(device->sockets[index]);
+    rt_sscanf(data, "%d,CLOSED", &device_socket);
+#ifdef AT_USING_SOCKET_SERVER
+    socket = at_get_base_socket(device_socket);
+#else
+    socket = at_get_socket(device_socket);
+#endif
 
     /* notice the socket is disconnect by remote */
     if (at_evt_cb_set[AT_SOCKET_EVT_CLOSED])
@@ -505,8 +601,11 @@ static void urc_recv_func(struct at_client *client, const char *data, rt_size_t 
     }
 
     /* get at socket object by device socket descriptor */
-    socket = &(device->sockets[device_socket]);
-
+#ifdef AT_USING_SOCKET_SERVER
+    socket = at_get_base_socket(device_socket);
+#else
+    socket = at_get_socket(device_socket);
+#endif
     /* notice the receive buffer and buffer size */
     if (at_evt_cb_set[AT_SOCKET_EVT_RECV])
     {
@@ -521,6 +620,9 @@ static const struct at_urc urc_table[] =
     {"Recv",             "bytes\r\n",      urc_send_bfsz_func},
     {"",                 ",CLOSED\r\n",    urc_close_func},
     {"+IPD",             ":",              urc_recv_func},
+#ifdef AT_USING_SOCKET_SERVER
+    {"", ",CONNECT\r\n", urc_connected_func},
+#endif
 };
 
 int esp32_socket_init(struct at_device *device)

@@ -33,6 +33,6 @@ static int esp32_device_register(void)
                               esp32->device_name,
                               esp32->client_name,
                               AT_DEVICE_CLASS_ESP32,
-                              (void *) esp32);
+                              (void *) NULL);
 }
 INIT_APP_EXPORT(esp32_device_register);

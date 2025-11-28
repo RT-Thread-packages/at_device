@@ -71,7 +71,7 @@ extern "C" {
 #define AT_DEVICE_CTRL_GET_SIGNAL      0x0AL
 #define AT_DEVICE_CTRL_GET_GPS         0x0BL
 #define AT_DEVICE_CTRL_GET_VER         0x0CL
-
+#define AT_DEVICE_CTRL_SET_HOST_NAME   0x0DL
 /* Name type */
 #define AT_DEVICE_NAMETYPE_DEVICE      0x01
 #define AT_DEVICE_NAMETYPE_NETDEV      0x02

@@ -34,9 +34,17 @@ struct at_device_esp32
     size_t recv_line_num;
     struct at_device device;
 
+    uint16_t urc_socket;
     void *user_data;
 };
-
+typedef struct at_AP_INFO
+{
+    uint8_t ecn;       /* 加密方式 */
+    char ssid[32];     /* 无线网络名称，最多31字节 + 终止符 */
+    int8_t rssi;       /* 信号强度 */
+    uint8_t mac[6];    /* MAC地址 */
+    uint8_t channel;   /* 频道 */
+} at_ap_info_t;
 #ifdef AT_USING_SOCKET
 
 /* esp32 device socket initialize */
@@ -52,6 +60,8 @@ unsigned int esp32_at_version_to_hex(const char *str);
 unsigned int esp32_get_at_version(void);
 #endif /* AT_USING_SOCKET */
 
+/* scan the AP information */
+int esp32_scan_ap(struct at_device *device, at_ap_info_t *ap_info, uint8_t num);
 #ifdef __cplusplus
 }
 #endif
