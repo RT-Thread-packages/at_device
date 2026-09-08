@@ -202,21 +202,12 @@ if GetDepend(['AT_DEVICE_USING_ML305']):
     if GetDepend(['AT_DEVICE_ML305_SAMPLE']):
         src +=Glob('samples/at_sample_ml305.c')
 
-# ML307
-if GetDepend(['AT_DEVICE_USING_ML307']):
-    path += [cwd + '/class/ml307']
-    src += Glob('class/ml307/at_device_ml307.c')
-    if GetDepend(['AT_USING_SOCKET']):
-        src +=Glob('class/ml307/at_socket_ml307.c')
-    if GetDepend(['AT_DEVICE_ML307_SAMPLE']):
-        src +=Glob('samples/at_sample_ml307.c')
-
 # L501
 if GetDepend(['AT_DEVICE_USING_L501']):
     path += [cwd + '/class/l501']
-    src += Glob('class/ml305/at_device_l501.c')
+    src += Glob('class/l501/at_device_l501.c')
     if GetDepend(['AT_USING_SOCKET']):
-        src +=Glob('class/ml305/at_socket_l501.c')
+        src +=Glob('class/l501/at_socket_l501.c')
     if GetDepend(['AT_DEVICE_L501_SAMPLE']):
         src +=Glob('samples/at_sample_l501.c')
 
