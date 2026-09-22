@@ -6,6 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2019-05-08     chenyong     first version
+ * 2026-09-22     CYFS         add GD32VW553 device class
  */
 
 #ifndef __AT_DEVICE_H__
@@ -57,6 +58,7 @@ extern "C" {
 #define AT_DEVICE_CLASS_L610           0X15U
 #define AT_DEVICE_CLASS_ML305          0X16U
 #define AT_DEVICE_CLASS_ML307          0X17U
+#define AT_DEVICE_CLASS_GD32VW553      0X18U
 
 /* Options and Commands for AT device control opreations */
 #define AT_DEVICE_CTRL_POWER_ON        0x01L
