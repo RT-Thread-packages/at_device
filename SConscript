@@ -40,6 +40,15 @@ if GetDepend(['AT_DEVICE_USING_ESP8266']):
     if GetDepend(['AT_DEVICE_ESP8266_SAMPLE']):
         src += Glob('samples/at_sample_esp8266.c')
 
+# GD32VW553
+if GetDepend(['AT_DEVICE_USING_GD32VW553']):
+    path += [cwd + '/class/gd32vw553']
+    src += Glob('class/gd32vw553/at_device_gd32vw553.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src += Glob('class/gd32vw553/at_socket_gd32vw553.c')
+    if GetDepend(['AT_DEVICE_GD32VW553_SAMPLE']):
+        src += Glob('samples/at_sample_gd32vw553.c')
+
 # ESP32
 if GetDepend(['AT_DEVICE_USING_ESP32']):
     path += [cwd + '/class/esp32']
