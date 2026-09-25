@@ -220,6 +220,15 @@ if GetDepend(['AT_DEVICE_USING_ML307']):
     if GetDepend(['AT_DEVICE_ML307_SAMPLE']):
         src +=Glob('samples/at_sample_ml307.c')
 
+# L501
+if GetDepend(['AT_DEVICE_USING_L501']):
+    path += [cwd + '/class/l501']
+    src += Glob('class/l501/at_device_l501.c')
+    if GetDepend(['AT_USING_SOCKET']):
+        src +=Glob('class/l501/at_socket_l501.c')
+    if GetDepend(['AT_DEVICE_L501_SAMPLE']):
+        src +=Glob('samples/at_sample_l501.c')
+
 group = DefineGroup('at_device', src, depend = ['PKG_USING_AT_DEVICE'], CPPPATH = path)
 
 Return('group')
